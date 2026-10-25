@@ -28,7 +28,7 @@ fn tls_err(reason: &str) -> EffOutcome {
     ))
 }
 
-fn root_store() -> rustls::RootCertStore {
+pub fn root_store() -> rustls::RootCertStore {
     let mut roots = rustls::RootCertStore::empty();
     if let Ok(path) = std::env::var("SSL_CERT_FILE") {
         if let Ok(pem) = std::fs::read(&path) {

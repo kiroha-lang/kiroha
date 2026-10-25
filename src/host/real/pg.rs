@@ -19,7 +19,6 @@ use std::error::Error;
 use std::future::Future;
 use std::rc::Rc;
 use tokio::sync::Notify;
-use tokio_postgres::NoTls;
 
 const BASELINE: &str =
     "SET client_encoding = 'UTF8'; SET standard_conforming_strings = on; SET default_transaction_isolation = 'read committed'";
@@ -177,6 +176,18 @@ fn cell_text(oid: u32, raw: &[u8]) -> String {
     }
 }
 
+/// TLS for PostgreSQL follows the DSN's `sslmode` (default `prefer`), with
+/// certificates verified against the same trust store as HTTPS.
+fn tls_connector() -> tokio_postgres_rustls::MakeRustlsConnect {
+    let provider = std::sync::Arc::new(rustls::crypto::ring::default_provider());
+    let cfg = rustls::ClientConfig::builder_with_provider(provider)
+        .with_safe_default_protocol_versions()
+        .expect("TLS protocol versions")
+        .with_root_certificates(super::http::root_store())
+        .with_no_client_auth();
+    tokio_postgres_rustls::MakeRustlsConnect::new(cfg)
+}
+
 impl Pools {
     pub fn new(config: Rc<HostConfig>) -> Pools {
         Pools { config, inner: Rc::new(RefCell::new(Inner::default())) }
@@ -230,7 +241,7 @@ impl Pools {
                     }
                 };
                 let connected = async {
-                    let (client, connection) = tokio_postgres::connect(&dsn, NoTls).await?;
+                    let (client, connection) = tokio_postgres::connect(&dsn, tls_connector()).await?;
                     tokio::task::spawn_local(async move {
                         let _ = connection.await;
                     });

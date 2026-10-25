@@ -74,8 +74,9 @@ appear in errors. Example:
 export KIRI_PG_MAIN="host=127.0.0.1 port=5432 user=app dbname=app password=..."
 ```
 
-This implementation connects without TLS to PostgreSQL (see the
-[conformance report](conformance-report.md#known-deviations)). Each
+Connection TLS follows the DSN's `sslmode` (`disable`, `prefer` — the
+default — or `require`); server certificates are verified against the same
+trust store as HTTPS. Each
 connection starts with UTF-8 client encoding, `standard_conforming_strings`
 on and read-committed isolation, and is reset with `DISCARD ALL` before reuse
 (or discarded if the reset fails).
