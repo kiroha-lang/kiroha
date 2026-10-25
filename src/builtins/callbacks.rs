@@ -34,8 +34,8 @@ pub enum RetryPhase {
 pub struct RetryFrame {
     pub f: Value,
     pub when: Value,
-    pub delay: BigInt,
-    pub attempts: BigInt,
+    pub delay: crate::decimal::Decimal,
+    pub attempts: crate::decimal::Decimal,
     pub i: u64,
     pub phase: RetryPhase,
 }
@@ -222,20 +222,22 @@ impl<H: Host> Runtime<H> {
             let o = record(op, 1, &args[0])?;
             let attempts = o.get("attempts").ok_or_else(|| arg_err(op, "attempts is required"))?;
             let attempts = match attempts {
-                Value::Num(d) => d.to_bigint().ok_or_else(|| arg_err(op, "attempts must be an integer"))?,
+                Value::Num(d) if d.is_integer() => (**d).clone(),
+                Value::Num(_) => return Err(arg_err(op, "attempts must be an integer")),
                 other => return Err(opt_type_err(op, "attempts", "number", other)),
             };
-            if attempts < BigInt::from(1) {
+            if attempts.is_negative() || attempts.is_zero() {
                 return Err(arg_err(op, "attempts must be at least 1"));
             }
             let when = o.get("when").ok_or_else(|| arg_err(op, "when is required"))?.clone();
             function_option(op, "when", &when, 1)?;
             let delay = o.get("delay").ok_or_else(|| arg_err(op, "delay is required"))?;
             let delay = match delay {
-                Value::Num(d) => d.to_bigint().ok_or_else(|| arg_err(op, "delay must be an integer"))?,
+                Value::Num(d) if d.is_integer() => (**d).clone(),
+                Value::Num(_) => return Err(arg_err(op, "delay must be an integer")),
                 other => return Err(opt_type_err(op, "delay", "number", other)),
             };
-            if delay < BigInt::from(0) {
+            if delay.is_negative() {
                 return Err(arg_err(op, "delay must be nonnegative"));
             }
             reject_unknown(op, Some(o), &["attempts", "when", "delay"])?;
@@ -257,10 +259,10 @@ impl<H: Host> Runtime<H> {
             RetryPhase::Attempt => Ctl::Ret(v),
             RetryPhase::When(e) => match v {
                 Value::Bool(true) => {
-                    let factor = num_traits::pow(BigInt::from(2), (r.i - 1) as usize);
-                    let ms = &r.delay * factor;
-                    let ms = match u64::try_from(&ms) {
-                        Ok(m) if m < (1u64 << 52) => m,
+                    // Exact delay*2^(i-1); a wait beyond host limits aborts.
+                    let factor = crate::decimal::Decimal::from_bigint(num_traits::pow(BigInt::from(2), ((r.i - 1).min(400)) as usize));
+                    let ms = match r.delay.mul(&factor).ok().and_then(|d| d.to_u64()) {
+                        Some(m) if r.i <= 400 && m < (1u64 << 52) => m,
                         _ => return self.fail_ctl(t, Fail::Abort(AbortReason::Resource("retry_delay"))),
                     };
                     r.phase = RetryPhase::Backoff;
@@ -280,7 +282,7 @@ impl<H: Host> Runtime<H> {
     pub fn retry_throw(&mut self, _t: &mut Task, mut r: RetryFrame, e: Value) -> Ctl {
         match r.phase {
             RetryPhase::Attempt => {
-                if BigInt::from(r.i) >= r.attempts {
+                if crate::decimal::Decimal::from_u64(r.i).cmp_exact(&r.attempts) != std::cmp::Ordering::Less {
                     return Ctl::Throw(e);
                 }
                 let when = r.when.clone();

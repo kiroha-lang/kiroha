@@ -103,6 +103,9 @@ impl Url {
         if s.contains('#') {
             return Err(bad("fragment"));
         }
+        if s.bytes().any(|c| matches!(c, b'"' | b'<' | b'>' | b'{' | b'}' | b'|' | b'^' | b'`')) {
+            return Err(bad("invalid_character"));
+        }
         let colon = s.find("://").ok_or_else(|| bad("not_absolute"))?;
         let scheme = s[..colon].to_ascii_lowercase();
         if scheme != "http" && scheme != "https" {
@@ -153,6 +156,9 @@ impl Url {
             Some(q) => (&after[..q], Some(after[q + 1..].to_string())),
             None => (after, None),
         };
+        if path.contains(['[', ']']) || query.as_deref().unwrap_or("").contains(['[', ']']) {
+            return Err(bad("invalid_character"));
+        }
         if !valid_percent(path) || !valid_percent(query.as_deref().unwrap_or("")) {
             return Err(bad("invalid_percent_escape"));
         }
@@ -292,6 +298,9 @@ mod tests {
         assert!(Url::parse("http://a/%zz").is_err());
         assert!(Url::parse("http://a/b c").is_err());
         assert!(Url::parse("ftp://a/").is_err());
+        assert!(Url::parse("https://x.example/a<b>").is_err());
+        assert!(Url::parse("https://x.example/a?b={c}").is_err());
+        assert!(Url::parse("https://x.example/a[1]").is_err());
     }
 
     #[test]

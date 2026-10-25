@@ -241,7 +241,7 @@ impl<H: Host> Runtime<H> {
             sql,
             params,
             max_rows,
-            deadline: now + timeout,
+            deadline: now.saturating_add(timeout),
             timeout,
             primary: None,
         };
@@ -362,7 +362,7 @@ impl<H: Host> Runtime<H> {
             return self.raise(t, e);
         }
         let scope = self.new_scope(Some(t.scope));
-        let at = self.now_ms() + timeout;
+        let at = self.now_ms().saturating_add(timeout);
         self.add_scope_deadline(scope, at, Some(timeout));
         let frame = TxFrame {
             phase: TxPhase::Acquiring,

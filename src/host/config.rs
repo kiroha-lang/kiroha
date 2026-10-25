@@ -111,7 +111,10 @@ fn boolean(v: &Value, what: &str) -> CResult<bool> {
 
 fn int_in(v: &Value, what: &str, min: u64, max: u64) -> CResult<u64> {
     let d = v.as_num().ok_or_else(|| format!("{what} must be an integer"))?;
-    let i = d.to_u64().ok_or_else(|| format!("{what} must be a nonnegative integer"))?;
+    if !d.is_integer() || d.is_negative() {
+        return Err(format!("{what} must be a nonnegative integer"));
+    }
+    let i = d.to_u64().unwrap_or(u64::MAX);
     if i < min || i > max {
         return Err(format!("{what} out of range"));
     }

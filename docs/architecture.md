@@ -155,8 +155,9 @@ cancelled.
   hence no hidden session state); a flag set just before request bytes are
   written lets a cancelled/timed-out request report `not_sent` precisely; rustls with the system or `SSL_CERT_FILE`
   trust store; no redirect/retry/cookie logic exists. Raw identity bodies are
-  bounded by `max_bytes + 1`; gzip bodies by a host quota; decoding and
-  `max_bytes` are enforced by the runtime on the decoded stream.
+  bounded by `max_bytes + 1`; gzip bodies are decoded incrementally as they
+  arrive so `max_bytes` on the decoded output raises `limit` without reading
+  the rest; the runtime re-validates decoding and limits.
 - **PostgreSQL** — tokio-postgres; parameters are sent in text format with the
   runtime's OIDs (OID 0 for NULL), results are received in binary and
   converted to exact text (numeric is decoded from base-10000 digits, never

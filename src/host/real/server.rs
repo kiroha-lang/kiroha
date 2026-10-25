@@ -391,6 +391,11 @@ async fn handle_conn(
     let method = req.method.unwrap_or("").to_string();
     let target = req.path.unwrap_or("").to_string();
     let headers: Vec<(String, Vec<u8>)> = req.headers.iter().map(|h| (h.name.to_string(), h.value.to_vec())).collect();
+    // RFC 9110 §7.2: exactly one Host field line in an HTTP/1.1 request.
+    if headers.iter().filter(|(n, _)| n.eq_ignore_ascii_case("host")).count() != 1 {
+        bad_request(&mut wr).await;
+        return;
+    }
     let upgrade = headers.iter().any(|(n, _)| n.eq_ignore_ascii_case("upgrade"));
     let framing = framing_of(&headers);
     if live.is_cancelled() {

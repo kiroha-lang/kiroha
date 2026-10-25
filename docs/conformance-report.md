@@ -81,7 +81,7 @@ root/request scope with `resource`. See
 
 ## Independent audits
 
-Five independent read-and-execute audits of sections 2–15 were run against the
+Six independent read-and-execute audits of sections 2–15 were run against the
 code (each walked the normative rules section by section and confirmed every
 finding by running programs or custom fixture manifests).
 
@@ -95,6 +95,8 @@ finding by running programs or custom fixture manifests).
 | 4 (focused re-check) | 6 + 2 minor: TABLE accepted after a SEARCH/CYCLE CTE followed by another CTE; half-closed clients treated as disconnected; running SQL not cancelled on timeout/abort (rollback waited for cleanup grace); listener kept accepting during serve cancellation; late request heads after serve ended left open, per-read (not total) header timeout; `replace` without checkpoints; non-ASCII whitespace and `UESCAPE` in the SQL lexer | Fixed, except half-close (see design choices). Regressions: SQL unit tests, `tests/i03_i04_postgres.rs` (tx timeout during `pg_sleep` finishes < 900 ms with server-side cancel), `tests/i06_i07_i08.rs` (`replace` under deadline); stop-accepting verified manually (new connection refused after cancellation) |
 
 | 5 (full, §2–§15) | 7: `memory_bytes` not enforced for `+`/`dump`/`encode` (process could abort on a huge allocation); long arbitrary-precision work not interruptible; tx timeout without `outcome`; `select x${1}` (libpg_query's `typename $n` extension) not rejected; record field keys not charged as steps; serve handler type error position; duplicate directory roots differing by a trailing slash | All fixed. Regressions: `tests/i06_i07_i08.rs` (memory quota for `+`, `dump`, `encode`; number quota under a deadline; duplicate roots), `tests/prose_regressions.rs` (tx timeout outcomes `rolled_back`/`unknown`, hole after a name, handler position), SQL unit tests. Audit 5 reported "verified, no violation" for every other subsection of §2–§15 |
+
+| 6 (full, §2–§15) | 5, none critical: gzip body over a small `max_bytes` aborted instead of raising `limit`; integers beyond the number quota (e.g. `1e100001`) rejected as non-integers in counts/options/limits; URLs with `" < > { } \| ^` backtick or `[ ]` in path/query accepted; missing/duplicate Host not rejected by the real server (RFC 9110 §7.2); field names instead of argument indices in some `type` positions (`reply` headers, `fail`) | All fixed. Regressions: `tests/i01_http.rs` (incremental gzip limit), `tests/i05_server.rs` (Host rules), `tests/prose_regressions.rs` (huge integers, URL characters, positions), `tests/i06_i07_i08.rs` (huge `eval_steps`). Audit 6 reported "verified, no violation" for every other subsection of §2–§15 |
 
 Audit 2 recorded "no new violations" for §2, §3, §4, §5, §6, §7, §8, §9,
 §10 (apart from the fixture header checks), §11 (apart from the two SQL

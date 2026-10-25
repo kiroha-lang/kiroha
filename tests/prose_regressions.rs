@@ -80,7 +80,16 @@ const MANIFEST: &str = r#"{
    "expect":{"phase":"value","json":"[\"prepare\",\"hole_context\"]"}},
   {"id":"serve-handler-type-position",
    "source":"try serve({\"GET /a\":1}) catch {e=>[e.code,e.data.position]}",
-   "expect":{"phase":"value","json":"[\"type\",1]"}}
+   "expect":{"phase":"value","json":"[\"type\",1]"}},
+  {"id":"huge-integers-are-integers",
+   "source":"[take([1,2],1e100001),range(0,1,1e100001),parallel([1],1e100001){x=>x},retry({attempts:1,when:{e=>true},delay:1e100001}){()=>1},pages(null,{max_pages:1e999999999999,max_items:1e999999999999}){c=>{items:[1],next:null}}]",
+   "expect":{"phase":"value","json":"[[1,2],[0],[1],1,[1]]"}},
+  {"id":"url-rejects-non-uri-characters",
+   "source":"[(try url(\"https://x.example/a<b>\",[]) catch {e=>e.code}),(try url(\"https://x.example/a?q={x}\",[]) catch {e=>e.code}),(try url(\"https://x.example/[1]\",[]) catch {e=>e.code})]",
+   "expect":{"phase":"value","json":"[\"argument\",\"argument\",\"argument\"]"}},
+  {"id":"positional-type-error-positions",
+   "source":"[(try reply(200,1,{\"X-A\":1}) catch {e=>e.data.position}),(try fail({code:1,message:\"\",data:{}}) catch {e=>e.data.position})]",
+   "expect":{"phase":"value","json":"[3,1]"}}
  ]}"#;
 
 #[test]

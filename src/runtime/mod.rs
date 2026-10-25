@@ -477,7 +477,7 @@ impl<H: Host> Runtime<H> {
         let budget = self.new_budget(scope, abort_after_steps);
         let env = Rc::new(Env { locals: RefCell::new(vec![Value::Null; self.prog.nlocals as usize]), func: None });
         if let Some(ms) = self.config.limits.deadline_ms {
-            let at = self.host.now_ms() + ms;
+            let at = self.host.now_ms().saturating_add(ms);
             self.add_scope_deadline(scope, at, None);
         }
         self.spawn(scope, budget, Ctl::Seq(SeqOwner::Program, 0, env), DoneTo::Root);
@@ -615,11 +615,11 @@ impl<H: Host> Runtime<H> {
         t.in_cleanup = opts.cleanup;
         let now = self.host.now_ms();
         if let Some((_, ms)) = opts.timeout {
-            self.add_timer(now + ms, TimerKind::EffectTimeout(id));
+            self.add_timer(now.saturating_add(ms), TimerKind::EffectTimeout(id));
         }
         if opts.cleanup {
             let grace = self.config.limits.cleanup_ms;
-            self.add_timer(now + grace, TimerKind::CleanupGrace(id));
+            self.add_timer(now.saturating_add(grace), TimerKind::CleanupGrace(id));
         }
         self.host.dispatch(id, eff);
     }

@@ -61,20 +61,30 @@ pub fn integer(op: &str, pos: usize, v: &Value) -> VResult<BigInt> {
     d.to_bigint().ok_or_else(|| arg_err(op, "integer required"))
 }
 
+/// Integer check on the mathematical value (no host conversion), then a
+/// saturating conversion: integers beyond u64 become u64::MAX (§3.2).
+fn int_value<'a>(op: &str, pos: usize, v: &'a Value) -> VResult<&'a Decimal> {
+    let d = number(op, pos, v)?;
+    if !d.is_integer() {
+        return Err(arg_err(op, "integer required"));
+    }
+    Ok(d)
+}
+
 pub fn nonneg_u64(op: &str, pos: usize, v: &Value) -> VResult<u64> {
-    let i = integer(op, pos, v)?;
-    if i < BigInt::from(0) {
+    let d = int_value(op, pos, v)?;
+    if d.is_negative() {
         return Err(arg_err(op, "nonnegative integer required"));
     }
-    Ok(u64::try_from(&i).unwrap_or(u64::MAX))
+    Ok(d.to_u64().unwrap_or(u64::MAX))
 }
 
 pub fn positive_u64(op: &str, pos: usize, v: &Value) -> VResult<u64> {
-    let i = integer(op, pos, v)?;
-    if i <= BigInt::from(0) {
+    let d = int_value(op, pos, v)?;
+    if d.is_negative() || d.is_zero() {
         return Err(arg_err(op, "positive integer required"));
     }
-    Ok(u64::try_from(&i).unwrap_or(u64::MAX))
+    Ok(d.to_u64().unwrap_or(u64::MAX))
 }
 
 /// An option field validated as an integer within bounds.
@@ -83,11 +93,14 @@ pub fn opt_int(op: &str, field: &str, v: &Value, min: u64) -> VResult<u64> {
         Value::Num(d) => d,
         _ => return Err(opt_type_err(op, field, "number", v)),
     };
-    let i = d.to_bigint().ok_or_else(|| arg_err(op, &format!("{field} must be an integer")))?;
-    if i < BigInt::from(min) {
+    if !d.is_integer() {
+        return Err(arg_err(op, &format!("{field} must be an integer")));
+    }
+    let i = if d.is_negative() { 0 } else { d.to_u64().unwrap_or(u64::MAX) };
+    if d.is_negative() || i < min {
         return Err(arg_err(op, &format!("{field} out of range")));
     }
-    Ok(u64::try_from(&i).unwrap_or(u64::MAX))
+    Ok(i)
 }
 
 /// Validate an options record against known fields in table order.

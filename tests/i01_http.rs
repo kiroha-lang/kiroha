@@ -138,3 +138,26 @@ fn timeout_outcome_reflects_whether_bytes_were_sent() {
     let r = run(&src, Some(&host));
     assert_eq!(result(&r), r#"[["timeout","unknown"],["timeout","not_sent"]]"#);
 }
+
+#[test]
+fn gzip_over_decoded_limit_is_a_catchable_limit_error() {
+    let mut rnd = vec![0u8; 2_000_000];
+    let mut x: u32 = 12345;
+    for b in rnd.iter_mut() {
+        x ^= x << 13;
+        x ^= x >> 17;
+        x ^= x << 5;
+        *b = x as u8;
+    }
+    let gz = gzip(&rnd);
+    let (port, _) = fixture_server(move |_, _| {
+        let mut out = format!("HTTP/1.1 200 OK\r\nContent-Encoding: gzip\r\nContent-Length: {}\r\n\r\n", gz.len()).into_bytes();
+        out.extend_from_slice(&gz);
+        out
+    });
+    let r = run(
+        &format!(r#"try http("GET","http://127.0.0.1:{port}/",{{max_bytes:10}}) catch {{e=>[e.code,e.data.limit,e.data.maximum]}}"#),
+        Some(&host(port)),
+    );
+    assert_eq!(result(&r), r#"["limit","max_bytes",10]"#);
+}

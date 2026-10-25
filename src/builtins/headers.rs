@@ -31,16 +31,22 @@ const RUNTIME_OWNED: &[&str] = &[
 
 /// Validate an outbound header record; returns lowercase-name/trimmed-value
 /// pairs preserving the original name spelling for sending.
-pub fn outbound(op: &str, v: &Value) -> VResult<Vec<(String, String)>> {
+/// `arg_index`: Some(i) for a positional headers argument (`reply`), None
+/// for the `headers` option of http/get/post.
+pub fn outbound(op: &str, v: &Value, arg_index: Option<usize>) -> VResult<Vec<(String, String)>> {
+    let bad = |expected: &str, got: &Value| match arg_index {
+        Some(i) => super::args::type_err(op, i, expected, got),
+        None => opt_type_err(op, "headers", expected, got),
+    };
     let r = match v {
         Value::Record(r) => r,
-        other => return Err(opt_type_err(op, "headers", "record", other)),
+        other => return Err(bad("record", other)),
     };
     let mut out: Vec<(String, String)> = Vec::new();
     for (name, value) in r.iter() {
         let val = match value {
             Value::Str(s) => s,
-            other => return Err(opt_type_err(op, "headers", "string", other)),
+            other => return Err(bad("string", other)),
         };
         if !is_token(name) {
             return Err(arg_err(op, "invalid header name"));

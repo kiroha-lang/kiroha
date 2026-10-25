@@ -254,7 +254,7 @@ impl VirtualHost {
             FixtureResult::Hold => None,
             FixtureResult::Ok(v) => match Self::convert_ok(op, v) {
                 Ok(ev) => Some(self.push(
-                    self.now + f.after_ms,
+                    self.now.saturating_add(f.after_ms),
                     1,
                     Ev::Complete { eff: id, outcome: EffOutcome::Ok(ev), label: Some(f.id.clone()), kind: "ok" },
                 )),
@@ -264,7 +264,7 @@ impl VirtualHost {
                 }
             },
             FixtureResult::Error(e) => Some(self.push(
-                self.now + f.after_ms,
+                self.now.saturating_add(f.after_ms),
                 1,
                 Ev::Complete { eff: id, outcome: EffOutcome::Err(e.clone()), label: Some(f.id.clone()), kind: "error" },
             )),
@@ -289,7 +289,7 @@ impl Host for VirtualHost {
                 let label = format!("sleep#{}", self.sleep_counter);
                 self.trace.push(format!("{label}:start"));
                 let key = self.push(
-                    self.now + ms,
+                    self.now.saturating_add(*ms),
                     1,
                     Ev::Complete { eff: id, outcome: EffOutcome::Ok(EffValue::Null), label: Some(label.clone()), kind: "ok" },
                 );
@@ -307,9 +307,9 @@ impl Host for VirtualHost {
                 self.listener_started = Some(self.now);
                 self.complete_now(id, EffOutcome::Ok(EffValue::Str("listener-1".into())));
                 for (i, r) in srv.requests.iter().enumerate() {
-                    self.push(self.now + r.at_ms, 1, Ev::Arrive(i));
+                    self.push(self.now.saturating_add(r.at_ms), 1, Ev::Arrive(i));
                 }
-                self.push(self.now + srv.cancel_at_ms, 0, Ev::CancelRoot);
+                self.push(self.now.saturating_add(srv.cancel_at_ms), 0, Ev::CancelRoot);
             }
             Effect::ReadBody { request, max_body } => {
                 let body = self.bodies.get(request).cloned().unwrap_or_default();
@@ -350,7 +350,7 @@ impl Host for VirtualHost {
         if let Some(l) = &fl.label {
             self.trace.push(format!("{l}:cancel"));
         }
-        self.push(self.now + fl.cancel_ack_ms, 1, Ev::Joined { eff: id, label: fl.label });
+        self.push(self.now.saturating_add(fl.cancel_ack_ms), 1, Ev::Joined { eff: id, label: fl.label });
     }
 
     async fn wait(&mut self, until: Option<u64>) -> Option<HostEvent> {

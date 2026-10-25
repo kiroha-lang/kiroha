@@ -69,6 +69,11 @@ impl RealHost {
     }
 }
 
+/// Durations beyond ~30 years are clamped so timer arithmetic cannot overflow.
+fn clamp_ms(ms: u64) -> std::time::Duration {
+    std::time::Duration::from_millis(ms.min(30 * 365 * 24 * 3_600_000))
+}
+
 fn io_err(op: &str, reason: &str, outcome: &str) -> Value {
     err::make(
         "io",
@@ -85,7 +90,7 @@ impl Host for RealHost {
     fn dispatch(&mut self, id: u64, eff: Effect) {
         match eff {
             Effect::Sleep(ms) => self.spawn(id, async move {
-                tokio::time::sleep(std::time::Duration::from_millis(ms)).await;
+                tokio::time::sleep(clamp_ms(ms)).await;
                 EffOutcome::Ok(EffValue::Null)
             }),
             Effect::Environment(name) => {
@@ -233,7 +238,7 @@ impl Host for RealHost {
                         }
                     }
                 } else {
-                    let d = std::time::Duration::from_millis(u - now);
+                    let d = clamp_ms(u - now);
                     tokio::time::timeout(d, self.rx.recv()).await.ok().flatten()
                 }
             }

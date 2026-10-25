@@ -507,7 +507,7 @@ impl<H: Host> Runtime<H> {
         }
         // Stage 3: request deadline and task.
         let rscope = self.new_scope(Some(scope));
-        let at = self.now_ms() + timeout;
+        let at = self.now_ms().saturating_add(timeout);
         self.add_scope_deadline(rscope, at, None);
         let budget = self.new_budget(rscope, None);
         let hdr_record = headers::incoming(&req.headers);
@@ -820,7 +820,7 @@ pub fn reply(a: &[Value]) -> BResult {
     let v = &a[1];
     let hdrs = match a.get(2) {
         Some(h) => match h {
-            Value::Record(_) => headers::outbound(op, h)?,
+            Value::Record(_) => headers::outbound(op, h, Some(3))?,
             other => return Err(type_err(op, 3, "record", other)),
         },
         None => Vec::new(),

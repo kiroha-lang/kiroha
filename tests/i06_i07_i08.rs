@@ -133,6 +133,7 @@ fn i08_cli_protocol() {
     assert_eq!(run("fail({code:\"c\",message:\"\",data:{}})", None).code, 1);
     assert_eq!(run("x", Some("{\"format\":\"wrong\"}")).code, 2);
     assert_eq!(run("1", Some(r#"{"format":"kiri-host/1","capabilities":{"read":["/a","/a/"]}}"#)).code, 2);
+    assert_eq!(run("1", Some(r#"{"format":"kiri-host/1","limits":{"eval_steps":99999999999999999999999999}}"#)).code, 0);
     assert_eq!(run("1", Some(r#"{"format":"kiri-host/1","limits":{"source_bytes":0}}"#)).code, 2);
     let r = run("1", Some(r#"{"format":"kiri-host/1","limits":{"source_bytes":1}}"#));
     assert_eq!(r.code, 0);

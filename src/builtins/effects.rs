@@ -176,7 +176,7 @@ impl<H: Host> Runtime<H> {
         };
         let o = options(op, opt_pos, opts_v, known)?;
         let mut hdrs = match field(o, "headers") {
-            Some(h) => headers::outbound(op, h)?,
+            Some(h) => headers::outbound(op, h, None)?,
             None => Vec::new(),
         };
         if let Some(q) = field(o, "query") {
@@ -357,18 +357,7 @@ fn decode_content(resp: &RawResponse, max_bytes: u64) -> Result<Vec<u8>, Fail> {
     if codings.len() == 1 && codings[0] == "identity" {
         codings.clear();
     }
-    let limit_err = || {
-        Fail::Err(err::make(
-            "limit",
-            "response body exceeds max_bytes",
-            vec![
-                ("operation", Value::str("http")),
-                ("limit", Value::str("max_bytes")),
-                ("maximum", Value::int(max_bytes as i64)),
-                ("outcome", Value::str("unknown")),
-            ],
-        ))
-    };
+    let limit_err = || Fail::Err(limit_error(max_bytes));
     match codings.as_slice() {
         [] => {
             if resp.body.len() as u64 > max_bytes {
@@ -396,6 +385,20 @@ fn decode_content(resp: &RawResponse, max_bytes: u64) -> Result<Vec<u8>, Fail> {
         }
         _ => Err(Fail::Err(network_error("unsupported_encoding", "unknown"))),
     }
+}
+
+/// The `limit` error for a decoded body over `max_bytes` (§10.4).
+pub fn limit_error(max_bytes: u64) -> Value {
+    err::make(
+        "limit",
+        "response body exceeds max_bytes",
+        vec![
+            ("operation", Value::str("http")),
+            ("limit", Value::str("max_bytes")),
+            ("maximum", Value::num(crate::decimal::Decimal::from_u64(max_bytes))),
+            ("outcome", Value::str("unknown")),
+        ],
+    )
 }
 
 /// `url(base,segments,query={})` (§10.2).

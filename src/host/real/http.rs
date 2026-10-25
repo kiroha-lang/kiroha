@@ -161,26 +161,48 @@ impl Client {
         }
         let mut headers = Vec::new();
         let mut header_bytes: u64 = 0;
-        let mut gzip = false;
+        let mut codings: Vec<String> = Vec::new();
         for (n, v) in resp.headers() {
             header_bytes += (n.as_str().len() + v.as_bytes().len() + 4) as u64;
-            if n.as_str() == "content-encoding" && !v.as_bytes().eq_ignore_ascii_case(b"identity") {
-                gzip = true;
+            if n.as_str() == "content-encoding" {
+                for tok in String::from_utf8_lossy(v.as_bytes()).split(',') {
+                    let tok = tok.trim().to_ascii_lowercase();
+                    if !tok.is_empty() {
+                        codings.push(tok);
+                    }
+                }
             }
             headers.push((n.as_str().to_string(), v.as_bytes().to_vec()));
         }
+        let gzip = codings == ["gzip"];
         if header_bytes > req.header_limit {
             return EffOutcome::Resource("header_bytes".into());
         }
-        let raw_cap: u64 = if gzip { req.max_bytes.saturating_mul(16).saturating_add(1 << 20) } else { req.max_bytes.saturating_add(1) };
+        // Identity bodies are bounded by max_bytes + 1 (the runtime then raises
+        // `limit`). Gzip bodies are decoded incrementally here so max_bytes is
+        // enforced on the decoded output as the stream arrives (§10.4); the raw
+        // cap only guards streams of empty gzip members.
+        let raw_cap: u64 =
+            if gzip { req.max_bytes.saturating_mul(16).saturating_add(16 << 20) } else { req.max_bytes.saturating_add(1) };
+        let mut decoder = if gzip { Some(flate2::write::MultiGzDecoder::new(Counter::default())) } else { None };
         let mut body = Vec::new();
         let mut incoming = resp.into_body();
-        if !head_method {
+        let bodyless = head_method || matches!(status, 204 | 304);
+        if !bodyless {
             while let Some(frame) = incoming.frame().await {
                 match frame {
                     Ok(f) => {
                         if let Some(data) = f.data_ref() {
                             body.extend_from_slice(data);
+                            if let Some(d) = decoder.as_mut() {
+                                use std::io::Write;
+                                if d.write_all(data).is_err() {
+                                    return net("decode", "unknown");
+                                }
+                                if d.get_ref().0 > req.max_bytes {
+                                    return EffOutcome::Err(crate::builtins::effects::limit_error(req.max_bytes));
+                                }
+                            }
                             if body.len() as u64 > raw_cap {
                                 if gzip {
                                     return EffOutcome::Resource("transport".into());
@@ -194,5 +216,20 @@ impl Client {
             }
         }
         EffOutcome::Ok(EffValue::Http(RawResponse { status, headers, body }))
+    }
+}
+
+/// Counts decoded bytes without storing them.
+#[derive(Default)]
+struct Counter(u64);
+
+impl std::io::Write for Counter {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.0 += buf.len() as u64;
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
     }
 }

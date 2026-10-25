@@ -93,6 +93,8 @@ fn routing_framing_limits_and_shutdown() {
     assert!(t.elapsed().as_millis() < 3000);
     // Malformed header sections get 400 rather than a silent close.
     for raw in [
+        &b"GET /a/fixed HTTP/1.1\r\n\r\n"[..],
+        b"GET /a/fixed HTTP/1.1\r\nHost: x\r\nHost: y\r\n\r\n",
         &b"GET /a/fixed HTTP/1.1\r\nBad Name: v\r\n\r\n"[..],
         b"GET /a/fixed HTTP/1.1\r\nX-A: a\x01b\r\n\r\n",
         b"GET /o\x01k HTTP/1.1\r\nHost: x\r\n\r\n",

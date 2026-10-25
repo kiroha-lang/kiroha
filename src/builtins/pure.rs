@@ -8,8 +8,6 @@ use crate::json::{self, JsonError};
 use crate::runtime::{AbortReason, BResult, Ctl, Fail as RFail, Runtime, Task};
 use crate::schema;
 use crate::value::{err, json_equal, Record, Value};
-use num_bigint::BigInt;
-use num_traits::Zero;
 use std::rc::Rc;
 
 impl<H: Host> Runtime<H> {
@@ -95,22 +93,32 @@ fn pure(b: Builtin, a: &[Value], tick: Tick) -> BResult {
             Ok(Value::int(n as i64))
         }
         Range => {
-            let start = integer(op, 1, &a[0])?;
-            let stop = integer(op, 2, &a[1])?;
+            // Integer checks use the mathematical value; arithmetic is exact
+            // decimal (huge steps simply leave the range after one item).
+            let int = |pos: usize, v: &Value| -> Result<Decimal, RFail> {
+                let d = number(op, pos, v)?;
+                if !d.is_integer() {
+                    return Err(arg_err(op, "integer required"));
+                }
+                Ok(d.clone())
+            };
+            let start = int(1, &a[0])?;
+            let stop = int(2, &a[1])?;
             let step = match a.get(2) {
-                Some(v) => integer(op, 3, v)?,
-                None => BigInt::from(1),
+                Some(v) => int(3, v)?,
+                None => Decimal::from_i64(1),
             };
             if step.is_zero() {
                 return Err(arg_err(op, "step must be nonzero"));
             }
+            use std::cmp::Ordering::*;
+            let positive = !step.is_negative();
             let mut out = Vec::new();
             let mut x = start;
-            let positive = step > BigInt::zero();
-            while (positive && x < stop) || (!positive && x > stop) {
-                out.push(Value::num(Decimal::from_bigint(x.clone())));
+            while (positive && x.cmp_exact(&stop) == Less) || (!positive && x.cmp_exact(&stop) == Greater) {
+                out.push(Value::num(x.clone()));
                 tick(out.len())?;
-                x += &step;
+                x = x.add(&step).map_err(|_| num_overflow())?;
             }
             Ok(Value::array(out))
         }
@@ -319,18 +327,18 @@ pub fn validate_error_record(op: &str, v: &Value) -> VResult<Value> {
     match code {
         Value::Str(s) if s.is_empty() => return Err(arg_err(op, "code must be nonempty")),
         Value::Str(_) => {}
-        other => return Err(opt_type_err(op, "code", "string", other)),
+        other => return Err(type_err(op, 1, "string code", other)),
     }
     if !matches!(message, Value::Str(_)) {
-        return Err(opt_type_err(op, "message", "string", message));
+        return Err(type_err(op, 1, "string message", message));
     }
     match data {
         Value::Record(_) => {
             if let Some(k) = data.first_non_json() {
-                return Err(RFail::Err(err::type_error(op, err::Pos::Option("data"), "json", k)));
+                return Err(RFail::Err(err::type_error(op, err::Pos::Index(1), "json data", k)));
             }
         }
-        other => return Err(opt_type_err(op, "data", "record", other)),
+        other => return Err(type_err(op, 1, "record data", other)),
     }
     Ok(v.clone())
 }
