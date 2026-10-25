@@ -40,6 +40,7 @@ futures-util = { version = "0.3", default-features = false, features = ["std"] }
 
 [dev-dependencies]
 rcgen = "0.13"
+flate2 = "1"
 
 [profile.release]
 debug = 1
