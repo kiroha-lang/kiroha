@@ -125,6 +125,20 @@ fn absolute_dir(s: &str, what: &str) -> CResult<String> {
     Ok(crate::host::paths::normalize_components(s))
 }
 
+/// Directory roots, normalized by components; duplicates after
+/// normalization (e.g. `/a` and `/a/`) are configuration errors.
+fn dir_list(v: &Value, what: &str) -> CResult<Vec<String>> {
+    let mut out: Vec<String> = Vec::new();
+    for s in string_array(v, what)? {
+        let d = absolute_dir(&s, what)?;
+        if out.contains(&d) {
+            return Err(format!("duplicate entry {s:?} in {what}"));
+        }
+        out.push(d);
+    }
+    Ok(out)
+}
+
 pub fn parse_origin(s: &str) -> CResult<Origin> {
     let u = Url::parse(s).map_err(|e| format!("invalid http origin {s:?}: {e}"))?;
     let rest = &s[s.find("://").unwrap() + 3..];
@@ -173,16 +187,10 @@ fn parse_common(cfg: &mut HostConfig, r: &Record) -> CResult<()> {
             caps.env = string_array(v, "capabilities.env")?;
         }
         if let Some(v) = c.get("read") {
-            caps.read = string_array(v, "capabilities.read")?
-                .iter()
-                .map(|s| absolute_dir(s, "capabilities.read"))
-                .collect::<CResult<_>>()?;
+            caps.read = dir_list(v, "capabilities.read")?;
         }
         if let Some(v) = c.get("write") {
-            caps.write = string_array(v, "capabilities.write")?
-                .iter()
-                .map(|s| absolute_dir(s, "capabilities.write"))
-                .collect::<CResult<_>>()?;
+            caps.write = dir_list(v, "capabilities.write")?;
         }
         if let Some(v) = c.get("clock") {
             caps.clock = boolean(v, "capabilities.clock")?;

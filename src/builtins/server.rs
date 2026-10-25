@@ -237,6 +237,9 @@ impl<H: Host> Runtime<H> {
             let mut routes: Vec<Route> = Vec::new();
             for (k, h) in routes_v.iter() {
                 let (method, segs) = parse_route(k).map_err(|r| arg_err(op, &r))?;
+                if !matches!(h, Value::Func(_)) {
+                    return Err(type_err(op, 1, "function", h));
+                }
                 callback(op, h, 1)?;
                 routes.push(Route { method, segs, handler: h.clone() });
             }

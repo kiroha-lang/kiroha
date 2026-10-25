@@ -281,6 +281,7 @@ impl<H: Host> Runtime<H> {
                     return Ctl::Ret(Value::record(Record::new()));
                 }
                 let first = fields[0].1;
+                self.charge(t); // field key as a Literal (§14.1)
                 t.stack.push(Frame::Record { node: id, acc: Record::with_capacity(fields.len()), env: env.clone() });
                 Ctl::Eval(first, env)
             }
@@ -435,6 +436,7 @@ impl<H: Host> Runtime<H> {
                 acc.insert(k, v);
                 if acc.len() < fields.len() {
                     let next = fields[acc.len()].1;
+                    self.charge(t); // field key as a Literal (§14.1)
                     t.stack.push(Frame::Record { node, acc, env: env.clone() });
                     Ctl::Eval(next, env)
                 } else {
@@ -762,12 +764,18 @@ pub fn binary(op: BinOp, l: &Value, r: &Value) -> Result<Value, Fail> {
         BinOp::Add => match (l, r) {
             (Value::Num(a), Value::Num(b)) => Ok(Value::num(a.add(b).map_err(|_| overflow())?)),
             (Value::Str(a), Value::Str(b)) => {
+                if crate::interrupt::reserve(a.len() + b.len()) {
+                    return Err(Fail::Interrupted);
+                }
                 let mut s = String::with_capacity(a.len() + b.len());
                 s.push_str(a);
                 s.push_str(b);
                 Ok(Value::str(&s))
             }
             (Value::Array(a), Value::Array(b)) => {
+                if crate::interrupt::reserve((a.len() + b.len()) * std::mem::size_of::<Value>()) {
+                    return Err(Fail::Interrupted);
+                }
                 let mut v = Vec::with_capacity(a.len() + b.len());
                 v.extend(a.iter().cloned());
                 v.extend(b.iter().cloned());

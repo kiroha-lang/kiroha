@@ -79,6 +79,28 @@ fn i07_cpu_bound_cancellation_and_bounded_parallelism() {
         assert!(r.stdout.contains("\"reason\":\"deadline\""), "{src}: {}", r.stdout);
         assert!(t.elapsed().as_millis() < 1500, "{src}");
     }
+    // memory_bytes is enforced before large allocations (+, dump, encode)
+    for src in [
+        "d(n,a)=if n==0 then a else d(n-1,a+a); len(d(40,[1]))",
+        "d(n,a)=if n==0 then a else d(n-1,a+a); len(d(40,\"x\"))",
+        "d(n,a)=if n==0 then a else d(n-1,a+a); x=d(20,\"x\"); len(dump(map(range(0,500)){i=>x}))",
+        "d(n,a)=if n==0 then a else d(n-1,a+a); x=d(26,\"x\"); len(encode(x))+len(encode(x))",
+    ] {
+        let r = run(src, Some(r#"{"format":"kiri-host/1","limits":{"memory_bytes":50000000,"eval_steps":100000000000}}"#));
+        assert_eq!(r.code, 3, "{src}: {}", r.stdout);
+        assert!(r.stdout.contains("\"resource\":\"memory\""), "{src}: {}", r.stdout);
+    }
+    // Huge coefficients hit the host number quota promptly instead of
+    // monopolizing the evaluator.
+    let t = Instant::now();
+    let r = run(
+        "d(n,a)=if n==0 then a else d(n-1,a+a); number(d(21,\"1\"))",
+        Some(r#"{"format":"kiri-host/1","limits":{"memory_bytes":4000000000,"deadline_ms":300}}"#),
+    );
+    assert_eq!(r.code, 3, "{}", r.stdout);
+    assert!(t.elapsed().as_millis() < 2000);
+    let r = run("x=1e20000000+1; x*x", None);
+    assert!(r.stdout.contains("\"resource\":\"number\""), "{}", r.stdout);
     // Parallel children sleep concurrently with bound 2: 4 x 200ms ≈ 400ms.
     let t = Instant::now();
     let r = run(r#"parallel([1,2,3,4],2){x=>sleep(200);x*10}"#, None);
@@ -110,6 +132,7 @@ fn i08_cli_protocol() {
     assert_eq!(run("1+", None).code, 1);
     assert_eq!(run("fail({code:\"c\",message:\"\",data:{}})", None).code, 1);
     assert_eq!(run("x", Some("{\"format\":\"wrong\"}")).code, 2);
+    assert_eq!(run("1", Some(r#"{"format":"kiri-host/1","capabilities":{"read":["/a","/a/"]}}"#)).code, 2);
     assert_eq!(run("1", Some(r#"{"format":"kiri-host/1","limits":{"source_bytes":0}}"#)).code, 2);
     let r = run("1", Some(r#"{"format":"kiri-host/1","limits":{"source_bytes":1}}"#));
     assert_eq!(r.code, 0);

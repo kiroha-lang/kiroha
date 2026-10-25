@@ -230,6 +230,10 @@ fn pure(b: Builtin, a: &[Value], tick: Tick) -> BResult {
             }
             let sep = string(op, 2, &a[1])?;
             let parts: Vec<&str> = xs.iter().map(|x| x.as_str().unwrap()).collect();
+            let total: usize = parts.iter().map(|p| p.len()).sum::<usize>() + sep.len() * parts.len();
+            if crate::interrupt::reserve(total) {
+                return Err(RFail::Interrupted);
+            }
             Ok(Value::str(&parts.join(sep)))
         }
         Replace => {
@@ -242,6 +246,9 @@ fn pure(b: Builtin, a: &[Value], tick: Tick) -> BResult {
             let mut out = String::with_capacity(s.len());
             let mut last = 0;
             for (i, (pos, _)) in s.match_indices(&**old).enumerate() {
+                if crate::interrupt::reserve(out.len() + new.len() + (pos - last)) {
+                    return Err(RFail::Interrupted);
+                }
                 out.push_str(&s[last..pos]);
                 out.push_str(new);
                 last = pos + old.len();
@@ -271,6 +278,9 @@ fn pure(b: Builtin, a: &[Value], tick: Tick) -> BResult {
         }
         Encode => {
             let s = string(op, 1, &a[0])?;
+            if crate::interrupt::reserve(s.len()) {
+                return Err(RFail::Interrupted);
+            }
             Ok(Value::bytes(s.as_bytes().to_vec()))
         }
         Decode => {

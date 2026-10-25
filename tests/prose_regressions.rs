@@ -59,7 +59,28 @@ const MANIFEST: &str = r#"{
    "host":{"capabilities":{"http":["https://f.invalid"]}},
    "fixtures":[{"id":"a","op":"http","match":{"url":"https://f.invalid/a"},"ok":{"status":200,"headers":[[":status","200"],["X","1"]],"body_base64":""}},
      {"id":"b","op":"http","match":{"url":"https://f.invalid/b"},"ok":{"status":200,"headers":[["A B","1"]],"body_base64":""}}],
-   "expect":{"phase":"value","json":"[{\"x\":[\"1\"]},[\"network\",\"framing\"]]"}}
+   "expect":{"phase":"value","json":"[{\"x\":[\"1\"]},[\"network\",\"framing\"]]"}},
+  {"id":"tx-timeout-reports-outcome",
+   "source":"[(try tx(db(\"main\"),{timeout:10}){t=>sleep(50)} catch {e=>[e.code,e.data.outcome]}),(try tx(db(\"main\"),{timeout:10}){t=>1} catch {e=>[e.code,e.data.outcome]})]",
+   "host":{"capabilities":{"databases":["main"]}},
+   "fixtures":[{"id":"pool","op":"pool","match":{"alias":"main"},"ok":"p"},
+     {"id":"a1","op":"acquire","match":{"pool":"p"},"ok":"c1"},
+     {"id":"b1","op":"begin","match":{"connection":"c1"},"ok":null},
+     {"id":"r1","op":"rollback","match":{"connection":"c1"},"ok":null},
+     {"id":"l1","op":"release","match":{"connection":"c1","disposition":"reset"},"ok":null},
+     {"id":"a2","op":"acquire","match":{"pool":"p"},"ok":"c2"},
+     {"id":"b2","op":"begin","match":{"connection":"c2"},"ok":null},
+     {"id":"cm","op":"commit","match":{"connection":"c2"},"hold":true},
+     {"id":"l2","op":"release","match":{"connection":"c2","disposition":"discard"},"ok":null}],
+   "expect":{"phase":"value","json":"[[\"timeout\",\"rolled_back\"],[\"timeout\",\"unknown\"]]"}},
+  {"id":"sql-hole-after-name-is-not-a-value",
+   "source":"try sql(db(\"main\"),q`select x${1}`) catch {e=>[e.data.phase,e.data.reason]}",
+   "host":{"capabilities":{"databases":["main"]}},
+   "fixtures":[{"id":"pool","op":"pool","match":{"alias":"main"},"ok":"p"}],
+   "expect":{"phase":"value","json":"[\"prepare\",\"hole_context\"]"}},
+  {"id":"serve-handler-type-position",
+   "source":"try serve({\"GET /a\":1}) catch {e=>[e.code,e.data.position]}",
+   "expect":{"phase":"value","json":"[\"type\",1]"}}
  ]}"#;
 
 #[test]

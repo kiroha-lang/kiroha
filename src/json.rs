@@ -262,6 +262,9 @@ impl<'a> P<'a> {
 
 /// Canonical string escaping (§3.4).
 pub fn write_string(out: &mut String, s: &str) {
+    if s.len() > 4096 && crate::interrupt::reserve(out.capacity().max(out.len() + s.len())) {
+        return; // partial output is discarded by the runtime
+    }
     out.push('"');
     for ch in s.chars() {
         match ch {

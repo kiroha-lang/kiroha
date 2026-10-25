@@ -36,7 +36,10 @@ ten). Parsing never rounds.
 | `a % b` | `a - trunc(a/b)*b` with the *exact* quotient truncated toward zero; sign of `a` |
 | division by zero | `number` error, `data.reason = "division_by_zero"` (both `/` and `%`) |
 
-There is no NaN, Infinity or negative zero. "Integer" means a number with no
+There is no NaN, Infinity or negative zero. This implementation limits
+coefficients to 100,000 decimal digits as a host resource quota (exceeding it
+is a `resource` abort, never rounding); exponents may be arbitrarily large
+within 64-bit range. "Integer" means a number with no
 fractional part; there is no separate integer type.
 
 ```kiri

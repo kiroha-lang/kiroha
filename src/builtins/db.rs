@@ -61,6 +61,8 @@ pub struct TxFrame {
     pub conn: Option<String>,
     pub tx: Option<u64>,
     pub primary: Option<Primary>,
+    /// Outcome reported with a tx-scope timeout (§11.4).
+    pub timeout_outcome: &'static str,
 }
 
 /// Bind a Kiri value as a PostgreSQL parameter (§11.3).
@@ -372,6 +374,7 @@ impl<H: Host> Runtime<H> {
             conn: None,
             tx: None,
             primary: None,
+            timeout_outcome: "not_sent",
         };
         t.scope = scope;
         t.seen_epoch = u64::MAX;
@@ -431,7 +434,7 @@ impl<H: Host> Runtime<H> {
                 Ctl::Throw(e)
             }
             Primary::Timeout => {
-                let e = timeout_error("tx", x.timeout, None);
+                let e = timeout_error("tx", x.timeout, Some(x.timeout_outcome));
                 self.raise(t, e)
             }
             Primary::Abort(sig) => Ctl::Abort(sig, None),
@@ -517,6 +520,9 @@ impl<H: Host> Runtime<H> {
             },
             TxPhase::RollingBack => {
                 let ok = matches!(o, EffOutcome::Ok(_));
+                if !ok {
+                    x.timeout_outcome = "unknown";
+                }
                 self.tx_release(t, x, !ok)
             }
             TxPhase::Releasing => self.tx_finish(t, x),
@@ -530,6 +536,13 @@ impl<H: Host> Runtime<H> {
     pub fn tx_abort(&mut self, t: &mut Task, mut x: TxFrame, sig: AbortSig, carry: Option<EffOutcome>) -> Ctl {
         let own_timeout = sig.scope == x.scope && matches!(sig.reason, AbortReason::TxTimeout(_));
         let primary = if own_timeout { Primary::Timeout } else { Primary::Abort(sig.clone()) };
+        if own_timeout {
+            x.timeout_outcome = match x.phase {
+                TxPhase::Acquiring => "not_sent",
+                TxPhase::Callback => "rolled_back", // downgraded if rollback fails
+                _ => "unknown",
+            };
+        }
         match x.phase {
             TxPhase::Acquiring => {
                 x.primary = Some(primary);

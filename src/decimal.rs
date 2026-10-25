@@ -11,9 +11,26 @@ use num_traits::{One, Signed, ToPrimitive, Zero};
 use std::cmp::Ordering;
 use std::fmt;
 
-/// Largest power-of-ten scaling performed by a single operation before the
-/// runtime treats the request as host resource exhaustion.
-pub const MAX_SCALE_DIGITS: u64 = 20_000_000;
+/// Host coefficient quota (spec §3.2 permits coefficient/exponent limits only
+/// as host resource termination). Any operand, scaling or result coefficient
+/// beyond this many decimal digits aborts with `resource` instead of
+/// computing. It bounds the cost of a single arithmetic operation, which
+/// arbitrary-precision libraries cannot interrupt, to tens of milliseconds.
+pub const MAX_DIGITS: u64 = 100_000;
+
+/// Largest power-of-ten scaling performed by a single operation.
+pub const MAX_SCALE_DIGITS: u64 = MAX_DIGITS;
+
+/// Upper bound on bits for a MAX_DIGITS coefficient (log2(10) ≈ 3.3219).
+const MAX_BITS: u64 = MAX_DIGITS * 33220 / 10000 + 1;
+
+fn check_bits(n: &BigInt) -> Result<(), Overflow> {
+    if n.bits() > MAX_BITS {
+        Err(Overflow)
+    } else {
+        Ok(())
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Decimal {
@@ -186,6 +203,9 @@ impl Decimal {
         if i != b.len() {
             return Ok(None);
         }
+        if (int_part.len() + frac_part.len()) as u64 > MAX_DIGITS {
+            return Err(Overflow);
+        }
         let digits = format!("{}{}", int_part, frac_part);
         let mut coef: BigInt = digits.parse().map_err(|_| Overflow)?;
         if neg {
@@ -228,7 +248,9 @@ impl Decimal {
             return Ok(self.clone());
         }
         let (a, b, e) = Decimal::aligned(self, o)?;
-        Ok(Decimal::normalize(a + b, e))
+        let sum = a + b;
+        check_bits(&sum)?;
+        Ok(Decimal::normalize(sum, e))
     }
 
     pub fn sub(&self, o: &Decimal) -> Result<Decimal, Overflow> {
@@ -240,6 +262,9 @@ impl Decimal {
             return Ok(Decimal::zero());
         }
         let e = Decimal::check_exp(self.exp as i128 + o.exp as i128)?;
+        if self.coef.bits() + o.coef.bits() > MAX_BITS + 1 {
+            return Err(Overflow);
+        }
         Ok(Decimal::normalize(&self.coef * &o.coef, e))
     }
 
@@ -469,6 +494,16 @@ mod tests {
         assert_eq!(d("0.001").cmp_exact(&d("0.01")), Ordering::Less);
         assert_eq!(d("-0.001").cmp_exact(&d("-0.01")), Ordering::Greater);
         assert_eq!(d("1e30").cmp_exact(&d("999")), Ordering::Greater);
+    }
+
+    #[test]
+    fn coefficient_quota() {
+        let big = "9".repeat(60_000);
+        let x = d(&big);
+        assert!(x.mul(&x).is_err());
+        assert!(Decimal::parse_json(&"1".repeat(100_001)).is_err());
+        assert!(d("1e20000000").add(&d("1")).is_err());
+        assert_eq!(d("1e20000000").mul(&d("1e5")).unwrap().canonical(), "1e20000005");
     }
 
     #[test]

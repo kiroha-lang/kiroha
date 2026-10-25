@@ -196,12 +196,24 @@ operation, and its result is never reported after the deadline. Arbitrary-precis
 inside one `num-bigint` call is not interruptible; its size is bounded by the
 memory quota and the 20,000,000-digit scaling cap.
 
+## Number quota
+
+Arbitrary-precision multiplication, division and decimal-string conversion
+cannot be interrupted inside the library. To keep every single operation
+short (so deadlines fire and other tasks run), `src/decimal.rs` enforces a
+host coefficient quota of 100,000 decimal digits for operands, power-of-ten
+scaling and results; exceeding it aborts with `resource`/`number`, as §3.2
+permits. Exponents are unaffected: `1e20000000 * 1e5` is fine.
+
 ## Memory accounting
 
 `memory_bytes` uses a counting global allocator (`src/alloc.rs`) that tracks
 live heap bytes of the process. The runtime records a baseline when it is
 created and checks `live - baseline` every 512 semantic steps and every 1024
-interrupt polls inside builtin work (see above). An excess
+interrupt polls inside builtin work (see above). Operations that allocate a
+large block in one go (string/array `+`, `dump` of large strings, `encode`,
+`join`, `replace`) first ask `interrupt::reserve(bytes)` whether the
+allocation would cross the quota and abort instead of allocating. An excess
 aborts the root/request scope that is running when it is observed, with
 `resource` / `{resource:"memory"}`. Shared immutable values (`Rc`) are
 naturally counted once. Allocation overhead is host-dependent; within quota it

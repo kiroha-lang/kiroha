@@ -68,7 +68,7 @@ scalars).
 | --- | --- |
 | `cancelled` | SIGINT/SIGTERM, harness cancellation, a client disconnect (request scope), sibling failure in `parallel` (child scope) |
 | `deadline` | `limits.deadline_ms` (root), server request timeout (request scope → 504) |
-| `resource` | `eval_steps`, `memory_bytes`, `max_tasks`, `max_file_bytes`, `header_bytes` |
+| `resource` | `eval_steps`, `memory_bytes`, `max_tasks`, `max_file_bytes`, `header_bytes`, the 100,000-digit number quota |
 
 An abort stops all user code in the aborted scope and its descendants —
 including pure infinite loops — and bypasses every `try`. Cleanup (joining

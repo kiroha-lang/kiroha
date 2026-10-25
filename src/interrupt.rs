@@ -51,6 +51,23 @@ pub fn poll() -> bool {
     tripped()
 }
 
+/// Check, before allocating, whether `bytes` more would cross the memory
+/// quota. Returns true (and trips) when it would; the caller must not
+/// allocate and should stop early.
+pub fn reserve(bytes: usize) -> bool {
+    if tripped() {
+        return true;
+    }
+    if let Some((base, limit)) = MEM.with(|c| c.get()) {
+        let live = crate::alloc::live_bytes().saturating_sub(base) as u64;
+        if live.saturating_add(bytes as u64) > limit {
+            TRIPPED.with(|c| c.set(Some(Trip::Memory)));
+            return true;
+        }
+    }
+    false
+}
+
 #[inline]
 pub fn tripped() -> bool {
     TRIPPED.with(|c| c.get().is_some())

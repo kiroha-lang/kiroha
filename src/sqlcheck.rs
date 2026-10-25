@@ -280,6 +280,13 @@ fn validate_parsed(sql: &str, holes: usize) -> Result<(), Reject> {
             seen.push((k, loc));
         }
     }
+    // libpg_query accepts `typename $n` (e.g. `select x $1`) as a typed
+    // parameter, which the PostgreSQL 16 server rejects: a hole right after a
+    // name is not a value position. Such a TypeCast has its own location
+    // before the ParamRef and does not start with CAST.
+    if typed_param_extension(&structure, sql) {
+        return Err(Reject::HoleContext);
+    }
     let mut counts = vec![0usize; holes + 1];
     for (k, _) in &seen {
         counts[*k] += 1;
@@ -423,6 +430,61 @@ fn skip_group(toks: &[Tok], mut k: usize) -> Result<usize, Reject> {
     Err(Reject::Statement)
 }
 
+fn number_after(s: &str, key: &str) -> Option<i64> {
+    let p = s.find(key)?;
+    let rest = &s[p + key.len()..];
+    let n: String = rest.chars().take_while(|c| c.is_ascii_digit() || *c == '-').collect();
+    n.parse().ok()
+}
+
+fn typed_param_extension(structure: &str, sql: &str) -> bool {
+    let head = "TypeCast(TypeCast { arg: Some(Node { node: Some(ParamRef(ParamRef { ";
+    let mut from = 0;
+    while let Some(p) = structure[from..].find(head) {
+        let start = from + p + "TypeCast(".len();
+        from = start;
+        // brace-match the TypeCast struct
+        let bytes = structure.as_bytes();
+        let mut depth = 0i64;
+        let mut end = start;
+        for (i, &b) in bytes.iter().enumerate().skip(start) {
+            match b {
+                b'{' | b'(' | b'[' => depth += 1,
+                b'}' | b')' | b']' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        end = i;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        let body = &structure[start..end];
+        let param_loc = match number_after(body, "location: ") {
+            Some(l) => l,
+            None => continue,
+        };
+        // the TypeCast's own location is its last top-level field
+        let own_loc = match body.rfind("location: ").and_then(|i| number_after(&body[i..], "location: ")) {
+            Some(l) => l,
+            None => continue,
+        };
+        // The grammar extension builds the cast without a source location.
+        if own_loc < 0 {
+            return true;
+        }
+        if own_loc < param_loc {
+            let (a, b) = (own_loc as usize, param_loc as usize);
+            let between = sql.get(a..b).unwrap_or("").trim_start().to_ascii_lowercase();
+            if !between.starts_with("cast") {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 /// Remove the contents of double-quoted strings from Rust Debug output.
 fn strip_debug_strings(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
@@ -494,6 +556,11 @@ mod tests {
         assert_eq!(translate(&s(&["with a as (select 1 as x) (table a)"])), Err(Reject::Statement));
         assert_eq!(translate(&s(&["((table a))"])), Err(Reject::Statement));
         assert!(translate(&s(&["select 1 union table a"])).is_ok());
+        assert_eq!(translate(&s(&["select x", ""])), Err(Reject::HoleContext));
+        assert_eq!(translate(&s(&["select int ", ""])), Err(Reject::HoleContext));
+        assert!(translate(&s(&["select ", "::int"])).is_ok());
+        assert!(translate(&s(&["select cast(", " as int)"])).is_ok());
+        assert!(translate(&s(&["select CAST ( ", " AS numeric)"])).is_ok());
         assert_eq!(
             translate(&s(&["with recursive r(n) as (select 1 union all select n+1 from r where n<3) search depth first by n set ord, u as (select 1 as z) table u"])),
             Err(Reject::Statement)
