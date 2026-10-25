@@ -121,6 +121,17 @@ fn i07_cpu_bound_cancellation_and_bounded_parallelism() {
         assert_eq!(result(&r), want, "{src}");
         assert!(t.elapsed().as_millis() < 5000, "{src}: {:?}", t.elapsed());
     }
+    // dump/parse/CLI output of many huge numbers check the deadline per number.
+    for src in [
+        "xs=map(range(0,30)){i=>number(\"1e99990\")+i}; ys=fold(range(0,6),xs){(a,i)=>a+a}; len(dump(ys))",
+        "p=fold(range(0,16),\"7\"){(a,i)=>a+a}; s=\"[\"+join(map(range(0,1900)){i=>p},\",\")+\"]\"; len(parse(s))",
+        "xs=map(range(0,30)){i=>number(\"1e99990\")+i}; fold(range(0,6),xs){(a,i)=>a+a}",
+    ] {
+        let t = Instant::now();
+        let r = run(src, Some(r#"{"format":"kiri-host/1","limits":{"deadline_ms":1500,"eval_steps":100000000000,"memory_bytes":8000000000}}"#));
+        assert!(r.stdout.contains("\"reason\":\"deadline\""), "{src}: {}", r.stdout);
+        assert!(t.elapsed().as_millis() < 2600, "{src}: {:?}", t.elapsed());
+    }
     // Huge exponent spellings are rejected without quadratic parsing.
     let t = Instant::now();
     let r = run(

@@ -775,12 +775,18 @@ impl<H: Host> Runtime<H> {
     /// Arm builtin-work checkpoints for a task (earliest deadline on its
     /// scope chain in real time; memory quota always).
     pub fn arm_interrupts(&self, t: &Task) {
+        self.arm_interrupts_until(t, None);
+    }
+
+    /// As `arm_interrupts`, additionally bounded by an operation deadline
+    /// (absolute monotonic ms), e.g. an `sql` timeout covering result decoding.
+    pub fn arm_interrupts_until(&self, t: &Task, op_deadline: Option<u64>) {
         let mem = Some((self.memory_baseline, self.config.limits.memory_bytes));
         let at = if self.host.is_virtual() {
             None
         } else {
             let mut cur = Some(t.scope);
-            let mut earliest: Option<u64> = None;
+            let mut earliest: Option<u64> = op_deadline;
             while let Some(s) = cur {
                 match self.scopes.get(&s) {
                     Some(sc) => {

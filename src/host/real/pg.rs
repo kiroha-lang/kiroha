@@ -396,9 +396,19 @@ impl Pools {
                 let mut cells = Vec::with_capacity(columns.len());
                 for (i, (_, oid)) in columns.iter().enumerate() {
                     let cell: Option<RawCell> = row.try_get(i).unwrap_or(None);
+                    let large = cell.as_ref().is_some_and(|c| c.0.len() > 4096);
                     cells.push(cell.map(|c| cell_text(*oid, &c.0)));
+                    if large {
+                        // Converting a large cell is CPU work: yield so the
+                        // runtime's timers (operation timeout, deadlines) and
+                        // cancellation can run (§8.3).
+                        tokio::task::yield_now().await;
+                    }
                 }
                 rows.push(cells);
+                if rows.len() % 256 == 0 {
+                    tokio::task::yield_now().await;
+                }
             }
             if truncated {
                 let _ = client.cancel_token().cancel_query(tls_connector()).await;

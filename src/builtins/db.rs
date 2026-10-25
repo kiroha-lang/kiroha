@@ -144,6 +144,9 @@ pub fn convert_rows(raw: &RawRows, max_rows: u64) -> Result<Value, Fail> {
         }
         let mut r = Record::with_capacity(row.len());
         for ((name, oid), cell) in raw.columns.iter().zip(row) {
+            if crate::interrupt::poll_big(cell.as_ref().map_or(0, |c| c.len())) {
+                return Err(Fail::Interrupted);
+            }
             let v = match cell {
                 None => Value::Null,
                 Some(text) => match oid {
@@ -295,6 +298,30 @@ impl<H: Host> Runtime<H> {
         }
     }
 
+    /// Result decoding is part of the `sql` operation: it honours the
+    /// operation timeout as well as every scope deadline (§8.3, §11.4).
+    fn convert_within_timeout(&mut self, t: &mut Task, raw: &RawRows, f: &SqlFrame) -> Result<Value, Fail> {
+        let timed_out = || {
+            Fail::Err(timeout_error("sql", f.timeout, Some(if raw.outcome == "committed" { "committed" } else { "unknown" })))
+        };
+        if self.now_ms() >= f.deadline {
+            return Err(timed_out());
+        }
+        self.arm_interrupts_until(t, Some(f.deadline));
+        let res = convert_rows(raw, f.max_rows);
+        if crate::interrupt::tripped() {
+            // A scope abort (root/request/tx deadline, memory, signal) wins;
+            // otherwise the operation's own timeout expired.
+            if let Some(Ctl::Abort(sig, _)) = self.disarm_interrupts(t) {
+                let _ = sig;
+                return Err(Fail::Interrupted);
+            }
+            self.arm_interrupts(t);
+            return Err(timed_out());
+        }
+        res
+    }
+
     pub fn sql_effect(&mut self, t: &mut Task, mut f: SqlFrame, o: EffOutcome) -> Ctl {
         match f.phase {
             SqlPhase::Acquiring => match o {
@@ -317,14 +344,17 @@ impl<H: Host> Runtime<H> {
             },
             SqlPhase::Executing => {
                 let (res, discard) = match o {
-                    EffOutcome::Ok(EffValue::Rows(raw)) => match convert_rows(&raw, f.max_rows) {
+                    EffOutcome::Ok(EffValue::Rows(raw)) => match self.convert_within_timeout(t, &raw, &f) {
                         Ok(v) => (Ok(v), false),
                         Err(Fail::Err(e)) => (Err(e), false),
                         Err(other) => {
                             // Abort (quota/interrupt): record it, but still return
                             // a pooled connection (discarded) before unwinding.
                             let ctl = match other {
-                                Fail::Interrupted => self.disarm_interrupts(t).unwrap_or(Ctl::Ret(Value::Null)),
+                                Fail::Interrupted => self
+                                    .disarm_interrupts(t)
+                                    .or_else(|| self.abort_of(t.scope).map(|s| Ctl::Abort(s, None)))
+                                    .unwrap_or(Ctl::Ret(Value::Null)),
                                 o => self.fail_ctl(t, o),
                             };
                             if f.tx.is_none() {

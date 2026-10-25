@@ -115,6 +115,9 @@ impl<'a> P<'a> {
                 return Err(invalid("syntax", self.i));
             }
         }
+        if crate::interrupt::poll_big(self.i - start) {
+            return Err(JsonError::Interrupted);
+        }
         match Decimal::parse_json(&self.src[start..self.i]) {
             Ok(Some(d)) => Ok(Value::num(d)),
             Ok(None) => Err(invalid("syntax", start)),
@@ -320,7 +323,13 @@ pub fn dump_into(out: &mut String, v: &Value) {
         Value::Null => out.push_str("null"),
         Value::Bool(true) => out.push_str("true"),
         Value::Bool(false) => out.push_str("false"),
-        Value::Num(d) => out.push_str(&d.canonical()),
+        Value::Num(d) => {
+            // Large coefficients make one conversion expensive: weight the check.
+            if crate::interrupt::poll_big(d.coef().bits() as usize / 3) {
+                return;
+            }
+            out.push_str(&d.canonical())
+        }
         Value::Str(s) => write_string(out, s),
         Value::Array(a) => {
             out.push('[');

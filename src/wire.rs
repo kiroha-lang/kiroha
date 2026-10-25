@@ -11,7 +11,12 @@ pub fn to_wire(v: &Value) -> Value {
     match v {
         Value::Null => Value::rec(vec![("t", Value::str("null"))]),
         Value::Bool(b) => Value::rec(vec![("t", Value::str("bool")), ("v", Value::Bool(*b))]),
-        Value::Num(d) => Value::rec(vec![("t", Value::str("number")), ("v", Value::str(&d.canonical()))]),
+        Value::Num(d) => {
+            if crate::interrupt::poll_big(d.coef().bits() as usize / 3) {
+                return Value::Null;
+            }
+            Value::rec(vec![("t", Value::str("number")), ("v", Value::str(&d.canonical()))])
+        }
         Value::Str(s) => Value::rec(vec![("t", Value::str("string")), ("v", Value::Str(s.clone()))]),
         Value::Bytes(b) => Value::rec(vec![
             ("t", Value::str("bytes")),
