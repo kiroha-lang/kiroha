@@ -391,7 +391,8 @@ impl Pools {
             }
             if truncated {
                 let _ = client.cancel_token().cancel_query(tls_connector()).await;
-                let outcome = if in_tx { "unknown" } else { "unknown" };
+                // The statement was cancelled mid-result: commit state is unknown.
+                let outcome = "unknown";
                 let count = rows.len().to_string();
                 return EffOutcome::Ok(EffValue::Rows(RawRows { columns, rows, count, outcome: outcome.into() }));
             }
