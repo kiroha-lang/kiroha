@@ -373,6 +373,9 @@ fn decode_content(resp: &RawResponse, max_bytes: u64) -> Result<Vec<u8>, Fail> {
                 match dec.read(&mut buf) {
                     Ok(0) => break,
                     Ok(n) => {
+                        if crate::interrupt::reserve(out.len() + n) || crate::interrupt::poll_big(n) {
+                            return Err(Fail::Interrupted);
+                        }
                         out.extend_from_slice(&buf[..n]);
                         if out.len() as u64 > max_bytes {
                             return Err(limit_err());

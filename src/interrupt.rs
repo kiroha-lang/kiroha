@@ -82,6 +82,19 @@ pub fn reserve(bytes: usize) -> bool {
     false
 }
 
+/// A unit of work proportional to `len` octets/items: large units check the
+/// clock and heap immediately, so one huge scalar cannot postpone the check
+/// by 1024 polls.
+#[inline]
+pub fn poll_big(len: usize) -> bool {
+    if len >= 4096 {
+        check();
+        tripped()
+    } else {
+        poll()
+    }
+}
+
 #[inline]
 pub fn tripped() -> bool {
     TRIPPED.with(|c| c.get().is_some())

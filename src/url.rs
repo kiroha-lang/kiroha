@@ -210,12 +210,21 @@ impl Url {
 
 /// Unreserved-only percent encoding with uppercase hex.
 pub fn encode_component(s: &str) -> String {
+    const HEX: &[u8; 16] = b"0123456789ABCDEF";
+    if s.len() > 4096 && crate::interrupt::reserve(s.len() * 3) {
+        return String::new(); // discarded: the runtime turns the trip into an abort
+    }
     let mut out = String::with_capacity(s.len());
-    for b in s.bytes() {
+    for (i, b) in s.bytes().enumerate() {
+        if i & 0xffff == 0xffff && crate::interrupt::poll_big(65536) {
+            return out;
+        }
         if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'.' | b'_' | b'~') {
             out.push(b as char);
         } else {
-            out.push_str(&format!("%{b:02X}"));
+            out.push('%');
+            out.push(HEX[(b >> 4) as usize] as char);
+            out.push(HEX[(b & 15) as usize] as char);
         }
     }
     out

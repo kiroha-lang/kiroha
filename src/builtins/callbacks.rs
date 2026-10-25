@@ -155,11 +155,26 @@ impl<H: Host> Runtime<H> {
             Builtin::Sort => {
                 let mut idx: Vec<usize> = (0..c.keys.len()).collect();
                 let keys = &c.keys;
+                // Comparisons poll in proportion to their size; once tripped the
+                // order no longer matters (the result is discarded).
                 idx.sort_by(|&a, &b| match (&keys[a], &keys[b]) {
-                    (Value::Num(x), Value::Num(y)) => x.cmp_exact(y),
-                    (Value::Str(x), Value::Str(y)) => x.chars().cmp(y.chars()),
+                    _ if crate::interrupt::tripped() => std::cmp::Ordering::Equal,
+                    (Value::Num(x), Value::Num(y)) => {
+                        crate::interrupt::poll();
+                        x.cmp_exact(y)
+                    }
+                    (Value::Str(x), Value::Str(y)) => {
+                        if Rc::ptr_eq(x, y) || crate::interrupt::poll_big(x.len().min(y.len())) {
+                            std::cmp::Ordering::Equal
+                        } else {
+                            x.chars().cmp(y.chars())
+                        }
+                    }
                     _ => std::cmp::Ordering::Equal,
                 });
+                if crate::interrupt::tripped() {
+                    return Err(Fail::Interrupted);
+                }
                 Value::array(idx.into_iter().map(|i| c.items[i].clone()).collect())
             }
             Builtin::Group => Value::array(

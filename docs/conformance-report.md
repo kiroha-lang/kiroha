@@ -81,7 +81,7 @@ root/request scope with `resource`. See
 
 ## Independent audits
 
-Nine independent read-and-execute audits of sections 2–15 were run against the
+Ten independent read-and-execute audits of sections 2–15 were run against the
 code (each walked the normative rules section by section and confirmed every
 finding by running programs or custom fixture manifests).
 
@@ -103,6 +103,8 @@ finding by running programs or custom fixture manifests).
 | 8 (full, §2–§15) | 2: a response with a non-`chunked` transfer coding (e.g. `gzip, chunked`) returned the still-encoded body; division/remainder aborted on internal scaling although operands and result were within the quota (`1/(1e99998+1)`, `1e100001 % 7`, `1e60000 % 1e-60000`) | Fixed: unremovable transfer codings are `network`/`framing`; division scaling is bounded by operand sizes and `%` uses modular exponentiation. Regressions: `tests/i01_http.rs`, decimal unit tests. Every other subsection of §2–§15 was reported "verified, no violation" |
 
 | 9 (full, §2–§15) | 2: `json` schema checks and JSON key hashing (`group`/`unique`/`pages` cursors) had no interrupt checkpoint; SIGINT/SIGTERM not observed while builtin work held the evaluator | Fixed: checkpoints added to both traversals; a signal handler sets a flag that every checkpoint honours (cancelled abort). Regressions in `tests/i06_i07_i08.rs`. Every other subsection of §2–§15 was reported "verified, no violation" |
+
+| 10 (full, §8.3 focus) | 13, mostly interruptibility on pathological inputs: handler-result serialization and CLI result conversion not under checkpoints; schema normalization over shared structures; `sort` comparisons; O(n·m) closed-record extras and O(n²) `pick` duplicates; SQL row conversion and adapter row buffering vs memory; gzip decoding vs memory/deadline; PostgreSQL numeric/JSON beyond the number quota reported as catchable `db`/`decode`; JSON escaping and URL encoding loops; unbounded exponent-digit parsing; huge shared scalars postponing checks | All fixed: length-weighted checkpoints (`poll_big`), pointer-equality shortcuts, hash sets for duplicate/extra detection, exact pre-allocation reservations, checkpoints in normalization/sort/escaping/encoding/row conversion, adapter-side memory check while buffering rows, request serialization trips mapped to 504/503, CLI conversion under the root deadline/memory/SIGINT. Regressions in `tests/i06_i07_i08.rs`, `tests/i05_server.rs`, `tests/i01_http.rs`, `tests/i03_i04_postgres.rs` |
 
 Audit 2 recorded "no new violations" for §2, §3, §4, §5, §6, §7, §8, §9,
 §10 (apart from the fixture header checks), §11 (apart from the two SQL

@@ -91,6 +91,51 @@ fn i07_cpu_bound_cancellation_and_bounded_parallelism() {
         assert!(r.stdout.contains("\"reason\":\"deadline\""), "{src}: {}", r.stdout);
         assert!(t.elapsed().as_millis() < 3000, "{src}");
     }
+    // More long builtin work on huge or shared inputs observes the deadline
+    // (audit 10): schema normalization, sorting, closed-record extras, pick,
+    // JSON escaping, URL encoding, hashing/equality of huge shared strings.
+    let big = "s=fold(range(0,24),\"x\"){(a,i)=>a+a};";
+    for src in [
+        "d(x,n)=if n==0 then x else d({a:x,b:x},n-1); check(1,maybe(d(json,26)))".to_string(),
+        format!("{big} sort(map(range(0,3000)){{i=>s}})"),
+        "c=fold(range(0,26),\"\\u0001\"){(a,i)=>a+a}; len(dump(c))".to_string(),
+        format!("{big} len(url(\"https://a.example\",[replace(s,\"x\",\" \")]))"),
+        format!("{big} xs=map(range(0,3000)){{i=>s+\"\"}}; len(unique(xs))"),
+        format!("{big} xs=map(range(0,3000)){{i=>s+\"\"}}; xs==map(xs){{x=>x+\"\"}}"),
+    ] {
+        let t = Instant::now();
+        let r = run(&src, Some(r#"{"format":"kiri-host/1","limits":{"deadline_ms":400,"eval_steps":100000000000,"memory_bytes":8000000000}}"#));
+        assert!(r.stdout.contains("\"reason\":\"deadline\""), "{src}: {}", r.stdout);
+        assert!(t.elapsed().as_millis() < 3500, "{src}: {:?}", t.elapsed());
+    }
+    // Former O(n^2) paths are linear: closed-record extras and pick duplicates.
+    for (src, want) in [
+        (
+            "v=parse(\"{\"+join(map(range(0,100000)){i=>\"\\\"k\"+text(i)+\"\\\":{}\"},\",\")+\"}\"); len(check(v,v))",
+            "100000",
+        ),
+        ("try pick({}, map(range(0,150000)){i=>text(i)}) catch {e=>e.code}", "\"missing\""),
+    ] {
+        let t = Instant::now();
+        let r = run(src, Some(r#"{"format":"kiri-host/1","limits":{"eval_steps":100000000000}}"#));
+        assert_eq!(result(&r), want, "{src}");
+        assert!(t.elapsed().as_millis() < 5000, "{src}: {:?}", t.elapsed());
+    }
+    // Huge exponent spellings are rejected without quadratic parsing.
+    let t = Instant::now();
+    let r = run(
+        "d(n,a)=if n==0 then a else d(n-1,a+a); number(\"1e\"+d(22,\"1\"))",
+        Some(r#"{"format":"kiri-host/1","limits":{"memory_bytes":4000000000}}"#),
+    );
+    assert!(r.stdout.contains("\"resource\":\"number\""), "{}", r.stdout);
+    assert!(t.elapsed().as_millis() < 3000);
+    // Converting a huge (shared) result for the CLI honours the memory quota.
+    let r = run(
+        "d(x,n)=if n==0 then x else d([x,x],n-1); d(1,22)",
+        Some(r#"{"format":"kiri-host/1","limits":{"memory_bytes":100000000}}"#),
+    );
+    assert_eq!(r.code, 3, "{}", r.stdout);
+    assert!(r.stdout.contains("\"resource\":\"memory\""), "{}", r.stdout);
     // SIGINT during long builtin work is observed (cancelled abort, exit 3).
     {
         let dir = tempdir("sig");

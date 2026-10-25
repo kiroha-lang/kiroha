@@ -87,6 +87,9 @@ struct Desc {
 }
 
 fn normalize_at(v: &Value, pos: Position, path: &mut Vec<PathItem>) -> Result<Desc, Value> {
+    if crate::interrupt::poll() {
+        return Err(Value::Null); // discarded: the runtime turns the trip into an abort
+    }
     match v {
         Value::Schema(s) => match &**s {
             SchemaValue::Atom(n) => Ok(Desc { norm: n.clone(), optional: false }),
@@ -289,8 +292,12 @@ fn check_at(v: &Value, s: &Norm, path: &mut Vec<PathItem>) -> Option<Mismatch> {
                 }
                 path.pop();
             }
+            let known: std::collections::HashSet<&str> = fields.iter().map(|f| &*f.key).collect();
             for (k, x) in r.iter() {
-                if fields.iter().any(|f| f.key == *k) {
+                if crate::interrupt::poll() {
+                    return None;
+                }
+                if known.contains(&**k) {
                     continue;
                 }
                 path.push(PathItem::Key(k.clone()));

@@ -362,12 +362,15 @@ pub fn json_equal(a: &Value, b: &Value) -> bool {
         (Value::Null, Value::Null) => true,
         (Value::Bool(x), Value::Bool(y)) => x == y,
         (Value::Num(x), Value::Num(y)) => x == y,
-        (Value::Str(x), Value::Str(y)) => x == y,
+        (Value::Str(x), Value::Str(y)) => {
+            Rc::ptr_eq(x, y) || (!crate::interrupt::poll_big(x.len().min(y.len())) && x == y)
+        }
         (Value::Array(x), Value::Array(y)) => {
-            x.len() == y.len() && x.iter().zip(y.iter()).all(|(p, q)| json_equal(p, q))
+            Rc::ptr_eq(x, y) || (x.len() == y.len() && x.iter().zip(y.iter()).all(|(p, q)| json_equal(p, q)))
         }
         (Value::Record(x), Value::Record(y)) => {
-            x.len() == y.len()
+            Rc::ptr_eq(x, y)
+                || x.len() == y.len()
                 && x.iter().all(|(k, v)| match y.get(k) {
                     Some(w) => json_equal(v, w),
                     None => false,
@@ -396,6 +399,9 @@ pub fn json_hash(v: &Value) -> u64 {
                 d.hash(h)
             }
             Value::Str(s) => {
+                if crate::interrupt::poll_big(s.len()) {
+                    return;
+                }
                 3u8.hash(h);
                 s.hash(h)
             }

@@ -170,16 +170,18 @@ fn pure(b: Builtin, a: &[Value], tick: Tick) -> BResult {
         Pick => {
             let r = record(op, 1, &a[0])?;
             let ks = array(op, 2, &a[1])?;
-            let mut seen: Vec<&str> = Vec::new();
-            for k in ks.iter() {
+            let mut seen: Vec<&str> = Vec::with_capacity(ks.len());
+            let mut set: std::collections::HashSet<&str> = std::collections::HashSet::with_capacity(ks.len());
+            for (i, k) in ks.iter().enumerate() {
                 let s = match k {
                     Value::Str(s) => s,
                     other => return Err(type_err(op, 2, "array of strings", other)),
                 };
-                if seen.contains(&&**s) {
+                if !set.insert(&**s) {
                     return Err(arg_err(op, "duplicate key"));
                 }
                 seen.push(s);
+                tick(i)?;
             }
             let mut out = Record::with_capacity(ks.len());
             for k in seen {

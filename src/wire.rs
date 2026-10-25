@@ -5,6 +5,9 @@ use base64::Engine;
 
 /// Convert a runtime value to its tagged wire representation (a JSON value).
 pub fn to_wire(v: &Value) -> Value {
+    if crate::interrupt::poll() {
+        return Value::Null; // discarded: the caller reports the trip as an abort
+    }
     match v {
         Value::Null => Value::rec(vec![("t", Value::str("null"))]),
         Value::Bool(b) => Value::rec(vec![("t", Value::str("bool")), ("v", Value::Bool(*b))]),

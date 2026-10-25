@@ -37,7 +37,8 @@ fn routing_framing_limits_and_shutdown() {
         r#"serve({{"GET /a/fixed":{{r=>"literal"}},"GET /a/:x":{{r=>{{p:r.params.x,q:r.query,path:r.path}}}},
         "HEAD /h":{{r=>{{a:1}}}},"OPTIONS /o":{{r=>reply(204,null)}},"POST /in":{{r=>input(r,{{n:int}})}},
         "GET /slow":{{r=>sleep(2000);1}},"GET /block":{{r=>sleep(800);1}},"GET /bytes":{{r=>encode("x")}},
-        "GET /cpu":{{r=>xs=range(0,1000000);len(flat([xs,xs,xs,xs,xs,xs,xs,xs,xs,xs,xs,xs,xs,xs,xs,xs]))}}}},
+        "GET /cpu":{{r=>xs=range(0,1000000);len(flat([xs,xs,xs,xs,xs,xs,xs,xs,xs,xs,xs,xs,xs,xs,xs,xs]))}},
+        "GET /big":{{r=>d(x,n)=if n==0 then x else d([x,x],n-1); d(1,25)}}}},
         {{port:{port},timeout:300,max_body:8,max_inflight:1}})"#
     );
     let sp = dir.join("s.kiri");
@@ -90,6 +91,12 @@ fn routing_framing_limits_and_shutdown() {
     let t = std::time::Instant::now();
     let r = send(port, b"GET /cpu HTTP/1.1\r\nHost: x\r\n\r\n");
     assert_eq!(status(&r), "504");
+    assert!(t.elapsed().as_millis() < 3000);
+    // Serializing a huge handler result is within the request deadline: 504.
+    std::thread::sleep(Duration::from_millis(100));
+    let t = std::time::Instant::now();
+    let r = send(port, b"GET /big HTTP/1.1\r\nHost: x\r\n\r\n");
+    assert_eq!((status(&r), body(&r)), ("504", r#"{"error":"timeout"}"#));
     assert!(t.elapsed().as_millis() < 3000);
     // The single inflight slot is released just after the 504 is written.
     std::thread::sleep(Duration::from_millis(100));

@@ -262,11 +262,28 @@ impl<'a> P<'a> {
 
 /// Canonical string escaping (§3.4).
 pub fn write_string(out: &mut String, s: &str) {
-    if s.len() > 4096 && crate::interrupt::reserve(out.capacity().max(out.len() + s.len())) {
-        return; // partial output is discarded by the runtime
+    if s.len() > 4096 {
+        if crate::interrupt::poll_big(s.len()) {
+            return; // partial output is discarded by the runtime
+        }
+        let escaped: usize = s
+            .bytes()
+            .map(|b| match b {
+                b'"' | b'\\' | 8 | 12 | b'\n' | b'\r' | b'\t' => 2,
+                0..=0x1f => 6,
+                _ => 1,
+            })
+            .sum();
+        if crate::interrupt::reserve(out.len() + escaped + 2) {
+            return;
+        }
+        out.reserve(escaped + 2);
     }
     out.push('"');
-    for ch in s.chars() {
+    for (i, ch) in s.chars().enumerate() {
+        if i & 0xffff == 0xffff && crate::interrupt::poll_big(65536) {
+            return;
+        }
         match ch {
             '"' => out.push_str("\\\""),
             '\\' => out.push_str("\\\\"),
@@ -276,7 +293,11 @@ pub fn write_string(out: &mut String, s: &str) {
             '\r' => out.push_str("\\r"),
             '\t' => out.push_str("\\t"),
             c if (c as u32) < 0x20 => {
-                out.push_str(&format!("\\u{:04x}", c as u32));
+                const HEX: &[u8; 16] = b"0123456789abcdef";
+                let v = c as u32;
+                out.push_str("\\u00");
+                out.push(HEX[(v >> 4) as usize] as char);
+                out.push(HEX[(v & 15) as usize] as char);
             }
             c => out.push(c),
         }

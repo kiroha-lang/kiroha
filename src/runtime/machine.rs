@@ -106,7 +106,7 @@ impl<H: Host> Runtime<H> {
                     }
                     return StepResult::Done(TaskOutcome::Value(v));
                 }
-                Some(fr @ (Frame::BinRight { .. } | Frame::Collect(_) | Frame::Pages(_))) => {
+                Some(fr @ (Frame::BinRight { .. } | Frame::Collect(_) | Frame::Pages(_) | Frame::Request(_))) => {
                     if let Some(c) = self.deadline_due(t) {
                         t.ctl = c;
                         return StepResult::Continue;

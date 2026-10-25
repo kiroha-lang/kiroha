@@ -273,6 +273,10 @@ pub fn check_source(bytes: &[u8]) -> Output {
 }
 
 pub fn run_source(bytes: &[u8], config: HostConfig) -> Output {
+    let started = std::time::Instant::now();
+    let baseline = crate::alloc::live_bytes();
+    let memory_limit = config.limits.memory_bytes;
+    let deadline = config.limits.deadline_ms;
     let (src, prog) = match frontend(bytes) {
         Ok(x) => x,
         Err(o) => return o,
@@ -317,10 +321,36 @@ pub fn run_source(bytes: &[u8], config: HostConfig) -> Output {
         rt.run().await
     });
     let (env, code) = match outcome {
-        RootOutcome::Value(v) => (
-            Value::rec(vec![("protocol", Value::str("kiri-cli/1")), ("ok", Value::Bool(true)), ("result", crate::wire::to_wire(&v))]),
-            0,
-        ),
+        RootOutcome::Value(v) => {
+            // Converting and serializing the result is still part of the run:
+            // it honours the memory quota, the root deadline and SIGINT/SIGTERM.
+            let at = deadline.map(|d| started + std::time::Duration::from_millis(d));
+            crate::interrupt::arm(at, Some((baseline, memory_limit)));
+            let wire = crate::wire::to_wire(&v);
+            let env =
+                Value::rec(vec![("protocol", Value::str("kiri-cli/1")), ("ok", Value::Bool(true)), ("result", wire)]);
+            let text = line(&env);
+            match crate::interrupt::disarm() {
+                None => return Output { stdout: text, stderr: String::new(), code: 0 },
+                Some(trip) => {
+                    let (reason, data) = match trip {
+                        crate::interrupt::Trip::Deadline => ("deadline", Value::rec(vec![("scope", Value::str("root"))])),
+                        crate::interrupt::Trip::Cancelled => ("cancelled", Value::rec(vec![("scope", Value::str("root"))])),
+                        crate::interrupt::Trip::Memory => ("resource", Value::rec(vec![("resource", Value::str("memory"))])),
+                    };
+                    (
+                        Value::rec(vec![
+                            ("protocol", Value::str("kiri-cli/1")),
+                            ("ok", Value::Bool(false)),
+                            ("phase", Value::str("abort")),
+                            ("reason", Value::str(reason)),
+                            ("data", data),
+                        ]),
+                        3,
+                    )
+                }
+            }
+        }
         RootOutcome::Error { error, span } => {
             let sp = span.map(|s| span_value(&src, s)).unwrap_or(Value::Null);
             (failure_envelope("runtime", error, sp), 1)

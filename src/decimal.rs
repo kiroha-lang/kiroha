@@ -199,7 +199,11 @@ impl Decimal {
             if i == es {
                 return Ok(None);
             }
-            exp_val = s[es..i].parse::<BigInt>().map_err(|_| Overflow)?;
+            let digits = s[es..i].trim_start_matches('0');
+            if digits.len() > 19 {
+                return Err(Overflow); // beyond the exponent quota; never parse it
+            }
+            exp_val = if digits.is_empty() { BigInt::zero() } else { digits.parse::<BigInt>().map_err(|_| Overflow)? };
             if eneg {
                 exp_val = -exp_val;
             }

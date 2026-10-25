@@ -100,9 +100,11 @@ fn hex_bytes(s: &str) -> Option<Vec<u8>> {
 }
 
 /// Convert driver rows to `{rows,count}` (§11.3–11.4).
-pub fn convert_rows(raw: &RawRows, max_rows: u64) -> Result<Value, Value> {
+/// Errors are ordinary `db`/`limit` errors, except values beyond the host
+/// number quota, which are resource aborts (§3.2), and interrupt trips.
+pub fn convert_rows(raw: &RawRows, max_rows: u64) -> Result<Value, Fail> {
     let outcome = raw.outcome.as_str();
-    let decode = || db_error("decode", outcome, vec![]);
+    let decode = || Fail::Err(db_error("decode", outcome, vec![]));
     let mut names: Vec<&str> = Vec::new();
     for (n, oid) in &raw.columns {
         if names.contains(&n.as_str()) {
@@ -121,7 +123,7 @@ pub fn convert_rows(raw: &RawRows, max_rows: u64) -> Result<Value, Value> {
         .flatten()
         .unwrap_or_else(crate::decimal::Decimal::zero);
     if raw.rows.len() as u64 > max_rows {
-        return Err(err::make(
+        return Err(Fail::Err(err::make(
             "limit",
             "result rows exceed max_rows",
             vec![
@@ -130,10 +132,13 @@ pub fn convert_rows(raw: &RawRows, max_rows: u64) -> Result<Value, Value> {
                 ("maximum", Value::int(max_rows as i64)),
                 ("outcome", Value::str(outcome)),
             ],
-        ));
+        )));
     }
     let mut rows = Vec::with_capacity(raw.rows.len());
     for row in &raw.rows {
+        if crate::interrupt::poll() {
+            return Err(Fail::Interrupted);
+        }
         if row.len() != raw.columns.len() {
             return Err(decode());
         }
@@ -144,16 +149,27 @@ pub fn convert_rows(raw: &RawRows, max_rows: u64) -> Result<Value, Value> {
                 Some(text) => match oid {
                     21 | 23 | 20 | 1700 => match crate::decimal::Decimal::parse_json(text) {
                         Ok(Some(d)) => Value::num(d),
-                        _ => return Err(decode()),
+                        Err(_) => return Err(Fail::Abort(AbortReason::Resource("number"))),
+                        Ok(None) => return Err(decode()),
                     },
-                    25 | 1043 | 1042 | 2950 => Value::str(text),
+                    25 | 1043 | 1042 | 2950 => {
+                        if crate::interrupt::reserve(text.len()) {
+                            return Err(Fail::Interrupted);
+                        }
+                        Value::str(text)
+                    }
                     16 => match text.as_str() {
                         "t" => Value::Bool(true),
                         "f" => Value::Bool(false),
                         _ => return Err(decode()),
                     },
                     17 => Value::bytes(hex_bytes(text).ok_or_else(decode)?),
-                    114 | 3802 => crate::json::parse(text).map_err(|_| decode())?,
+                    114 | 3802 => match crate::json::parse(text) {
+                        Ok(v) => v,
+                        Err(crate::json::JsonError::Overflow) => return Err(Fail::Abort(AbortReason::Resource("number"))),
+                        Err(crate::json::JsonError::Interrupted) => return Err(Fail::Interrupted),
+                        Err(_) => return Err(decode()),
+                    },
                     _ => return Err(decode()),
                 },
             };
@@ -301,7 +317,23 @@ impl<H: Host> Runtime<H> {
             },
             SqlPhase::Executing => {
                 let (res, discard) = match o {
-                    EffOutcome::Ok(EffValue::Rows(raw)) => (convert_rows(&raw, f.max_rows), false),
+                    EffOutcome::Ok(EffValue::Rows(raw)) => match convert_rows(&raw, f.max_rows) {
+                        Ok(v) => (Ok(v), false),
+                        Err(Fail::Err(e)) => (Err(e), false),
+                        Err(other) => {
+                            // Abort (quota/interrupt): record it, but still return
+                            // a pooled connection (discarded) before unwinding.
+                            let ctl = match other {
+                                Fail::Interrupted => self.disarm_interrupts(t).unwrap_or(Ctl::Ret(Value::Null)),
+                                o => self.fail_ctl(t, o),
+                            };
+                            if f.tx.is_none() {
+                                f.primary = Some(Ok(Value::Null));
+                                return self.sql_release(t, f, true);
+                            }
+                            return ctl;
+                        }
+                    },
                     EffOutcome::Err(e) => {
                         let e = if err::code_of(&e) == "timeout" { timeout_error("sql", f.timeout, Some("unknown")) } else { e };
                         let discard = matches!(err::code_of(&e), "timeout" | "network");

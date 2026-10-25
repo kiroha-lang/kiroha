@@ -47,6 +47,9 @@ struct Inner {
 pub struct Pools {
     config: Rc<HostConfig>,
     inner: Rc<RefCell<Inner>>,
+    /// Live-heap baseline for counting outstanding decoded row buffers
+    /// against `memory_bytes` (§14.1).
+    baseline: usize,
 }
 
 fn err_out(phase: &str, outcome: &str, sqlstate: Option<String>) -> EffOutcome {
@@ -190,7 +193,7 @@ pub fn tls_connector() -> tokio_postgres_rustls::MakeRustlsConnect {
 
 impl Pools {
     pub fn new(config: Rc<HostConfig>) -> Pools {
-        Pools { config, inner: Rc::new(RefCell::new(Inner::default())) }
+        Pools { config, inner: Rc::new(RefCell::new(Inner::default())), baseline: crate::alloc::live_bytes() }
     }
 
     pub fn pool(&mut self, alias: &str) -> EffOutcome {
@@ -350,6 +353,7 @@ impl Pools {
 
     pub fn execute(&mut self, conn: String, sql: String, params: Vec<SqlParam>, max_rows: u64) -> impl Future<Output = EffOutcome> {
         let inner = self.inner.clone();
+        let (baseline, limit) = (self.baseline, self.config.limits.memory_bytes);
         async move {
             let (client, in_tx) = match Self::client(&inner, &conn) {
                 Some(c) => c,
@@ -372,6 +376,13 @@ impl Pools {
             let mut rows = Vec::new();
             let mut truncated = false;
             while let Some(r) = stream.next().await {
+                if rows.len() % 1024 == 1023
+                    && crate::alloc::live_bytes().saturating_sub(baseline) as u64 > limit
+                {
+                    // Outstanding decoded buffers exceed the memory quota.
+                    let _ = client.cancel_token().cancel_query(tls_connector()).await;
+                    return EffOutcome::Resource("memory".into());
+                }
                 if rows.len() as u64 > max_rows {
                     // The runtime raises `limit`; stop buffering and cancel
                     // the rest of the statement on the server.

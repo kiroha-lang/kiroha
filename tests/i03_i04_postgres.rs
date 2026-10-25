@@ -109,6 +109,19 @@ fn i04_transactions_and_pool_hygiene() {
         &[("KIRI_PG_MAIN", &d)],
     );
     assert_eq!(result(&r), r#"["limit","max_rows"]"#);
+    // values beyond the host number quota are resource aborts, not db errors
+    let r = pg(r#"try sql(db("main"),q`select repeat('9',110000)::numeric as n`) catch {e=>e.code}"#);
+    assert_eq!(r.code, 3, "{}", r.stdout);
+    assert!(r.stdout.contains("\"resource\":\"number\""), "{}", r.stdout);
+    // decoded row buffers count against memory_bytes
+    let host_mem = r#"{"format":"kiri-host/1","capabilities":{"databases":["main"]},"database_pools":{"main":{"dsn_env":"KIRI_PG_MAIN"}},"limits":{"memory_bytes":100000000}}"#;
+    let r = run_env(
+        r#"len(sql(db("main"),q`select generate_series(1,1500000) x, repeat(${"a"},500) y`,{max_rows:5000000}).rows)"#,
+        Some(host_mem),
+        &[("KIRI_PG_MAIN", &dsn().unwrap())],
+    );
+    assert_eq!(r.code, 3, "{}", r.stdout);
+    assert!(r.stdout.contains("\"resource\":\"memory\""), "{}", r.stdout);
     // sql timeout on a slow statement
     let r = pg(r#"try sql(db("main"),q`select pg_sleep(5)`,{timeout:200}) catch {e=>[e.code,e.data.outcome]}"#);
     assert_eq!(result(&r), r#"["timeout","unknown"]"#);

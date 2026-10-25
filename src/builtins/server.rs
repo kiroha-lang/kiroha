@@ -651,13 +651,24 @@ impl<H: Host> Runtime<H> {
         if let Some(sig) = self.deadline_due(t).and(self.abort_of(t.scope)).or_else(|| self.abort_of(t.scope)) {
             return self.request_abort(t, f, sig, None);
         }
+        // Serialization runs under the request's deadline/memory checkpoints;
+        // a trip becomes the request's 504/503 rather than a bare abort.
+        let serialized = match &v {
+            other if !matches!(other, Value::Reply(_)) && other.is_json() => Some(crate::json::dump(other).into_bytes()),
+            _ => None,
+        };
+        if crate::interrupt::tripped() {
+            if let Some(Ctl::Abort(sig, _)) = self.disarm_interrupts(t) {
+                return self.request_abort(t, f, sig, None);
+            }
+        }
         match v {
             Value::Reply(r) => {
                 let hdrs = r.headers.clone();
                 self.send(t, f, r.status, hdrs, r.body.clone(), false)
             }
-            ref other if other.is_json() => {
-                let body = crate::json::dump(other).into_bytes();
+            _ if serialized.is_some() => {
+                let body = serialized.unwrap();
                 self.send(t, f, 200, vec![("content-type".into(), "application/json".into())], body, false)
             }
             other => {

@@ -192,3 +192,21 @@ fn unremovable_transfer_coding_is_a_framing_failure() {
     );
     assert_eq!(result(&r), r#"["network","framing","unknown"]"#);
 }
+
+#[test]
+fn gzip_bomb_within_max_bytes_honours_memory_quota() {
+    let zeros = vec![0u8; 400_000_000];
+    let gz = gzip(&zeros);
+    drop(zeros);
+    let (port, _) = fixture_server(move |_, _| {
+        let mut out = format!("HTTP/1.1 200 OK\r\nContent-Encoding: gzip\r\nContent-Length: {}\r\n\r\n", gz.len()).into_bytes();
+        out.extend_from_slice(&gz);
+        out
+    });
+    let host = format!(
+        r#"{{"format":"kiri-host/1","capabilities":{{"http":["http://127.0.0.1:{port}"]}},"limits":{{"memory_bytes":100000000}}}}"#
+    );
+    let r = run(&format!(r#"len(http("GET","http://127.0.0.1:{port}/",{{max_bytes:2000000000}}).body)"#), Some(&host));
+    assert_eq!(r.code, 3, "{}", r.stdout);
+    assert!(r.stdout.contains("\"resource\":\"memory\""), "{}", r.stdout);
+}
