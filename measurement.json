@@ -1,0 +1,333 @@
+{
+  "format": "kiri-measurement/2",
+  "language": "0.3.0/Web1",
+  "status": "tokenization_only",
+  "runtime_execution_evidence": null,
+  "generation_evaluation_evidence": null,
+  "toolchain": {
+    "python": "3.12.14",
+    "tiktoken": "0.14.0",
+    "encodings": {
+      "o200k_base": {
+        "fingerprint_sha256": "d45f311833074f9500d16c1d106fdc8dea87d8196511b89e0d5fc86dd5929ea4"
+      },
+      "cl100k_base": {
+        "fingerprint_sha256": "60a554c23f38786bfa8d5620b9de3e285923833e183e05f0a401f32b72c26e44"
+      }
+    }
+  },
+  "method": {
+    "input": "Exact raw UTF-8 text; LF; no normalization or chat framing",
+    "encoding": "encode_ordinary; special-token-looking strings count as ordinary text",
+    "extraction": "Unique whole-line markers, matching fence, payload including final LF",
+    "percentage": "100*(baseline-kiri)/baseline, rounded to 2 decimals; aggregate sums tokens first",
+    "model_claim": "Named tokenizers do not identify any current model tokenizer"
+  },
+  "documents": {
+    "full_markdown": {
+      "file": "spec.md",
+      "sha256": "3df664286cc0f4297c24e9004bf7579107dc2dc62ae0ac7d638060f48c9dc1b2",
+      "unicode_code_points": 206327,
+      "utf8_bytes": 206431,
+      "tokens": {
+        "o200k_base": 50403,
+        "cl100k_base": 49982
+      }
+    },
+    "generation_card": {
+      "sha256": "47c19c242fd5d96ae29776d14d3ff5c80755c4bc677f34d0a25a131501735089",
+      "unicode_code_points": 11091,
+      "utf8_bytes": 11091,
+      "tokens": {
+        "o200k_base": 2599,
+        "cl100k_base": 2579
+      },
+      "target_tokens_each_encoding": 4096,
+      "within_target": true
+    }
+  },
+  "embedded_blocks": {
+    "generation_card": {
+      "sha256": "47c19c242fd5d96ae29776d14d3ff5c80755c4bc677f34d0a25a131501735089",
+      "unicode_code_points": 11091,
+      "utf8_bytes": 11091,
+      "tokens": {
+        "o200k_base": 2599,
+        "cl100k_base": 2579
+      }
+    },
+    "conformance": {
+      "sha256": "72a524d47f5c2433213921bcf428df1d5d3f041316c704bf3ffdd9ef3fa19aeb",
+      "unicode_code_points": 52397,
+      "utf8_bytes": 52453,
+      "tokens": {
+        "o200k_base": 16510,
+        "cl100k_base": 16260
+      }
+    },
+    "measurement_corpus": {
+      "sha256": "e7e226982416f2b8cd0d40f409ef51c3d1e4413e4bdf6197a07eb9e5295f3cfd",
+      "unicode_code_points": 2339,
+      "utf8_bytes": 2339,
+      "tokens": {
+        "o200k_base": 699,
+        "cl100k_base": 697
+      }
+    },
+    "measurement_script": {
+      "sha256": "93cf2c1c33cd325d2c5b8167037da09af0ce422681d5c6d8162ac8220b9faf99",
+      "unicode_code_points": 8911,
+      "utf8_bytes": 8911,
+      "tokens": {
+        "o200k_base": 2117,
+        "cl100k_base": 2094
+      }
+    }
+  },
+  "specified_surface": {
+    "callable_count": 51,
+    "callable_names": [
+      "len",
+      "range",
+      "map",
+      "filter",
+      "fold",
+      "each",
+      "flat",
+      "take",
+      "sort",
+      "group",
+      "unique",
+      "sum",
+      "keys",
+      "has",
+      "pick",
+      "merge",
+      "one",
+      "split",
+      "join",
+      "replace",
+      "text",
+      "number",
+      "parse",
+      "dump",
+      "encode",
+      "decode",
+      "check",
+      "maybe",
+      "optional",
+      "open",
+      "parallel",
+      "sleep",
+      "retry",
+      "pages",
+      "fail",
+      "http",
+      "get",
+      "post",
+      "url",
+      "db",
+      "sql",
+      "tx",
+      "serve",
+      "input",
+      "reply",
+      "env",
+      "read",
+      "write",
+      "now",
+      "uuid",
+      "log"
+    ],
+    "schema_atoms": [
+      "str",
+      "num",
+      "int",
+      "bool",
+      "json"
+    ],
+    "conformance_case_count": 145,
+    "expected_case_phases": {
+      "abort": 6,
+      "check": 7,
+      "lex": 8,
+      "parse": 14,
+      "runtime": 35,
+      "value": 75
+    },
+    "conformance_execution": "not run by this script"
+  },
+  "corpus": {
+    "status": "handwritten_sources_not_executed",
+    "baseline_assumptions": "TypeScript snippets using a proposed SDK with the same contracts; SDK/binding not implemented. Native array helpers are used only in the first case. An async expression harness supplies context. Imports and harness wrappers are excluded symmetrically. No executed-equivalence claim.",
+    "cases": [
+      {
+        "id": "example-1",
+        "task": "HTTP JSON validation, filtering and projection",
+        "sources": {
+          "kiri": "User=open({id:int,name:str,active:bool});\nget(\"https://api.example/users\") | check([User]) | filter(){u=>u.active} | map(){u=>{id:u.id,name:u.name}}",
+          "typescript_same_sdk": "const User=open({id:int,name:str,active:bool});\ncheck(await get(\"https://api.example/users\"),[User]).filter(u=>u.active).map(u=>({id:u.id,name:u.name}))"
+        },
+        "measurements": {
+          "kiri": {
+            "sha256": "f44fa82aab07c67fb33684cd0f14ad6a55572ee171e8edfa7bc425f3f2fe3074",
+            "unicode_code_points": 148,
+            "utf8_bytes": 148,
+            "tokens": {
+              "o200k_base": 46,
+              "cl100k_base": 48
+            }
+          },
+          "typescript_same_sdk": {
+            "sha256": "6059e267f4f3068fef7da0fe647fe9cc95d76cee7a5ce6c384c43fe16f1a54f3",
+            "unicode_code_points": 152,
+            "utf8_bytes": 152,
+            "tokens": {
+              "o200k_base": 43,
+              "cl100k_base": 45
+            }
+          }
+        },
+        "comparison": {
+          "o200k_base": {
+            "kiri_minus_baseline_tokens": 3,
+            "savings_percent": -6.98
+          },
+          "cl100k_base": {
+            "kiri_minus_baseline_tokens": 3,
+            "savings_percent": -6.67
+          }
+        }
+      },
+      {
+        "id": "example-2",
+        "task": "Cursor pagination with page validation",
+        "sources": {
+          "kiri": "Page=open({items:[json],next:maybe(str)});\npages(null){c=>\n  p=get(\"https://api.example/items\",{query:{cursor:c}}) | check(Page);\n  {items:p.items,next:p.next}\n}",
+          "typescript_same_sdk": "const Page=open({items:[json],next:maybe(str)});\nawait pages(null,async c=>{\n  const p=check(await get(\"https://api.example/items\",{query:{cursor:c}}),Page);\n  return {items:p.items,next:p.next}\n})"
+        },
+        "measurements": {
+          "kiri": {
+            "sha256": "d73302baa7dd17d4018dfee78721c137008c90ea070574e3bd4107872e31c836",
+            "unicode_code_points": 161,
+            "utf8_bytes": 161,
+            "tokens": {
+              "o200k_base": 48,
+              "cl100k_base": 48
+            }
+          },
+          "typescript_same_sdk": {
+            "sha256": "849fcceb63afd97b1bde736d3309bc066d2e6cf40936be58c9f677dc8518db2f",
+            "unicode_code_points": 197,
+            "utf8_bytes": 197,
+            "tokens": {
+              "o200k_base": 53,
+              "cl100k_base": 53
+            }
+          }
+        },
+        "comparison": {
+          "o200k_base": {
+            "kiri_minus_baseline_tokens": -5,
+            "savings_percent": 9.43
+          },
+          "cl100k_base": {
+            "kiri_minus_baseline_tokens": -5,
+            "savings_percent": 9.43
+          }
+        }
+      },
+      {
+        "id": "example-3",
+        "task": "JSON API with two-write transaction",
+        "sources": {
+          "kiri": "d=db(\"main\");\nserve({\"POST /users\":{r=>\n  u=input(r,{name:str,email:str});\n  tx(d){t=>\n    row=sql(t,q`insert into users(name,email) values (${u.name},${u.email}) returning id`).rows | one();\n    sql(t,q`insert into audit(user_id) values (${row.id})`);\n    reply(201,row)\n  }\n}})",
+          "typescript_same_sdk": "const d=db(\"main\");\nserve({\"POST /users\":async r=>{\n  const u=input(r,{name:str,email:str});\n  return tx(d,async t=>{\n    const row=one((await sql(t,q`insert into users(name,email) values (${u.name},${u.email}) returning id`)).rows);\n    await sql(t,q`insert into audit(user_id) values (${row.id})`);\n    return reply(201,row)\n  })\n}})"
+        },
+        "measurements": {
+          "kiri": {
+            "sha256": "f138cced58aac35dabadad1ee02c2f0663d729386152ed72de0121389dd5d829",
+            "unicode_code_points": 279,
+            "utf8_bytes": 279,
+            "tokens": {
+              "o200k_base": 88,
+              "cl100k_base": 87
+            }
+          },
+          "typescript_same_sdk": {
+            "sha256": "52490a84d8c2b2e183f8980da01f270c69b446ff00f0e6f5bfb6b2d2c84b58d2",
+            "unicode_code_points": 335,
+            "utf8_bytes": 335,
+            "tokens": {
+              "o200k_base": 95,
+              "cl100k_base": 94
+            }
+          }
+        },
+        "comparison": {
+          "o200k_base": {
+            "kiri_minus_baseline_tokens": -7,
+            "savings_percent": 7.37
+          },
+          "cl100k_base": {
+            "kiri_minus_baseline_tokens": -7,
+            "savings_percent": 7.45
+          }
+        }
+      }
+    ],
+    "aggregate": {
+      "o200k_base": {
+        "kiri_tokens": 182,
+        "baseline_tokens": 191,
+        "kiri_minus_baseline_tokens": -9,
+        "weighted_savings_percent": 4.71
+      },
+      "cl100k_base": {
+        "kiri_tokens": 183,
+        "baseline_tokens": 192,
+        "kiri_minus_baseline_tokens": -9,
+        "weighted_savings_percent": 4.69
+      }
+    }
+  },
+  "canonical_callback_examples": [
+    {
+      "source": "urls | parallel(4){u=>get(u)}",
+      "sha256": "5b8d05828c6392dd68f5b280537e55ac9d468f2f02de186a7b5c7bcef0ac8728",
+      "unicode_code_points": 29,
+      "utf8_bytes": 29,
+      "tokens": {
+        "o200k_base": 11,
+        "cl100k_base": 11
+      }
+    },
+    {
+      "source": "users | map(){u=>u.name}",
+      "sha256": "6ff873cfa06dc74661e64efdbfcb8f238de119c99e15cd3e0e41e0c28ab253e9",
+      "unicode_code_points": 24,
+      "utf8_bytes": 24,
+      "tokens": {
+        "o200k_base": 9,
+        "cl100k_base": 9
+      }
+    },
+    {
+      "source": "apply(x){f}=f(x); apply(10){v=>v+1}",
+      "sha256": "0011d8ea75e256e90813c49a898e4911789d62aef5b47103c817991aca33fc94",
+      "unicode_code_points": 35,
+      "utf8_bytes": 35,
+      "tokens": {
+        "o200k_base": 18,
+        "cl100k_base": 18
+      }
+    }
+  ],
+  "limitations": [
+    "Handwritten convenience sample; no compiler/runtime/model generation was executed.",
+    "Same-SDK TypeScript binding is proposed, not an implemented measured dependency.",
+    "Source tokens exclude task prompts, imports/harness, diagnostics, repairs and model hidden tokens.",
+    "Full implementation document and generation card serve different purposes.",
+    "Document length and sample source savings do not establish LLM reliability or total task cost savings."
+  ]
+}
