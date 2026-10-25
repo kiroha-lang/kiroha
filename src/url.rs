@@ -216,10 +216,16 @@ pub fn encode_component(s: &str) -> String {
 }
 
 /// Append query pairs from a Kiri record per §10.2. Returns type errors.
-pub fn query_pairs(op: &str, q: &Value, position: err::Pos) -> Result<Vec<(String, String)>, Value> {
+/// `arg_index`: Some(i) when the query is the i-th positional argument (`url`),
+/// None when it is the `query` option of http/get/post.
+pub fn query_pairs(op: &str, q: &Value, arg_index: Option<usize>) -> Result<Vec<(String, String)>, Value> {
+    let pos = || match arg_index {
+        Some(i) => err::Pos::Index(i),
+        None => err::Pos::Option("query"),
+    };
     let r = match q {
         Value::Record(r) => r,
-        other => return Err(err::type_error(op, position, "record", other.kind())),
+        other => return Err(err::type_error(op, pos(), "record", other.kind())),
     };
     let mut pairs = Vec::new();
     let scalar = |v: &Value| -> Result<Option<String>, Value> {
@@ -229,7 +235,7 @@ pub fn query_pairs(op: &str, q: &Value, position: err::Pos) -> Result<Vec<(Strin
             Value::Num(d) => Some(d.canonical()),
             Value::Bool(b) => Some(b.to_string()),
             other => {
-                return Err(err::type_error(op, err::Pos::Option("query"), "string, number, bool or null", other.kind()))
+                return Err(err::type_error(op, pos(), "string, number, bool or null", other.kind()))
             }
         })
     };

@@ -97,11 +97,8 @@ pub fn options<'a>(op: &str, pos: usize, v: Option<&'a Value>, known: &[&str]) -
         None => return Ok(None),
         Some(v) => record(op, pos, v)?,
     };
-    Ok(Some(r)).and_then(|r| {
-        // unknown names are checked by `reject_unknown` after known fields
-        let _ = known;
-        Ok(r)
-    })
+    let _ = known; // unknown names are checked by `reject_unknown` after known fields
+    Ok(Some(r))
 }
 
 pub fn reject_unknown(op: &str, r: Option<&Rc<Record>>, known: &[&str]) -> VResult<()> {

@@ -1,0 +1,49 @@
+//! Normative prose rules not covered by the embedded corpus, checked with
+//! the deterministic fixture host through an extra conformance manifest.
+
+use kiri::conformance::{parse_manifest, run_all};
+
+const MANIFEST: &str = r#"{
+ "format":"kiri-conformance/1","language":"0.3.0/Web1","scheduler":"virtual-fifo/1",
+ "cases":[
+  {"id":"sql-holes-must-be-paramrefs",
+   "source":"d=db(\"main\");[(try sql(d,q`select * from ${\"t\"}`) catch {e=>[e.data.phase,e.data.reason,e.data.outcome]}),(try sql(d,q`select ${1}${2}`) catch {e=>e.data.reason}),(try sql(d,q`select t.${1} from t`) catch {e=>e.data.reason}),(try sql(d,q`select 1 ${\"+\"} 2`) catch {e=>e.data.reason}),(try sql(d,q`select (1;2)`) catch {e=>e.data.reason}),(try sql(d,q`(delete from t)`) catch {e=>e.data.reason}),(try sql(d,q`table t`) catch {e=>e.data.reason})]",
+   "host":{"capabilities":{"databases":["main"]}},
+   "fixtures":[{"id":"pool","op":"pool","match":{"alias":"main"},"ok":"p"}],
+   "expect":{"phase":"value","json":"[[\"prepare\",\"hole_context\",\"not_sent\"],\"hole_context\",\"hole_context\",\"hole_context\",\"statement\",\"statement\",\"statement\"]","trace":["pool:start","pool:ok"]}},
+  {"id":"sql-search-cycle-and-sibling-cte-into-are-valid",
+   "source":"d=db(\"main\");sql(d,q`with a as (select 1), b as (insert into t select 2 returning *) select * from b`).count",
+   "host":{"capabilities":{"databases":["main"]}},
+   "fixtures":[{"id":"pool","op":"pool","match":{"alias":"main"},"ok":"p"},
+     {"id":"acq","op":"acquire","match":{"pool":"p"},"ok":"c"},
+     {"id":"q","op":"execute","match":{"connection":"c"},"ok":{"columns":[],"rows":[],"count":"1","outcome":"committed"}},
+     {"id":"rel","op":"release","match":{"connection":"c","disposition":"reset"},"ok":null}],
+   "expect":{"phase":"value","json":"1"}},
+  {"id":"http-stacked-codings-and-205-coding",
+   "source":"[(try http(\"GET\",\"https://f.invalid/a\") catch {e=>e.data.reason}),(try http(\"GET\",\"https://f.invalid/b\") catch {e=>e.data.reason})]",
+   "host":{"capabilities":{"http":["https://f.invalid"]}},
+   "fixtures":[{"id":"a","op":"http","match":{"url":"https://f.invalid/a"},"ok":{"status":200,"headers":[["Content-Encoding","gzip"],["Content-Encoding","identity"]],"body_base64":""}},
+     {"id":"b","op":"http","match":{"url":"https://f.invalid/b"},"ok":{"status":205,"headers":[["Content-Encoding","br"]],"body_base64":""}}],
+   "expect":{"phase":"value","json":"[\"unsupported_encoding\",\"unsupported_encoding\"]"}},
+  {"id":"server-pre-admission-errors-are-json",
+   "source":"serve({\"GET /x\":{r=>1}})",
+   "host":{"capabilities":{"listen":[{"host":"127.0.0.1","port":8080}]}},
+   "server":{"requests":[{"id":"bad","at_ms":0,"method":"GET","target":"/%ZZ","headers":[],"body_base64":""}],"cancel_at_ms":5},
+   "expect":{"phase":"abort","reason":"cancelled","responses":[{"id":"bad","status":400,"body_base64":"eyJlcnJvciI6ImJhZF9yZXF1ZXN0In0=","headers":{"content-type":["application/json"]}}]}},
+  {"id":"route-malformed-escape-is-configuration-error",
+   "source":"try serve({\"GET /a%+1\":{r=>1}}) catch {e=>e.code}",
+   "expect":{"phase":"value","json":"\"argument\""}},
+  {"id":"fail-raises-record-unchanged",
+   "source":"try fail({data:{},message:\"m\",code:\"x\"}) catch {e=>dump(e)}",
+   "expect":{"phase":"value","json":"\"{\\\"data\\\":{},\\\"message\\\":\\\"m\\\",\\\"code\\\":\\\"x\\\"}\""}},
+  {"id":"arguments-validate-left-to-right",
+   "source":"[(try replace(\"a\",\"\",1) catch {e=>e.code}),(try url(\"https://a\",[],{q:{}}) catch {e=>e.data.position})]",
+   "expect":{"phase":"value","json":"[\"argument\",3]"}}
+ ]}"#;
+
+#[test]
+fn prose_rules_hold() {
+    let cases = parse_manifest(MANIFEST).expect("manifest");
+    let (report, all) = run_all(&cases);
+    assert!(all, "{}", kiri::json::dump(&report));
+}

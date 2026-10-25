@@ -62,11 +62,11 @@ impl<H: Host> Runtime<H> {
             let root = self.root_scope;
             self.abort_scope(root, AbortReason::Cancelled);
         }
-        if steps % 512 == 0 {
+        if steps.is_multiple_of(512) {
             if self.memory_exceeded() {
                 self.abort_scope(scope, AbortReason::Resource("memory"));
             }
-            if !virt && steps % 1024 == 0 {
+            if !virt && steps.is_multiple_of(1024) {
                 let now = self.host.now_ms();
                 self.fire_due_timers(now);
             }

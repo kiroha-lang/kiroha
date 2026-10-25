@@ -64,6 +64,7 @@ pub fn translate(segments: &[String]) -> Result<String, Reject> {
         return Err(Reject::Statement);
     }
     validate_tokens(&toks)?;
+    validate_parsed(&sql, segments.len() - 1)?;
     Ok(sql)
 }
 
@@ -216,153 +217,71 @@ fn lex_segment(seg: &str, state: &mut State, toks: &mut Vec<Tok>) -> Result<(), 
     Ok(())
 }
 
-const ALLOWED: &[&str] = &["select", "insert", "update", "delete", "merge"];
-
-fn validate_tokens(toks: &[Tok]) -> Result<(), Reject> {
-    // Split at top-level semicolons.
-    let mut depth = 0i64;
-    let mut semi_at = None;
-    for (i, t) in toks.iter().enumerate() {
-        match t {
-            Tok::LParen => depth += 1,
-            Tok::RParen => depth -= 1,
-            Tok::Semi if depth <= 0 => {
-                semi_at = Some(i);
-                break;
+/// Full PostgreSQL grammar check (libpg_query): exactly one statement of an
+/// allowed kind, no SELECT INTO, and every generated marker parsed exactly
+/// once as a ParamRef. A syntax error at a generated marker is `hole_context`.
+fn validate_parsed(sql: &str, holes: usize) -> Result<(), Reject> {
+    use pg_query::protobuf::node::Node as N;
+    let parsed = match pg_query::parse(sql) {
+        Ok(p) => p,
+        Err(e) => {
+            let msg = e.to_string();
+            let at_marker = (1..=holes).any(|n| msg.contains(&format!("\"${n}\"")));
+            return Err(if at_marker { Reject::HoleContext } else { Reject::Statement });
+        }
+    };
+    let stmts = &parsed.protobuf.stmts;
+    match stmts.len() {
+        0 => return Err(Reject::Statement),
+        1 => {}
+        _ => return Err(Reject::MultipleStatements),
+    }
+    let node = stmts[0].stmt.as_ref().and_then(|n| n.node.as_ref()).ok_or(Reject::Statement)?;
+    let allowed_dml = |n: &N| matches!(n, N::InsertStmt(_) | N::UpdateStmt(_) | N::DeleteStmt(_) | N::MergeStmt(_));
+    match node {
+        N::SelectStmt(sel) => {
+            if sel.into_clause.is_some() || !sel.values_lists.is_empty() {
+                return Err(Reject::Statement);
             }
+        }
+        n if allowed_dml(n) => {}
+        _ => return Err(Reject::Statement),
+    }
+    let mut counts = vec![0usize; holes + 1];
+    for (n, _, _, _) in parsed.protobuf.nodes() {
+        match n {
+            pg_query::NodeRef::ParamRef(p) => {
+                let k = p.number as usize;
+                if k == 0 || k > holes {
+                    return Err(Reject::LiteralParameter);
+                }
+                counts[k] += 1;
+            }
+            pg_query::NodeRef::SelectStmt(s) if s.into_clause.is_some() => return Err(Reject::Statement),
             _ => {}
         }
     }
-    let stmt = match semi_at {
-        Some(i) => {
-            if i + 1 < toks.len() {
-                return Err(Reject::MultipleStatements);
-            }
-            &toks[..i]
-        }
-        None => toks,
-    };
-    if stmt.is_empty() {
-        return Err(Reject::Statement);
-    }
-    // Leading parentheses may wrap a SELECT.
-    let mut k = 0;
-    while k < stmt.len() && stmt[k] == Tok::LParen {
-        k += 1;
-    }
-    let first = match stmt.get(k) {
-        Some(Tok::Word(w)) => w.as_str(),
-        _ => return Err(Reject::Statement),
-    };
-    let main = if first == "with" {
-        main_after_with(stmt, k + 1)?
-    } else {
-        first.to_string()
-    };
-    if !ALLOWED.contains(&main.as_str()) {
-        return Err(Reject::Statement);
-    }
-    if (main == "select") && has_top_level_into(stmt) {
-        return Err(Reject::Statement);
+    if counts[1..].iter().any(|c| *c != 1) {
+        return Err(Reject::HoleContext);
     }
     Ok(())
 }
 
-/// Skip a WITH clause and return the main statement keyword.
-fn main_after_with(stmt: &[Tok], mut k: usize) -> Result<String, Reject> {
-    if let Some(Tok::Word(w)) = stmt.get(k) {
-        if w == "recursive" {
-            k += 1;
-        }
-    }
-    loop {
-        // name
-        match stmt.get(k) {
-            Some(Tok::Word(_)) => k += 1,
-            _ => return Err(Reject::Statement),
-        }
-        // optional column list
-        if stmt.get(k) == Some(&Tok::LParen) {
-            k = skip_parens(stmt, k)?;
-        }
-        match stmt.get(k) {
-            Some(Tok::Word(w)) if w == "as" => k += 1,
-            _ => return Err(Reject::Statement),
-        }
-        while let Some(Tok::Word(w)) = stmt.get(k) {
-            if w == "not" || w == "materialized" {
-                k += 1;
-            } else {
-                break;
-            }
-        }
-        if stmt.get(k) != Some(&Tok::LParen) {
-            return Err(Reject::Statement);
-        }
-        // CTE body must itself be an allowed statement.
-        match stmt.get(k + 1) {
-            Some(Tok::Word(w)) if ALLOWED.contains(&w.as_str()) || w == "with" || w == "values" => {}
-            Some(Tok::LParen) => {}
-            _ => return Err(Reject::Statement),
-        }
-        k = skip_parens(stmt, k)?;
-        // SEARCH/CYCLE clauses are skipped until a comma or main keyword.
-        while let Some(t) = stmt.get(k) {
-            match t {
-                Tok::Other => {
-                    k += 1;
-                    break;
-                }
-                Tok::Word(w) if ALLOWED.contains(&w.as_str()) => return Ok(w.clone()),
-                Tok::LParen => {
-                    let mut j = k;
-                    while stmt.get(j) == Some(&Tok::LParen) {
-                        j += 1;
-                    }
-                    if let Some(Tok::Word(w)) = stmt.get(j) {
-                        if w == "select" {
-                            return Ok("select".into());
-                        }
-                    }
-                    return Err(Reject::Statement);
-                }
-                _ => return Err(Reject::Statement),
-            }
-        }
-    }
-}
+const ALLOWED: &[&str] = &["select", "insert", "update", "delete", "merge"];
 
-fn skip_parens(stmt: &[Tok], mut k: usize) -> Result<usize, Reject> {
-    let mut depth = 0;
-    while let Some(t) = stmt.get(k) {
-        match t {
-            Tok::LParen => depth += 1,
-            Tok::RParen => {
-                depth -= 1;
-                if depth == 0 {
-                    return Ok(k + 1);
-                }
-            }
-            _ => {}
-        }
+/// Lexical pre-check: the statement must start with an allowed command word
+/// (after optional parentheses). This excludes top-level TABLE/VALUES
+/// shorthands, which libpg_query represents as ordinary SELECTs.
+fn validate_tokens(toks: &[Tok]) -> Result<(), Reject> {
+    let mut k = 0;
+    while k < toks.len() && toks[k] == Tok::LParen {
         k += 1;
     }
-    Err(Reject::Statement)
-}
-
-fn has_top_level_into(stmt: &[Tok]) -> bool {
-    let mut depth = 0;
-    let mut seen_select_body = false;
-    for t in stmt {
-        match t {
-            Tok::LParen => depth += 1,
-            Tok::RParen => depth -= 1,
-            Tok::Word(w) if depth <= 1 && w == "select" => seen_select_body = true,
-            Tok::Word(w) if w == "into" && seen_select_body && depth <= 1 => return true,
-            _ => {}
-        }
+    match toks.get(k) {
+        Some(Tok::Word(w)) if ALLOWED.contains(&w.as_str()) || w == "with" => Ok(()),
+        Some(_) => Err(Reject::Statement),
+        None => Err(Reject::Statement),
     }
-    false
 }
 
 #[cfg(test)]
@@ -395,5 +314,15 @@ mod tests {
         assert!(translate(&s(&["(select 1)"])).is_ok());
         assert_eq!(translate(&s(&["  "])), Err(Reject::Statement));
         assert_eq!(translate(&s(&["select E'\\'' || ", ""])).is_ok(), true);
+        assert_eq!(translate(&s(&["select * from ", ""])), Err(Reject::HoleContext));
+        assert_eq!(translate(&s(&["select ", "", ""])), Err(Reject::HoleContext));
+        assert_eq!(translate(&s(&["select t.", " from t"])), Err(Reject::HoleContext));
+        assert_eq!(translate(&s(&["select 1 ", " 2"])), Err(Reject::HoleContext));
+        assert_eq!(translate(&s(&["select (1;2)"])), Err(Reject::Statement));
+        assert_eq!(translate(&s(&["(delete from t)"])), Err(Reject::Statement));
+        assert!(translate(&s(&["with recursive t(n) as (select 1 union all select n+1 from t where n<5) search depth first by n set ord select * from t"])).is_ok());
+        assert!(translate(&s(&["with recursive t(n) as (select 1 union all select n+1 from t where n<5) cycle n set is_cycle using path select * from t"])).is_ok());
+        assert!(translate(&s(&["with a as (select 1), b as (insert into t select 2 returning *) select * from b"])).is_ok());
+        assert_eq!(translate(&s(&["table t"])), Err(Reject::Statement));
     }
 }

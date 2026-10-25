@@ -34,7 +34,7 @@ impl<H: Host> Runtime<H> {
                 let limit = self.config.limits.memory_bytes;
                 let base = self.memory_baseline;
                 pure(b, &args, &mut |n: usize| {
-                    if n % 4096 == 0 && crate::alloc::live_bytes().saturating_sub(base) as u64 > limit {
+                    if n.is_multiple_of(4096) && crate::alloc::live_bytes().saturating_sub(base) as u64 > limit {
                         Err(RFail::Abort(AbortReason::Resource("memory")))
                     } else {
                         Ok(())
@@ -229,10 +229,10 @@ fn pure(b: Builtin, a: &[Value], tick: Tick) -> BResult {
         Replace => {
             let s = string(op, 1, &a[0])?;
             let old = string(op, 2, &a[1])?;
-            let new = string(op, 3, &a[2])?;
             if old.is_empty() {
                 return Err(arg_err(op, "search text must be nonempty"));
             }
+            let new = string(op, 3, &a[2])?;
             Ok(Value::str(&s.replace(&**old, new)))
         }
         Text => Ok(Value::str(&text_of(op, &a[0])?)),
@@ -307,8 +307,7 @@ pub fn validate_error_record(op: &str, v: &Value) -> VResult<Value> {
         }
         other => return Err(opt_type_err(op, "data", "record", other)),
     }
-    // Rebuild in canonical field order.
-    Ok(Value::rec(vec![("code", code.clone()), ("message", message.clone()), ("data", data.clone())]))
+    Ok(v.clone())
 }
 
 /// JSON-equality lookup helper for group/unique.

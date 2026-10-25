@@ -108,8 +108,11 @@ pub fn percent_decode(s: &str, plus_space: bool) -> Option<String> {
     while i < b.len() {
         match b[i] {
             b'%' => {
-                let h = std::str::from_utf8(b.get(i + 1..i + 3)?).ok()?;
-                out.push(u8::from_str_radix(h, 16).ok()?);
+                let h = b.get(i + 1..i + 3)?;
+                if !h.iter().all(|c| c.is_ascii_hexdigit()) {
+                    return None;
+                }
+                out.push(u8::from_str_radix(std::str::from_utf8(h).ok()?, 16).ok()?);
                 i += 3;
             }
             b'+' if plus_space => {
@@ -428,7 +431,7 @@ impl<H: Host> Runtime<H> {
             headers: Record::new(),
         };
         let budget = self.new_budget(scope, None);
-        let (hdrs, body) = response_parts(status, Vec::new(), error_body(kind), head);
+        let (hdrs, body) = response_parts(status, vec![("content-type".into(), "application/json".into())], error_body(kind), head);
         let ctl = Ctl::Dispatch(
             Effect::SendResponse { request: req.id, status, headers: hdrs, body, suppress_body: head },
             DispatchOpts { cleanup: true, timeout: None },

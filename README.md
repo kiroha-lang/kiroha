@@ -28,6 +28,7 @@ local filesystem.
 | --- | --- |
 | Embedded conformance corpus (spec §16) | **145 / 145 pass** (`kiri conformance spec.md --json`) |
 | Integration scenarios I01–I08 (spec §15.3) | All pass (`cargo test`, PostgreSQL 16.15 for I03/I04) |
+| Extra prose-rule regressions | Pass (`tests/prose_regressions.rs`) |
 | 51 prelude functions + 5 schema atoms | Implemented; inventory matches the generation card |
 | CLI protocol `kiri-cli/1` | Implemented |
 
@@ -36,7 +37,9 @@ Details, versions and known deviations are in
 
 ## Build and install
 
-Requires Rust 1.80+ (tested with 1.96).
+Requires Rust 1.80+ (tested with 1.96), a C compiler and libclang (for the
+embedded PostgreSQL parser, `pg_query`; set `LIBCLANG_PATH` if it is not
+found automatically).
 
 ```sh
 cargo build --release

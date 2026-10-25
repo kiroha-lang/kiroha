@@ -180,7 +180,7 @@ impl<H: Host> Runtime<H> {
             None => Vec::new(),
         };
         if let Some(q) = field(o, "query") {
-            let pairs = url::query_pairs(op, q, err::Pos::Option("query"))?;
+            let pairs = url::query_pairs(op, q, None)?;
             url::append_query(&mut url, &pairs);
         }
         let mut body = None;
@@ -310,7 +310,7 @@ pub fn http_result(kind: HttpKind, head: bool, max_bytes: u64, resp: RawResponse
     let body: Vec<u8> = if bodyless {
         Vec::new()
     } else if resp.status == 205 {
-        if !resp.body.is_empty() {
+        if !decode_content(&resp, max_bytes)?.is_empty() || !resp.body.is_empty() {
             return Err(Fail::Err(network_error("protocol", "unknown")));
         }
         Vec::new()
@@ -349,7 +349,9 @@ fn decode_content(resp: &RawResponse, max_bytes: u64) -> Result<Vec<u8>, Fail> {
             }
         }
     }
-    codings.retain(|c| c != "identity");
+    if codings.len() == 1 && codings[0] == "identity" {
+        codings.clear();
+    }
     let limit_err = || {
         Fail::Err(err::make(
             "limit",
@@ -409,7 +411,7 @@ pub fn url_builtin(a: &[Value]) -> BResult {
         encoded.push(url::encode_component(s));
     }
     let pairs = match a.get(2) {
-        Some(q) => url::query_pairs(op, q, err::Pos::Index(3))?,
+        Some(q) => url::query_pairs(op, q, Some(3))?,
         None => Vec::new(),
     };
     if !encoded.is_empty() {
