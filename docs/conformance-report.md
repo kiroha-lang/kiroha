@@ -81,7 +81,7 @@ root/request scope with `resource`. See
 
 ## Independent audits
 
-Six independent read-and-execute audits of sections 2–15 were run against the
+Seven independent read-and-execute audits of sections 2–15 were run against the
 code (each walked the normative rules section by section and confirmed every
 finding by running programs or custom fixture manifests).
 
@@ -97,6 +97,8 @@ finding by running programs or custom fixture manifests).
 | 5 (full, §2–§15) | 7: `memory_bytes` not enforced for `+`/`dump`/`encode` (process could abort on a huge allocation); long arbitrary-precision work not interruptible; tx timeout without `outcome`; `select x${1}` (libpg_query's `typename $n` extension) not rejected; record field keys not charged as steps; serve handler type error position; duplicate directory roots differing by a trailing slash | All fixed. Regressions: `tests/i06_i07_i08.rs` (memory quota for `+`, `dump`, `encode`; number quota under a deadline; duplicate roots), `tests/prose_regressions.rs` (tx timeout outcomes `rolled_back`/`unknown`, hole after a name, handler position), SQL unit tests. Audit 5 reported "verified, no violation" for every other subsection of §2–§15 |
 
 | 6 (full, §2–§15) | 5, none critical: gzip body over a small `max_bytes` aborted instead of raising `limit`; integers beyond the number quota (e.g. `1e100001`) rejected as non-integers in counts/options/limits; URLs with `" < > { } \| ^` backtick or `[ ]` in path/query accepted; missing/duplicate Host not rejected by the real server (RFC 9110 §7.2); field names instead of argument indices in some `type` positions (`reply` headers, `fail`) | All fixed. Regressions: `tests/i01_http.rs` (incremental gzip limit), `tests/i05_server.rs` (Host rules), `tests/prose_regressions.rs` (huge integers, URL characters, positions), `tests/i06_i07_i08.rs` (huge `eval_steps`). Audit 6 reported "verified, no violation" for every other subsection of §2–§15 |
+
+| 7 (full, §2–§15) | 4 + 4 minor: overflowing chunk size panicked the server adapter (slot leaked, shutdown hung); >100 response header fields misreported as a `header_bytes` abort; PostgreSQL rows buffered entirely before `max_rows`; `retry` aborting after 400 attempts with zero delay; >256 request header fields rejected; `+1` chunk size accepted; number quota counting non-coefficient digits (trailing zeros, `%` alignment); JSON usage envelopes outside JSON-mode commands | All fixed; adapter futures are additionally panic-isolated (a panic becomes a host resource outcome, never a hang). Regressions: `tests/i05_server.rs` (chunk sizes, 300 headers), `tests/i01_http.rs` (150 response headers), `tests/i03_i04_postgres.rs` (`max_rows` under a 30 MB quota on a 5M-row query), `tests/prose_regressions.rs` (retry, number quota), `tests/i06_i07_i08.rs` (CLI modes), decimal unit tests |
 
 Audit 2 recorded "no new violations" for §2, §3, §4, §5, §6, §7, §8, §9,
 §10 (apart from the fixture header checks), §11 (apart from the two SQL
@@ -114,7 +116,7 @@ documentation snippets and claims as accurate.
 | HTTP client connections | One connection per request; no pooling, so no hidden session state (§10.1 permits reuse but does not require it). |
 | Server connections | One request per connection with `connection: close`, a valid HTTP/1.1 behavior; HTTP/2 is not offered (optional in §10.1). |
 | Client half-close | Kiri 0.3.0 does not define half-close; §12.2 requires that a "client disconnect aborts its task". TCP offers no way to tell a half-close from a full close before a response is written (both arrive as FIN/EOF), so honouring §12.2 requires treating EOF during handler execution as a disconnect — the same rule Go's net/http applies. A client that shuts down its sending side before the response therefore receives none. This is the conforming reading of §12.2, not a deviation. |
-| Number size | Coefficients are limited to 100,000 decimal digits (operands, scaling and results); exceeding it is a `resource` abort with `{resource:"number"}`. §3.2 allows coefficient limits only as host resource termination; the quota bounds the cost of a single uninterruptible arbitrary-precision operation to tens of milliseconds, so deadlines and other tasks are not starved. |
+| Number size | Coefficients (significant digits, excluding a spelling's leading/trailing zeros) are limited to 100,000 decimal digits (operands, scaling and results); exceeding it is a `resource` abort with `{resource:"number"}`. §3.2 allows coefficient limits only as host resource termination; the quota bounds the cost of a single uninterruptible arbitrary-precision operation to tens of milliseconds, so deadlines and other tasks are not starved. |
 | Memory quota | Process live-heap measurement at checkpoints (published strategy above); a single huge allocation may complete before it is observed, which §14.1 leaves implementation-dependent. |
 | Build requirement | `pg_query` needs a C compiler and libclang at build time. |
 

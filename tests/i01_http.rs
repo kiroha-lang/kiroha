@@ -161,3 +161,17 @@ fn gzip_over_decoded_limit_is_a_catchable_limit_error() {
     );
     assert_eq!(result(&r), r#"["limit","max_bytes",10]"#);
 }
+
+#[test]
+fn many_response_header_fields_within_header_bytes() {
+    let (port, _) = fixture_server(|_, _| {
+        let mut out = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n".to_vec();
+        for i in 0..150 {
+            out.extend_from_slice(format!("X-{i}: a\r\n").as_bytes());
+        }
+        out.extend_from_slice(b"\r\n");
+        out
+    });
+    let r = run(&format!(r#"len(keys(http("GET","http://127.0.0.1:{port}/").headers))"#), Some(&host(port)));
+    assert_eq!(result(&r), "151");
+}

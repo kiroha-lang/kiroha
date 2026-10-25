@@ -100,6 +100,15 @@ fn i04_transactions_and_pool_hygiene() {
     assert_eq!(result(&r), r#"["timeout","tx"]"#);
     assert!(t.elapsed().as_millis() < 900, "{:?}", t.elapsed());
     assert!(!r.stderr.contains("detached"), "{}", r.stderr);
+    // max_rows stops buffering early (memory quota far below the full result)
+    let d = dsn().unwrap();
+    let host_small = r#"{"format":"kiri-host/1","capabilities":{"databases":["main"]},"database_pools":{"main":{"dsn_env":"KIRI_PG_MAIN"}},"limits":{"memory_bytes":30000000}}"#;
+    let r = run_env(
+        r#"try sql(db("main"),q`select generate_series(1,5000000) x, repeat(${"a"},100) y`,{max_rows:10}) catch {e=>[e.code,e.data.limit]}"#,
+        Some(host_small),
+        &[("KIRI_PG_MAIN", &d)],
+    );
+    assert_eq!(result(&r), r#"["limit","max_rows"]"#);
     // sql timeout on a slow statement
     let r = pg(r#"try sql(db("main"),q`select pg_sleep(5)`,{timeout:200}) catch {e=>[e.code,e.data.outcome]}"#);
     assert_eq!(result(&r), r#"["timeout","unknown"]"#);

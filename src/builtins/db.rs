@@ -251,7 +251,12 @@ impl<H: Host> Runtime<H> {
             Ctl::Dispatch(Effect::Acquire(p), opts)
         } else {
             frame.phase = SqlPhase::Executing;
-            let eff = Effect::Execute { connection: frame.conn.clone().unwrap(), sql: frame.sql.clone(), params: frame.params.clone() };
+            let eff = Effect::Execute {
+                connection: frame.conn.clone().unwrap(),
+                sql: frame.sql.clone(),
+                params: frame.params.clone(),
+                max_rows: frame.max_rows,
+            };
             t.stack.push(Frame::Sql(Box::new(frame)));
             Ctl::Dispatch(eff, opts)
         }
@@ -282,7 +287,8 @@ impl<H: Host> Runtime<H> {
                     f.phase = SqlPhase::Executing;
                     let now = self.now_ms();
                     let remaining = f.deadline.saturating_sub(now).max(1);
-                    let eff = Effect::Execute { connection: conn, sql: f.sql.clone(), params: f.params.clone() };
+                    let eff =
+                        Effect::Execute { connection: conn, sql: f.sql.clone(), params: f.params.clone(), max_rows: f.max_rows };
                     t.stack.push(Frame::Sql(Box::new(f)));
                     Ctl::Dispatch(eff, DispatchOpts { cleanup: false, timeout: Some(("sql", remaining)) })
                 }

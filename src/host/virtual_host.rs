@@ -156,7 +156,7 @@ impl VirtualHost {
             Effect::Pool(a) => Value::rec(vec![("alias", Value::str(a))]),
             Effect::Acquire(p) => Value::rec(vec![("pool", Value::str(p))]),
             Effect::Begin(c) => Value::rec(vec![("connection", Value::str(c)), ("isolation", Value::str("read_committed"))]),
-            Effect::Execute { connection, sql, params: ps } => Value::rec(vec![
+            Effect::Execute { connection, sql, params: ps, .. } => Value::rec(vec![
                 ("connection", Value::str(connection)),
                 ("sql", Value::str(sql)),
                 ("parameters", params(ps)),

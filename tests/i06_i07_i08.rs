@@ -156,6 +156,11 @@ fn i08_cli_protocol() {
     // usage errors
     let out = finish(kiri().arg("run").arg(&p).arg("--json").arg("--json").output().unwrap());
     assert_eq!(out.code, 2);
+    for args in [&["spec", "--compact", "--json"][..], &["--version", "--json"], &["foo", "--json"]] {
+        let out = finish(kiri().args(args).output().unwrap());
+        assert_eq!((out.code, out.stdout.as_str()), (2, ""), "{args:?}");
+        assert!(!out.stderr.is_empty());
+    }
     let out = finish(kiri().arg("frobnicate").output().unwrap());
     assert_eq!((out.code, out.stdout.as_str()), (2, ""));
     // stdin source

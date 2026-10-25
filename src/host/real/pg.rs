@@ -348,7 +348,7 @@ impl Pools {
         }
     }
 
-    pub fn execute(&mut self, conn: String, sql: String, params: Vec<SqlParam>) -> impl Future<Output = EffOutcome> {
+    pub fn execute(&mut self, conn: String, sql: String, params: Vec<SqlParam>, max_rows: u64) -> impl Future<Output = EffOutcome> {
         let inner = self.inner.clone();
         async move {
             let (client, in_tx) = match Self::client(&inner, &conn) {
@@ -370,7 +370,14 @@ impl Pools {
             use futures_util::StreamExt;
             let mut stream = Box::pin(stream);
             let mut rows = Vec::new();
+            let mut truncated = false;
             while let Some(r) = stream.next().await {
+                if rows.len() as u64 > max_rows {
+                    // The runtime raises `limit`; stop buffering and cancel
+                    // the rest of the statement on the server.
+                    truncated = true;
+                    break;
+                }
                 let row = match r {
                     Ok(r) => r,
                     Err(e) => return map_err(&e, "execute", in_tx),
@@ -381,6 +388,12 @@ impl Pools {
                     cells.push(cell.map(|c| cell_text(*oid, &c.0)));
                 }
                 rows.push(cells);
+            }
+            if truncated {
+                let _ = client.cancel_token().cancel_query(tls_connector()).await;
+                let outcome = if in_tx { "unknown" } else { "unknown" };
+                let count = rows.len().to_string();
+                return EffOutcome::Ok(EffValue::Rows(RawRows { columns, rows, count, outcome: outcome.into() }));
             }
             let count = stream.rows_affected().map(|n| n.to_string()).unwrap_or_default();
             let outcome = if in_tx { "unknown" } else { "committed" };

@@ -262,6 +262,7 @@ impl<H: Host> Runtime<H> {
                     // Exact delay*2^(i-1); a wait beyond host limits aborts.
                     let factor = crate::decimal::Decimal::from_bigint(num_traits::pow(BigInt::from(2), ((r.i - 1).min(400)) as usize));
                     let ms = match r.delay.mul(&factor).ok().and_then(|d| d.to_u64()) {
+                        _ if r.delay.is_zero() => 0,
                         Some(m) if r.i <= 400 && m < (1u64 << 52) => m,
                         _ => return self.fail_ctl(t, Fail::Abort(AbortReason::Resource("retry_delay"))),
                     };

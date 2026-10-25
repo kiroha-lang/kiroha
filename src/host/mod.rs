@@ -62,7 +62,8 @@ pub enum Effect {
     Pool(String),
     Acquire(String),
     Begin(String),
-    Execute { connection: String, sql: String, params: Vec<SqlParam> },
+    /// `max_rows`: the adapter may stop reading after max_rows + 1 rows.
+    Execute { connection: String, sql: String, params: Vec<SqlParam>, max_rows: u64 },
     Commit(String),
     Rollback(String),
     Release { connection: String, discard: bool },

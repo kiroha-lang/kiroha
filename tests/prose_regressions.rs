@@ -89,7 +89,13 @@ const MANIFEST: &str = r#"{
    "expect":{"phase":"value","json":"[\"argument\",\"argument\",\"argument\"]"}},
   {"id":"positional-type-error-positions",
    "source":"[(try reply(200,1,{\"X-A\":1}) catch {e=>e.data.position}),(try fail({code:1,message:\"\",data:{}}) catch {e=>e.data.position})]",
-   "expect":{"phase":"value","json":"[3,1]"}}
+   "expect":{"phase":"value","json":"[3,1]"}},
+  {"id":"retry-zero-delay-many-attempts",
+   "source":"try retry({attempts:402,when:{e=>true},delay:0}){()=>fail({code:\"x\",message:\"\",data:{}})} catch {e=>e.code}",
+   "expect":{"phase":"value","json":"\"x\""}},
+  {"id":"number-quota-counts-coefficient-only",
+   "source":"[7 % 1e1000000000, text(1e150000) == text(number(\"1\" + join(map(range(0,150000)){i=>\"0\"},\"\")))]",
+   "expect":{"phase":"value","json":"[7,true]"}}
  ]}"#;
 
 #[test]

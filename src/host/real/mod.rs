@@ -54,6 +54,7 @@ impl RealHost {
         let token = CancellationToken::new();
         self.tokens.insert(id, token.clone());
         let tx = self.tx.clone();
+        let fut = guarded(fut);
         tokio::task::spawn_local(async move {
             let out = tokio::select! {
                 biased;
@@ -66,6 +67,21 @@ impl RealHost {
 
     fn done_now(&mut self, id: u64, out: EffOutcome) {
         let _ = self.tx.send(HostEvent::Done(id, out));
+    }
+}
+
+/// Isolate an adapter future: a panic inside it becomes a host resource
+/// outcome instead of an operation that never completes (§14.2).
+fn guarded<F>(fut: F) -> impl std::future::Future<Output = EffOutcome>
+where
+    F: std::future::Future<Output = EffOutcome>,
+{
+    use futures_util::FutureExt;
+    async move {
+        match std::panic::AssertUnwindSafe(fut).catch_unwind().await {
+            Ok(o) => o,
+            Err(_) => EffOutcome::Resource("host".into()),
+        }
     }
 }
 
@@ -137,6 +153,7 @@ impl Host for RealHost {
                 let client = self.http.clone();
                 let sent = Rc::new(std::cell::Cell::new(false));
                 let flag = sent.clone();
+                let request = guarded(async move { client.request(req, sent).await });
                 let token = CancellationToken::new();
                 self.tokens.insert(id, token.clone());
                 let tx = self.tx.clone();
@@ -144,7 +161,7 @@ impl Host for RealHost {
                     let out = tokio::select! {
                         biased;
                         _ = token.cancelled() => if flag.get() { EffOutcome::Joined } else { EffOutcome::JoinedNotSent },
-                        o = client.request(req, sent) => o,
+                        o = request => o,
                     };
                     let _ = tx.send(HostEvent::Done(id, out));
                 });
@@ -173,11 +190,11 @@ impl Host for RealHost {
                 let fut = self.pg.release(connection, discard);
                 self.spawn(id, fut);
             }
-            Effect::Execute { connection, sql, params } => {
+            Effect::Execute { connection, sql, params, max_rows } => {
                 // On timeout/abort, send a PostgreSQL CancelRequest so the
                 // backend stops and a following ROLLBACK is not queued behind it.
                 let cancel = self.pg.cancel_token(&connection);
-                let fut = self.pg.execute(connection, sql, params);
+                let fut = guarded(self.pg.execute(connection, sql, params, max_rows));
                 let token = CancellationToken::new();
                 self.tokens.insert(id, token.clone());
                 let tx = self.tx.clone();

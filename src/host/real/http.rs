@@ -120,6 +120,9 @@ impl Client {
     {
         let mut builder = hyper::client::conn::http1::Builder::new();
         builder.max_buf_size((req.header_limit as usize).max(8192) + 1024);
+        // Field count is bounded by header_bytes (a field line is >= 4 octets),
+        // not by hyper's default of 100.
+        builder.max_headers((req.header_limit as usize / 4 + 1).max(100));
         let head_method = req.method == "HEAD";
         let mut b = hyper::Request::builder().method(req.method.as_str()).uri(u.target());
         b = b.header("host", u.authority());

@@ -66,8 +66,27 @@ struct Parsed {
     host: Option<String>,
 }
 
+/// JSON mode exists only for check/run/conformance (§15.1); elsewhere usage
+/// errors go to stderr with stdout empty.
+fn json_command(args: &[String]) -> bool {
+    let mut i = 0;
+    let mut command = None;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--host" => i += 1,
+            a if a.starts_with("--") => {}
+            a => {
+                command = Some(a);
+                break;
+            }
+        }
+        i += 1;
+    }
+    args.iter().any(|a| a == "--json") && matches!(command, Some("check" | "run" | "conformance"))
+}
+
 fn parse_args(args: &[String]) -> Result<Parsed, (bool, String)> {
-    let json_mode = args.iter().any(|a| a == "--json");
+    let json_mode = json_command(args);
     let mut p = Parsed { command: String::new(), positional: Vec::new(), json: false, compact: false, host: None };
     let mut i = 0;
     let mut seen: Vec<&str> = Vec::new();
@@ -128,7 +147,7 @@ pub fn main_with(args: &[String], stdin: &mut dyn Read) -> Output {
     match p.command.as_str() {
         "--version" => {
             if !p.positional.is_empty() || p.json || p.compact || p.host.is_some() {
-                return cli_failure(p.json, "usage", "--version takes no other arguments");
+                return cli_failure(false, "usage", "--version takes no other arguments");
             }
             let v = Value::rec(vec![
                 ("implementation", Value::str(crate::IMPLEMENTATION)),
@@ -141,7 +160,7 @@ pub fn main_with(args: &[String], stdin: &mut dyn Read) -> Output {
         }
         "spec" => {
             if !p.compact || p.json || p.host.is_some() || !p.positional.is_empty() {
-                return cli_failure(p.json, "usage", "usage: kiri spec --compact");
+                return cli_failure(false, "usage", "usage: kiri spec --compact");
             }
             match crate::conformance::extract_block(SPEC, "GENERATION_CARD", "text") {
                 Ok(card) => Output { stdout: card, stderr: String::new(), code: 0 },
@@ -220,8 +239,8 @@ pub fn main_with(args: &[String], stdin: &mut dyn Read) -> Output {
             let (report, all) = crate::conformance::run_all(&cases);
             Output { stdout: line(&report), stderr: String::new(), code: if all { 0 } else { 1 } }
         }
-        "" => cli_failure(p.json, "usage", "usage: kiri <check|run|spec|conformance|--version>"),
-        other => cli_failure(p.json, "usage", &format!("unknown command {other}")),
+        "" => cli_failure(false, "usage", "usage: kiri <check|run|spec|conformance|--version>"),
+        other => cli_failure(false, "usage", &format!("unknown command {other}")),
     }
 }
 

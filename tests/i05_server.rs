@@ -91,6 +91,26 @@ fn routing_framing_limits_and_shutdown() {
     let r = send(port, b"GET /cpu HTTP/1.1\r\nHost: x\r\n\r\n");
     assert_eq!(status(&r), "504");
     assert!(t.elapsed().as_millis() < 3000);
+    // The single inflight slot is released just after the 504 is written.
+    std::thread::sleep(Duration::from_millis(100));
+    // Chunked bodies: overflowing or signed chunk sizes are framing errors,
+    // and the server keeps serving afterwards.
+    for raw in [
+        &b"POST /in HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\n\r\n1\r\na\r\nffffffffffffffff\r\nb\r\n0\r\n\r\n"[..],
+        b"POST /in HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\n\r\n+1\r\na\r\n0\r\n\r\n",
+    ] {
+        let r = send(port, raw);
+        assert!(matches!(status(&r), "400" | "413"), "{r}");
+    }
+    let r = send(port, b"GET /a/fixed HTTP/1.1\r\nHost: x\r\n\r\n");
+    assert_eq!(status(&r), "200");
+    // Many small header fields within header_bytes are fine.
+    let mut many = b"GET /a/fixed HTTP/1.1\r\nHost: x\r\n".to_vec();
+    for i in 0..300 {
+        many.extend_from_slice(format!("X-{i}: a\r\n").as_bytes());
+    }
+    many.extend_from_slice(b"\r\n");
+    assert_eq!(status(&send(port, &many)), "200");
     // Malformed header sections get 400 rather than a silent close.
     for raw in [
         &b"GET /a/fixed HTTP/1.1\r\n\r\n"[..],

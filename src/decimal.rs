@@ -203,15 +203,19 @@ impl Decimal {
         if i != b.len() {
             return Ok(None);
         }
-        if (int_part.len() + frac_part.len()) as u64 > MAX_DIGITS {
+        let significant = format!("{int_part}{frac_part}");
+        let significant = significant.trim_start_matches('0').trim_end_matches('0');
+        if significant.len() as u64 > MAX_DIGITS {
             return Err(Overflow);
         }
-        let digits = format!("{}{}", int_part, frac_part);
-        let mut coef: BigInt = digits.parse().map_err(|_| Overflow)?;
+        // Only the significant digits form the coefficient; leading/trailing
+        // zeros of the spelling shift the exponent instead.
+        let trailing = (int_part.len() + frac_part.len()) - format!("{int_part}{frac_part}").trim_end_matches('0').len();
+        let mut coef: BigInt = if significant.is_empty() { BigInt::zero() } else { significant.parse().map_err(|_| Overflow)? };
         if neg {
             coef = -coef;
         }
-        let exp = exp_val - BigInt::from(frac_part.len());
+        let exp = exp_val - BigInt::from(frac_part.len()) + BigInt::from(trailing);
         let exp = exp.to_i64().ok_or(Overflow)?;
         if exp.unsigned_abs() > (i64::MAX as u64) / 4 {
             return Err(Overflow);
@@ -313,9 +317,19 @@ impl Decimal {
         if self.is_zero() {
             return Ok(Decimal::zero());
         }
+        // |a| < |b|: the truncated quotient is 0, so the remainder is a.
+        if self.abs_cmp(o) == Ordering::Less {
+            return Ok(self.clone());
+        }
         let (a, b, e) = Decimal::aligned(self, o)?;
         let r = &a % &b; // num-bigint `%` truncates toward zero, sign of a
         Ok(Decimal::normalize(r, e))
+    }
+
+    fn abs_cmp(&self, o: &Decimal) -> Ordering {
+        let a = Decimal { coef: self.coef.abs(), exp: self.exp };
+        let b = Decimal { coef: o.coef.abs(), exp: o.exp };
+        a.cmp_exact(&b)
     }
 
     pub fn cmp_exact(&self, o: &Decimal) -> Ordering {
@@ -502,6 +516,10 @@ mod tests {
         let x = d(&big);
         assert!(x.mul(&x).is_err());
         assert!(Decimal::parse_json(&"1".repeat(100_001)).is_err());
+        assert_eq!(d(&format!("1{}", "0".repeat(150_000))).canonical(), "1e150000");
+        assert_eq!(d("7").rem(&d("1e1000000000")).unwrap().canonical(), "7");
+        assert_eq!(d("0.000").canonical(), "0");
+        assert_eq!(d("120.50").canonical(), "120.5");
         assert!(d("1e20000000").add(&d("1")).is_err());
         assert_eq!(d("1e20000000").mul(&d("1e5")).unwrap().canonical(), "1e20000005");
     }

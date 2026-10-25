@@ -313,6 +313,9 @@ async fn read_chunked(rd: &mut OwnedReadHalf, mut buf: Vec<u8>, max_body: u64) -
         let l = line(rd, &mut buf, &mut pos).await?;
         let size_text = std::str::from_utf8(&l).map_err(|_| BodyFault::BadFraming)?;
         let size_text = size_text.split(';').next().unwrap_or("").trim();
+        if size_text.is_empty() || size_text.len() > 16 || !size_text.bytes().all(|c| c.is_ascii_hexdigit()) {
+            return Err(BodyFault::BadFraming);
+        }
         let size = u64::from_str_radix(size_text, 16).map_err(|_| BodyFault::BadFraming)?;
         if size == 0 {
             // trailers until empty line
@@ -323,7 +326,7 @@ async fn read_chunked(rd: &mut OwnedReadHalf, mut buf: Vec<u8>, max_body: u64) -
                 }
             }
         }
-        if out.len() as u64 + size > max_body {
+        if size > max_body || out.len() as u64 + size > max_body {
             return Err(BodyFault::TooLarge);
         }
         need(rd, &mut buf, pos + size as usize + 2).await?;
@@ -373,7 +376,8 @@ async fn handle_conn(
     if head_end as u64 > header_limit + 4 {
         return;
     }
-    let mut hdrs = vec![httparse::EMPTY_HEADER; 256];
+    // Each field line takes at least 4 octets, so header_bytes bounds the count.
+    let mut hdrs = vec![httparse::EMPTY_HEADER; (header_limit as usize / 4 + 1).min(1 << 16)];
     let mut req = httparse::Request::new(&mut hdrs);
     // A complete but malformed header section (invalid field names or
     // octets, bad target, folding, non-HTTP/1.1) is an invalid request.
