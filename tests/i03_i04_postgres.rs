@@ -109,3 +109,74 @@ fn i04_transactions_and_pool_hygiene() {
         b=sql(d,q`select current_setting('search_path') as s`);[one(b.rows).s]"#);
     assert_eq!(result(&r), r#"["\"$user\", public"]"#);
 }
+
+/// Proxy to PostgreSQL that forwards traffic but, once the client sends a
+/// simple-query COMMIT, forwards it and then drops both connections without
+/// relaying the acknowledgment.
+fn commit_dropping_proxy(pg_port: u16) -> u16 {
+    use std::io::{Read, Write};
+    let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = l.local_addr().unwrap().port();
+    std::thread::spawn(move || {
+        for client in l.incoming().flatten() {
+            let server = std::net::TcpStream::connect(("127.0.0.1", pg_port)).unwrap();
+            let (mut c_rd, mut s_wr) = (client.try_clone().unwrap(), server.try_clone().unwrap());
+            let (mut s_rd, mut c_wr) = (server, client);
+            let dropped = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+            let d1 = dropped.clone();
+            std::thread::spawn(move || {
+                let mut buf = [0u8; 65536];
+                loop {
+                    let n = match c_rd.read(&mut buf) {
+                        Ok(0) | Err(_) => break,
+                        Ok(n) => n,
+                    };
+                    let _ = s_wr.write_all(&buf[..n]);
+                    if buf[..n].windows(12).any(|w| w == b"Q\0\0\0\x0bCOMMIT\0") {
+                        d1.store(true, std::sync::atomic::Ordering::SeqCst);
+                        std::thread::sleep(std::time::Duration::from_millis(200));
+                        let _ = c_rd.shutdown(std::net::Shutdown::Both);
+                        let _ = s_wr.shutdown(std::net::Shutdown::Both);
+                        break;
+                    }
+                }
+            });
+            std::thread::spawn(move || {
+                let mut buf = [0u8; 65536];
+                loop {
+                    let n = match s_rd.read(&mut buf) {
+                        Ok(0) | Err(_) => break,
+                        Ok(n) => n,
+                    };
+                    if dropped.load(std::sync::atomic::Ordering::SeqCst) {
+                        break; // swallow the COMMIT acknowledgment
+                    }
+                    let _ = c_wr.write_all(&buf[..n]);
+                }
+            });
+        }
+    });
+    port
+}
+
+#[test]
+fn i04_lost_commit_acknowledgment_is_unknown_without_replay() {
+    need_pg!();
+    let d = dsn().unwrap();
+    let pg_port: u16 = d
+        .split_whitespace()
+        .find_map(|kv| kv.strip_prefix("port="))
+        .and_then(|p| p.parse().ok())
+        .unwrap_or(5432);
+    admin("drop table if exists kiri_lost; create table kiri_lost(v int)");
+    let proxy = commit_dropping_proxy(pg_port);
+    let proxied = d.replace(&format!("port={pg_port}"), &format!("port={proxy}")) + " sslmode=disable";
+    let src = r#"try tx(db("main")){t=>sql(t,q`insert into kiri_lost(v) values (1)`);7} catch {e=>[e.code,e.data.phase,e.data.outcome]}"#;
+    let r = run_env(src, Some(&host()), &[("KIRI_PG_MAIN", &proxied)]);
+    assert_eq!(result(&r), r#"["db","commit","unknown"]"#);
+    // The callback was not replayed: at most one row exists (the server may
+    // or may not have committed — that is exactly why the outcome is unknown).
+    let rows = admin("select count(*) from kiri_lost");
+    let n: u32 = rows[0][0].as_deref().unwrap().parse().unwrap();
+    assert!(n <= 1, "callback replayed: {n} rows");
+}

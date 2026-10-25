@@ -301,7 +301,7 @@ impl<H: Host> Runtime<H> {
             }
             EffOutcome::Err(e) => self.raise(t, e),
             EffOutcome::Resource(r) => self.fail_ctl(t, Fail::Abort(AbortReason::Resource(leak(r)))),
-            EffOutcome::Joined => self.joined_without_abort(t),
+            EffOutcome::Joined | EffOutcome::JoinedNotSent => self.joined_without_abort(t),
         }
     }
 

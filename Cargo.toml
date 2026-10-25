@@ -34,7 +34,7 @@ webpki-roots = "0.26"
 httparse = "1"
 tokio-postgres = "0.7"
 tokio-postgres-rustls = "0.13"
-pg_query = "6"
+pg_query = "5"
 postgres-types = "0.2"
 rustix = { version = "0.38", features = ["fs"] }
 libc = "0.2"

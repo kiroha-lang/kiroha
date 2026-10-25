@@ -482,7 +482,7 @@ impl<H: Host> Runtime<H> {
                     let _ = ctl;
                     self.fail_ctl(t, Fail::Abort(AbortReason::Resource(super::callbacks::leak(r))))
                 }
-                EffOutcome::Joined | EffOutcome::Ok(_) => self.joined_without_abort(t),
+                EffOutcome::Joined | EffOutcome::JoinedNotSent | EffOutcome::Ok(_) => self.joined_without_abort(t),
             },
             TxPhase::Beginning => match o {
                 EffOutcome::Ok(_) => {

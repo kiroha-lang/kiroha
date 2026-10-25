@@ -254,7 +254,7 @@ impl<H: Host> Runtime<H> {
             EffOutcome::Resource(r) => {
                 return self.fail_ctl(t, Fail::Abort(AbortReason::Resource(super::callbacks::leak(r))))
             }
-            EffOutcome::Joined => return self.joined_without_abort(t),
+            EffOutcome::Joined | EffOutcome::JoinedNotSent => return self.joined_without_abort(t),
         };
         let res: BResult = match (op, v) {
             (OpFrame::Sleep, _) => Ok(Value::Null),

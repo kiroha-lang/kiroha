@@ -97,7 +97,9 @@ impl Client {
         }
     }
 
-    pub async fn request(&self, req: HttpRequest) -> EffOutcome {
+    /// `sent` is set just before request bytes are written, so a cancellation
+    /// can report `not_sent` precisely.
+    pub async fn request(&self, req: HttpRequest, sent: std::rc::Rc<std::cell::Cell<bool>>) -> EffOutcome {
         let u = match Url::parse(&req.url) {
             Ok(u) => u,
             Err(_) => return net("invalid_url", "not_sent"),
@@ -107,12 +109,12 @@ impl Client {
             Err(e) => return e,
         };
         match stream {
-            Stream::Plain(s) => self.exchange(TokioIo::new(s), &u, req).await,
-            Stream::Tls(s) => self.exchange(TokioIo::new(*s), &u, req).await,
+            Stream::Plain(s) => self.exchange(TokioIo::new(s), &u, req, sent).await,
+            Stream::Tls(s) => self.exchange(TokioIo::new(*s), &u, req, sent).await,
         }
     }
 
-    async fn exchange<T>(&self, io: TokioIo<T>, u: &Url, req: HttpRequest) -> EffOutcome
+    async fn exchange<T>(&self, io: TokioIo<T>, u: &Url, req: HttpRequest, sent: std::rc::Rc<std::cell::Cell<bool>>) -> EffOutcome
     where
         T: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + 'static,
     {
@@ -143,6 +145,7 @@ impl Client {
             let _ = conn.await;
         });
         // From here application bytes may have been sent.
+        sent.set(true);
         let resp = match sender.send_request(request).await {
             Ok(r) => r,
             Err(e) => {

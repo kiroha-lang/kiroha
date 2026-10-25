@@ -12,7 +12,7 @@ Implementation report required by spec §15.3. Token measurements
 | Compiler | rustc 1.96.0 (2026-05-25), release profile |
 | OS | Linux 6.18.54.1-microsoft-standard-WSL2 (x86_64) |
 | PostgreSQL server | PostgreSQL 16.15 (Homebrew build), local, C locale, UTF8 |
-| Key dependencies | tokio 1.54.1, hyper 1.12.0, rustls 0.23.46 (ring), tokio-postgres 0.7.18, tokio-postgres-rustls 0.13.0, pg_query 6.2.1 (libpg_query), num-bigint 0.4.8, flate2 1.1.10, httparse 1.10.1 |
+| Key dependencies | tokio 1.54.1, hyper 1.12.0, rustls 0.23.46 (ring), tokio-postgres 0.7.18, tokio-postgres-rustls 0.13.0, pg_query 5.1.1 (libpg_query, PostgreSQL 16 grammar), num-bigint 0.4.8, flate2 1.1.10, httparse 1.10.1 |
 
 ## Embedded conformance corpus (§16)
 
@@ -70,17 +70,23 @@ long builtin loops; an excess over the baseline aborts the running
 root/request scope with `resource`. See
 [architecture](architecture.md#memory-accounting).
 
-## Known deviations and limitations
+## Previously open items, now covered
 
-| Area | Note |
+| Item | Resolution |
 | --- | --- |
-| Lost COMMIT acknowledgment (I04) | Exercised by the fixture-host case `host-tx-unknown-commit-discards-without-rollback-or-replay`. Against the real server it is not reproduced by an automated test (it requires dropping the connection after COMMIT is sent); the adapter maps any non-server COMMIT failure to `db`/`commit`/`unknown` and discards the connection. |
-| HTTP/TLS outcome precision | Timeouts of dispatched requests always report `outcome:"unknown"`, including timeouts that happen before any byte was sent (DNS/connect). This is the conservative choice the spec permits. |
-| HTTP connection reuse | The client opens one connection per request (permitted; no hidden state). |
-| Server keep-alive | One request per connection (`connection: close`); HTTP/2 is not offered. |
-| Statement parser | libpg_query (PostgreSQL 17 grammar) is used for statement validation; PostgreSQL 16 remains the execution dialect. Statements valid only in 17 would pass validation and fail at the server as `db`/`execute`. |
-| Build requirement | `pg_query` needs a C compiler and libclang at build time. |
-| Memory quota | Measured for the whole process at checkpoints; a single very large allocation can exceed the quota before it is observed (§14.1 explicitly makes allocation overhead implementation-dependent). |
+| Lost COMMIT acknowledgment against a real server | `i04_lost_commit_acknowledgment_is_unknown_without_replay`: a TCP proxy forwards `COMMIT` to PostgreSQL 16 and drops the acknowledgment; Kiri reports `db`/`commit`/`unknown`, discards the connection and does not replay (≤ 1 row). |
+| HTTP timeout outcome precision | `timeout_outcome_reflects_whether_bytes_were_sent`: a timeout during an unfinished TLS handshake reports `not_sent`; a timeout after the request was written reports `unknown`. |
+| Statement grammar | Validation uses libpg_query built from PostgreSQL 16 (`PG_MAJORVERSION 16`), the reference dialect. |
+| Fresh audit after fixes | See "Audit" below. |
 
-These do not change any value, error code or ordering asserted by the
-specification's tests.
+## Design choices (permitted by the specification)
+
+| Area | Choice |
+| --- | --- |
+| HTTP client connections | One connection per request; no pooling, so no hidden session state (§10.1 permits reuse but does not require it). |
+| Server connections | One request per connection with `connection: close`, a valid HTTP/1.1 behavior; HTTP/2 is not offered (optional in §10.1). |
+| Memory quota | Process live-heap measurement at checkpoints (published strategy above); a single huge allocation may complete before it is observed, which §14.1 leaves implementation-dependent. |
+| Build requirement | `pg_query` needs a C compiler and libclang at build time. |
+
+None of these change a value, error code or ordering asserted by the
+specification.

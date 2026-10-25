@@ -126,6 +126,9 @@ pub enum EffOutcome {
     Err(Value),
     /// Cancellation acknowledged; no ordinary result.
     Joined,
+    /// Cancellation acknowledged and the adapter proved no application bytes
+    /// were sent (normalized to `Joined` except for operation timeouts).
+    JoinedNotSent,
     /// The host terminated the operation for exceeding a host quota.
     Resource(String),
 }

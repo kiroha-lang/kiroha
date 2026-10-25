@@ -109,3 +109,32 @@ fn denied_origin_and_connection_refused() {
     let r = run(r#"try get("http://127.0.0.1:9/") catch {e=>[e.code,e.data.outcome]}"#, Some(host));
     assert_eq!(result(&r), r#"["network","not_sent"]"#);
 }
+
+/// A TCP server that accepts and reads but never answers.
+fn silent_server() -> u16 {
+    let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = l.local_addr().unwrap().port();
+    std::thread::spawn(move || {
+        let mut held = Vec::new();
+        for s in l.incoming().flatten() {
+            held.push(s); // keep the connection open, never respond
+        }
+    });
+    port
+}
+
+#[test]
+fn timeout_outcome_reflects_whether_bytes_were_sent() {
+    let port = silent_server();
+    let host = format!(
+        r#"{{"format":"kiri-host/1","capabilities":{{"http":["http://127.0.0.1:{port}","https://127.0.0.1:{port}"]}}}}"#
+    );
+    // Plain HTTP: the request is written, then no response -> unknown.
+    // HTTPS: the TLS handshake never completes, no request bytes -> not_sent.
+    let src = format!(
+        r#"[(try http("GET","http://127.0.0.1:{port}/",{{timeout:300}}) catch {{e=>[e.code,e.data.outcome]}}),
+          (try http("GET","https://127.0.0.1:{port}/",{{timeout:300}}) catch {{e=>[e.code,e.data.outcome]}})]"#
+    );
+    let r = run(&src, Some(&host));
+    assert_eq!(result(&r), r#"[["timeout","unknown"],["timeout","not_sent"]]"#);
+}

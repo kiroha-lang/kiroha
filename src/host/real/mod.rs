@@ -130,7 +130,19 @@ impl Host for RealHost {
             }
             Effect::Http(req) => {
                 let client = self.http.clone();
-                self.spawn(id, async move { client.request(req).await });
+                let sent = Rc::new(std::cell::Cell::new(false));
+                let flag = sent.clone();
+                let token = CancellationToken::new();
+                self.tokens.insert(id, token.clone());
+                let tx = self.tx.clone();
+                tokio::task::spawn_local(async move {
+                    let out = tokio::select! {
+                        biased;
+                        _ = token.cancelled() => if flag.get() { EffOutcome::Joined } else { EffOutcome::JoinedNotSent },
+                        o = client.request(req, sent) => o,
+                    };
+                    let _ = tx.send(HostEvent::Done(id, out));
+                });
             }
             Effect::Pool(alias) => {
                 let out = self.pg.pool(&alias);

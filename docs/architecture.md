@@ -28,7 +28,7 @@ source bytes ─▶ lexer ─▶ parser ─▶ resolver ─▶ Program (arena, r
 | `src/value.rs` | Value kinds, records, functions, error constructors, JSON equality/hash |
 | `src/schema.rs` | Schema normalization and validation |
 | `src/url.rs` | URL acceptance rules and the `url` constructor |
-| `src/sqlcheck.rs` | PostgreSQL-aware query translation and statement validation |
+| `src/sqlcheck.rs` | Query translation, hole-context lexing and statement validation with libpg_query (PostgreSQL 16 grammar) |
 | `src/runtime/` | Task engine (`mod.rs`), evaluator (`machine.rs`), frames |
 | `src/builtins/` | The 51 functions: `pure`, `callbacks`, `effects`, `db`, `server`, helpers |
 | `src/host/` | `Host` trait, config, path rules, virtual and real hosts |
@@ -149,7 +149,8 @@ a spawned future racing a `CancellationToken`, reporting `Joined` when
 cancelled.
 
 - **HTTP client** — one hyper HTTP/1.1 connection per request (no pooling,
-  hence no hidden session state); rustls with the system or `SSL_CERT_FILE`
+  hence no hidden session state); a flag set just before request bytes are
+  written lets a cancelled/timed-out request report `not_sent` precisely; rustls with the system or `SSL_CERT_FILE`
   trust store; no redirect/retry/cookie logic exists. Raw identity bodies are
   bounded by `max_bytes + 1`; gzip bodies by a host quota; decoding and
   `max_bytes` are enforced by the runtime on the decoded stream.
@@ -181,6 +182,8 @@ never affects values.
 ## Performance notes
 
 Values are reference-counted and immutable; records switch to a hash index
-above 12 fields; decimals normalize trailing zeros in 16-digit chunks. A tight
-tail-recursive loop runs roughly 10 million semantic steps per second on a
-release build.
+above 12 fields; decimals normalize trailing zeros in 16-digit chunks.
+Measured on the test machine (release build, WSL2): an infinite tail loop
+consumed a 50,000,000-step budget in 4.6–9.5 s across six runs taken while
+another build was running, i.e. roughly 5–11 million semantic steps per
+second.

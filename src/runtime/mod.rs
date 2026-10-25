@@ -495,16 +495,17 @@ impl<H: Host> Runtime<H> {
                     Some(p) => p,
                     None => return,
                 };
-                let outcome = if p.timed_out {
-                    match outcome {
-                        EffOutcome::Joined => {
-                            let (op, ms) = p.timeout.unwrap();
-                            EffOutcome::Err(timeout_error(op, ms, Some("unknown")))
-                        }
-                        o => o,
+                let outcome = match (p.timed_out, outcome) {
+                    (true, EffOutcome::Joined) => {
+                        let (op, ms) = p.timeout.unwrap();
+                        EffOutcome::Err(timeout_error(op, ms, Some("unknown")))
                     }
-                } else {
-                    outcome
+                    (true, EffOutcome::JoinedNotSent) => {
+                        let (op, ms) = p.timeout.unwrap();
+                        EffOutcome::Err(timeout_error(op, ms, Some("not_sent")))
+                    }
+                    (false, EffOutcome::JoinedNotSent) => EffOutcome::Joined,
+                    (_, o) => o,
                 };
                 self.deliver(p.task, outcome);
             }
