@@ -65,6 +65,13 @@ fn i07_cpu_bound_cancellation_and_bounded_parallelism() {
     assert_eq!(r.code, 3);
     assert!(r.stdout.contains("\"reason\":\"deadline\""));
     assert!(t.elapsed().as_millis() < 3000);
+    // Long builtin work (JSON, equality, schema checks) observes the deadline.
+    for src in ["x=dump(range(0,3000000));len(parse(x))", "range(0,2000000)==range(0,2000000)", "check(range(0,3000000),[int])"] {
+        let t = Instant::now();
+        let r = run(src, Some(r#"{"format":"kiri-host/1","limits":{"deadline_ms":20,"eval_steps":100000000000,"memory_bytes":4000000000}}"#));
+        assert!(r.stdout.contains("\"reason\":\"deadline\""), "{src}: {}", r.stdout);
+        assert!(t.elapsed().as_millis() < 1500, "{src}");
+    }
     // Parallel children sleep concurrently with bound 2: 4 x 200ms ≈ 400ms.
     let t = Instant::now();
     let r = run(r#"parallel([1,2,3,4],2){x=>sleep(200);x*10}"#, None);

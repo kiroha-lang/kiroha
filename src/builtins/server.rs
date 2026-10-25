@@ -458,7 +458,8 @@ impl<H: Host> Runtime<H> {
         }
         // Stage 1: transport/target/method.
         let has_expect = req.headers.iter().any(|(n, _)| n.eq_ignore_ascii_case("expect"));
-        if !headers::is_token(&req.method) || req.method == "CONNECT" || req.upgrade || has_expect || !valid_target(&req.target) {
+        let bad_fields = req.headers.iter().any(|(n, v)| !headers::valid_field(n, v));
+        if !headers::is_token(&req.method) || req.method == "CONNECT" || req.upgrade || has_expect || bad_fields || !valid_target(&req.target) {
             self.respond_task(sid, &req, 400, "bad_request", false);
             return;
         }

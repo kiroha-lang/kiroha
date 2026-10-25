@@ -127,6 +127,8 @@ pub struct Task {
 pub struct Scope {
     pub parent: Option<ScopeId>,
     pub abort: Option<AbortReason>,
+    /// Absolute monotonic ms of this scope's own deadline, if any.
+    pub deadline: Option<u64>,
 }
 
 pub struct Budget {
@@ -244,6 +246,9 @@ pub struct Runtime<H: Host> {
 pub enum Fail {
     Err(Value),
     Abort(AbortReason),
+    /// Long builtin work stopped at an interrupt checkpoint; the runtime
+    /// replaces the result with the observed abort.
+    Interrupted,
 }
 
 impl From<Value> for Fail {
@@ -299,7 +304,7 @@ impl<H: Host> Runtime<H> {
     pub fn new_scope(&mut self, parent: Option<ScopeId>) -> ScopeId {
         let id = self.next_scope;
         self.next_scope += 1;
-        self.scopes.insert(id, Scope { parent, abort: None });
+        self.scopes.insert(id, Scope { parent, abort: None, deadline: None });
         id
     }
 
@@ -379,6 +384,9 @@ impl<H: Host> Runtime<H> {
     }
 
     pub fn add_scope_deadline(&mut self, scope: ScopeId, at: u64, tx_timeout: Option<u64>) {
+        if let Some(s) = self.scopes.get_mut(&scope) {
+            s.deadline = Some(at);
+        }
         self.next_timer_seq += 1;
         self.timers.push(Timer { at, seq: self.next_timer_seq, kind: TimerKind::ScopeDeadline(scope), reason_deadline: tx_timeout });
     }
@@ -537,6 +545,9 @@ impl<H: Host> Runtime<H> {
             }
             if let Some(out) = self.root_outcome.take() {
                 return out;
+            }
+            if self.host.failed() {
+                return RootOutcome::Harness("fixture host failure".into());
             }
             let next = self.next_timer_at();
             match self.host.wait(next).await {
@@ -745,6 +756,52 @@ impl<H: Host> Runtime<H> {
 
     pub fn now_ms(&self) -> u64 {
         self.host.now_ms()
+    }
+
+    /// Arm builtin-work checkpoints for a task (earliest deadline on its
+    /// scope chain in real time; memory quota always).
+    pub fn arm_interrupts(&self, t: &Task) {
+        let mem = Some((self.memory_baseline, self.config.limits.memory_bytes));
+        let at = if self.host.is_virtual() {
+            None
+        } else {
+            let mut cur = Some(t.scope);
+            let mut earliest: Option<u64> = None;
+            while let Some(s) = cur {
+                match self.scopes.get(&s) {
+                    Some(sc) => {
+                        if let Some(d) = sc.deadline {
+                            earliest = Some(earliest.map_or(d, |e| e.min(d)));
+                        }
+                        cur = sc.parent;
+                    }
+                    None => break,
+                }
+            }
+            earliest.map(|d| {
+                let now = self.host.now_ms();
+                std::time::Instant::now() + std::time::Duration::from_millis(d.saturating_sub(now))
+            })
+        };
+        crate::interrupt::arm(at, mem);
+    }
+
+    /// Disarm; when a checkpoint tripped, return the abort that replaces the
+    /// (discarded) result.
+    pub fn disarm_interrupts(&mut self, t: &mut Task) -> Option<Ctl> {
+        let trip = crate::interrupt::disarm()?;
+        match trip {
+            crate::interrupt::Trip::Deadline => {
+                let now = self.host.now_ms();
+                self.fire_due_timers(now);
+            }
+            crate::interrupt::Trip::Memory => {
+                let scope = self.budgets.get(&t.budget).map(|b| b.scope).unwrap_or(self.root_scope);
+                self.abort_scope(scope, AbortReason::Resource("memory"));
+            }
+        }
+        t.seen_epoch = u64::MAX;
+        self.abort_of(t.scope).map(|sig| Ctl::Abort(sig, None))
     }
 }
 

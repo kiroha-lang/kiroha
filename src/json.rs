@@ -10,6 +10,8 @@ pub enum JsonError {
     Invalid { reason: &'static str, offset: usize },
     /// A numeric exponent beyond host range (resource abort).
     Overflow,
+    /// Stopped at an interrupt checkpoint (see `crate::interrupt`).
+    Interrupted,
 }
 
 struct P<'a> {
@@ -58,6 +60,9 @@ impl<'a> P<'a> {
     }
 
     fn value(&mut self) -> Result<Value, JsonError> {
+        if crate::interrupt::poll() {
+            return Err(JsonError::Interrupted);
+        }
         match self.peek() {
             None => Err(invalid("syntax", self.i)),
             Some(b'n') => self.lit("null", Value::Null),
@@ -284,6 +289,9 @@ pub fn dump(v: &Value) -> String {
 }
 
 pub fn dump_into(out: &mut String, v: &Value) {
+    if crate::interrupt::poll() {
+        return; // partial output is discarded by the runtime
+    }
     match v {
         Value::Null => out.push_str("null"),
         Value::Bool(true) => out.push_str("true"),

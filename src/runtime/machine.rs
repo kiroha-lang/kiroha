@@ -13,7 +13,13 @@ impl<H: Host> Runtime<H> {
     }
 
     pub fn fail_ctl(&mut self, t: &mut Task, f: Fail) -> Ctl {
+        if let Fail::Abort(_) = &f {
+            if let Some(sig) = self.abort_of(t.scope) {
+                return Ctl::Abort(sig, None);
+            }
+        }
         match f {
+            Fail::Interrupted => Ctl::Ret(Value::Null),
             Fail::Err(e) => self.raise(t, e),
             Fail::Abort(reason) => {
                 let scope = self.budgets.get(&t.budget).map(|b| b.scope).unwrap_or(self.root_scope);
@@ -90,6 +96,11 @@ impl<H: Host> Runtime<H> {
             },
             Ctl::Ret(v) => match t.stack.pop() {
                 None => return StepResult::Done(TaskOutcome::Value(v)),
+                Some(fr @ (Frame::BinRight { .. } | Frame::Collect(_) | Frame::Pages(_))) => {
+                    self.arm_interrupts(t);
+                    let ctl = self.frame_ret(t, fr, v);
+                    self.disarm_interrupts(t).unwrap_or(ctl)
+                }
                 Some(fr) => self.frame_ret(t, fr, v),
             },
             Ctl::Throw(e) => match t.stack.pop() {
@@ -106,7 +117,11 @@ impl<H: Host> Runtime<H> {
                     }
                 }
                 match t.stack.pop() {
-                    Some(fr) => self.frame_effect(t, fr, o),
+                    Some(fr) => {
+                        self.arm_interrupts(t);
+                        let ctl = self.frame_effect(t, fr, o);
+                        self.disarm_interrupts(t).unwrap_or(ctl)
+                    }
                     None => {
                         self.harness_failure = Some("effect completion without a waiting frame".into());
                         return StepResult::Suspended;
@@ -347,7 +362,11 @@ impl<H: Host> Runtime<H> {
                     Body::Seq(_) => Ctl::Seq(SeqOwner::Node(c.node), 0, env),
                 }
             }
-            Function::Builtin(b) => self.call_builtin(t, *b, args, cb),
+            Function::Builtin(b) => {
+                self.arm_interrupts(t);
+                let ctl = self.call_builtin(t, *b, args, cb);
+                self.disarm_interrupts(t).unwrap_or(ctl)
+            }
         }
     }
 

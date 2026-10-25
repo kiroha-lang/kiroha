@@ -85,6 +85,9 @@ impl<H: Host> Runtime<H> {
             // sort/unique identity: keys are the items themselves.
             let items = c.items.clone();
             for v in items.iter() {
+                if crate::interrupt::poll() {
+                    return Err(Fail::Interrupted);
+                }
                 self.collect_accept(&mut c, v.clone())?;
                 c.idx += 1;
             }

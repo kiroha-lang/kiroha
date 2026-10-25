@@ -169,4 +169,8 @@ pub trait Host {
     fn is_virtual(&self) -> bool;
     /// Diagnostic sink (stderr for the CLI); best effort.
     fn diagnostic(&mut self, line: &str);
+    /// A harness failure that must stop the run (fixture host only).
+    fn failed(&self) -> bool {
+        false
+    }
 }

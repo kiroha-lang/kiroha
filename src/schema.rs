@@ -228,6 +228,9 @@ pub fn validate(v: &Value, s: &Norm) -> Result<(), Mismatch> {
 }
 
 fn check_at(v: &Value, s: &Norm, path: &mut Vec<PathItem>) -> Option<Mismatch> {
+    if crate::interrupt::poll() {
+        return None; // result is discarded by the runtime
+    }
     match s {
         Norm::Str => (!matches!(v, Value::Str(_))).then(|| mismatch(path, "str", v.kind())),
         Norm::Num => (!matches!(v, Value::Num(_))).then(|| mismatch(path, "num", v.kind())),

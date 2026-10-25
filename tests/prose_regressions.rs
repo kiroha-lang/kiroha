@@ -38,7 +38,28 @@ const MANIFEST: &str = r#"{
    "expect":{"phase":"value","json":"\"{\\\"data\\\":{},\\\"message\\\":\\\"m\\\",\\\"code\\\":\\\"x\\\"}\""}},
   {"id":"arguments-validate-left-to-right",
    "source":"[(try replace(\"a\",\"\",1) catch {e=>e.code}),(try url(\"https://a\",[],{q:{}}) catch {e=>e.data.position})]",
-   "expect":{"phase":"value","json":"[\"argument\",3]"}}
+   "expect":{"phase":"value","json":"[\"argument\",3]"}},
+  {"id":"sql-holes-in-values-limit-returning-are-valid",
+   "source":"d=db(\"main\");[sql(d,q`insert into t values (${1}) returning ${2}`).count,(try sql(d,q`with a as (select 1) table a`) catch {e=>e.data.reason})]",
+   "host":{"capabilities":{"databases":["main"]}},
+   "fixtures":[{"id":"pool","op":"pool","match":{"alias":"main"},"ok":"p"},
+     {"id":"acq","op":"acquire","match":{"pool":"p"},"ok":"c"},
+     {"id":"q","op":"execute","match":{"connection":"c","sql":"insert into t values ( $1 ) returning  $2 "},"ok":{"columns":[],"rows":[],"count":"1","outcome":"committed"}},
+     {"id":"rel","op":"release","match":{"connection":"c","disposition":"reset"},"ok":null}],
+   "expect":{"phase":"value","json":"[1,\"statement\"]"}},
+  {"id":"server-rejects-upgrade-and-control-octets",
+   "source":"serve({\"GET /a\":{r=>1}})",
+   "host":{"capabilities":{"listen":[{"host":"127.0.0.1","port":8080}]}},
+   "server":{"requests":[{"id":"up","at_ms":0,"method":"GET","target":"/a","headers":[["Upgrade","websocket"],["Connection","Upgrade"]],"body_base64":""},
+     {"id":"ctl","at_ms":1,"method":"GET","target":"/a","headers":[["X-A","a\u0001b"]],"body_base64":""},
+     {"id":"ok","at_ms":2,"method":"GET","target":"/a","headers":[],"body_base64":""}],"cancel_at_ms":5},
+   "expect":{"phase":"abort","reason":"cancelled","responses":[{"id":"up","status":400,"body_base64":"eyJlcnJvciI6ImJhZF9yZXF1ZXN0In0="},{"id":"ctl","status":400,"body_base64":"eyJlcnJvciI6ImJhZF9yZXF1ZXN0In0="},{"id":"ok","status":200,"body_base64":"MQ=="}]}},
+  {"id":"http-pseudo-headers-dropped-invalid-fields-rejected",
+   "source":"[http(\"GET\",\"https://f.invalid/a\").headers,(try http(\"GET\",\"https://f.invalid/b\") catch {e=>[e.code,e.data.reason]})]",
+   "host":{"capabilities":{"http":["https://f.invalid"]}},
+   "fixtures":[{"id":"a","op":"http","match":{"url":"https://f.invalid/a"},"ok":{"status":200,"headers":[[":status","200"],["X","1"]],"body_base64":""}},
+     {"id":"b","op":"http","match":{"url":"https://f.invalid/b"},"ok":{"status":200,"headers":[["A B","1"]],"body_base64":""}}],
+   "expect":{"phase":"value","json":"[{\"x\":[\"1\"]},[\"network\",\"framing\"]]"}}
  ]}"#;
 
 #[test]
@@ -46,4 +67,16 @@ fn prose_rules_hold() {
     let cases = parse_manifest(MANIFEST).expect("manifest");
     let (report, all) = run_all(&cases);
     assert!(all, "{}", kiri::json::dump(&report));
+}
+
+
+#[test]
+fn unmatched_effect_with_pending_timer_is_a_prompt_harness_failure() {
+    let m = r#"{"format":"kiri-conformance/1","language":"0.3.0/Web1","scheduler":"virtual-fifo/1","cases":[
+      {"id":"x","source":"log(1)","host":{"capabilities":{"log":true},"limits":{"deadline_ms":1000}},"fixtures":[],"expect":{"phase":"value","json":"null"}}]}"#;
+    let cases = parse_manifest(m).unwrap();
+    let t = std::time::Instant::now();
+    let obs = kiri::conformance::run_case(&cases[0]);
+    assert!(obs.harness.as_deref().unwrap_or("").contains("unmatched log_line"), "{:?}", obs.harness);
+    assert!(t.elapsed().as_secs() < 5);
 }

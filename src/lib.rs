@@ -13,6 +13,7 @@ pub mod conformance;
 pub mod decimal;
 pub mod diag;
 pub mod host;
+pub mod interrupt;
 pub mod json;
 pub mod lexer;
 pub mod parser;

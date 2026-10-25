@@ -168,12 +168,27 @@ cancelled.
   its parent directory handle; writes go to an exclusive random temp file in
   the target directory, get their mode set, and are installed with `renameat`.
 
+## Checkpoints inside builtin work
+
+Semantic steps check for aborts every step and poll real-time timers every
+1024 steps. Builtins and operators can do a lot of work in one step (parsing
+a large JSON string, comparing large arrays), so `src/interrupt.rs` arms a
+thread-local checkpoint before each builtin call, operator and effect-result
+conversion with the earliest real-time deadline of the task's scope chain
+and the memory quota. Long loops (JSON parse/dump, JSON equality, schema
+validation, `range`, `flat`, `sum`, `split`, identity `sort`/`unique`) poll it
+once per item and check the clock and heap every 1024 polls. When it trips,
+loops stop early, the partial result is discarded, the due timers fire, and
+the task continues as the resulting abort. Arbitrary-precision arithmetic
+inside one `num-bigint` call is not interruptible; its size is bounded by the
+memory quota and the 20,000,000-digit scaling cap.
+
 ## Memory accounting
 
 `memory_bytes` uses a counting global allocator (`src/alloc.rs`) that tracks
 live heap bytes of the process. The runtime records a baseline when it is
-created and checks `live - baseline` every 512 semantic steps and every 4096
-elements inside long builtin loops (e.g. `range`, `flat`, `sum`). An excess
+created and checks `live - baseline` every 512 semantic steps and every 1024
+interrupt polls inside builtin work (see above). An excess
 aborts the root/request scope that is running when it is observed, with
 `resource` / `{resource:"memory"}`. Shared immutable values (`Rc`) are
 naturally counted once. Allocation overhead is host-dependent; within quota it

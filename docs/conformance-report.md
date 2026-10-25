@@ -65,8 +65,8 @@ and do not assert; the results above were obtained **with** PostgreSQL 16.15.
 ## Memory accounting strategy
 
 Published per §14.1: live process heap bytes from a counting global
-allocator, measured every 512 semantic steps and every 4096 elements inside
-long builtin loops; an excess over the baseline aborts the running
+allocator, measured every 512 semantic steps and every 1024
+interrupt polls inside builtin work; an excess over the baseline aborts the running
 root/request scope with `resource`. See
 [architecture](architecture.md#memory-accounting).
 
@@ -77,7 +77,23 @@ root/request scope with `resource`. See
 | Lost COMMIT acknowledgment against a real server | `i04_lost_commit_acknowledgment_is_unknown_without_replay`: a TCP proxy forwards `COMMIT` to PostgreSQL 16 and drops the acknowledgment; Kiri reports `db`/`commit`/`unknown`, discards the connection and does not replay (≤ 1 row). |
 | HTTP timeout outcome precision | `timeout_outcome_reflects_whether_bytes_were_sent`: a timeout during an unfinished TLS handshake reports `not_sent`; a timeout after the request was written reports `unknown`. |
 | Statement grammar | Validation uses libpg_query built from PostgreSQL 16 (`PG_MAJORVERSION 16`), the reference dialect. |
-| Fresh audit after fixes | See "Audit" below. |
+| Fresh audit after fixes | See "Independent audits" below. |
+
+## Independent audits
+
+Two independent read-and-execute audits of sections 2–15 were run against the
+code (each walked the normative rules section by section and confirmed every
+finding by running programs or custom fixture manifests).
+
+| Audit | Confirmed findings | Status |
+| --- | --- | --- |
+| 1 | 9: SQL holes not checked as ParamRefs; SEARCH/CYCLE and sibling-CTE false rejections; malformed statements sent; pre-admission responses without JSON content type; lenient route escapes; argument validation order in `replace`; `fail` reordering fields; `url` query error position; stacked content codings / 205 coding | All fixed; regression cases in `tests/prose_regressions.rs` |
+| 2 (after fixes) | 5: ParamRef counting missed VALUES/LIMIT/RETURNING/MERGE/window/array positions; deadlines not observed inside long builtin work; harness hang on an unmatched effect while a timer was pending; `WITH … TABLE` accepted; fixture host skipped Upgrade/header-field transport checks | All fixed; regression cases in `tests/prose_regressions.rs`, `tests/i06_i07_i08.rs` (deadline inside builtin work) and `tests/i03_i04_postgres.rs` (holes in VALUES/RETURNING/LIMIT on PostgreSQL 16) |
+
+Audit 2 recorded "no new violations" for §2, §3, §4, §5, §6, §7, §8, §9,
+§10 (apart from the fixture header checks), §11 (apart from the two SQL
+items), §12, §13, §14.1 and §15, and confirmed 8 of the 9 audit-1 fixes
+(the ninth, ParamRef counting, was the item it re-opened and is now fixed).
 
 ## Design choices (permitted by the specification)
 

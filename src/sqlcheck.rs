@@ -247,19 +247,21 @@ fn validate_parsed(sql: &str, holes: usize) -> Result<(), Reject> {
         n if allowed_dml(n) => {}
         _ => return Err(Reject::Statement),
     }
+    // Count ParamRef nodes over the *entire* tree. The derived Debug form of
+    // the protobuf visits every field (VALUES lists, LIMIT/OFFSET, RETURNING,
+    // MERGE actions, window and filter clauses, arrays, collations, ...).
     let mut counts = vec![0usize; holes + 1];
-    for (n, _, _, _) in parsed.protobuf.nodes() {
-        match n {
-            pg_query::NodeRef::ParamRef(p) => {
-                let k = p.number as usize;
-                if k == 0 || k > holes {
-                    return Err(Reject::LiteralParameter);
-                }
-                counts[k] += 1;
-            }
-            pg_query::NodeRef::SelectStmt(s) if s.into_clause.is_some() => return Err(Reject::Statement),
-            _ => {}
+    let tree = format!("{:?}", parsed.protobuf);
+    let needle = "ParamRef(ParamRef { number: ";
+    let mut rest = tree.as_str();
+    while let Some(p) = rest.find(needle) {
+        rest = &rest[p + needle.len()..];
+        let digits: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
+        let k: usize = digits.parse().map_err(|_| Reject::Statement)?;
+        if k == 0 || k > holes {
+            return Err(Reject::LiteralParameter);
         }
+        counts[k] += 1;
     }
     if counts[1..].iter().any(|c| *c != 1) {
         return Err(Reject::HoleContext);
@@ -276,6 +278,19 @@ fn validate_tokens(toks: &[Tok]) -> Result<(), Reject> {
     let mut k = 0;
     while k < toks.len() && toks[k] == Tok::LParen {
         k += 1;
+    }
+    // A top-level TABLE shorthand after a WITH clause is a SelectStmt to
+    // libpg_query; reject a TABLE keyword at parenthesis depth 0.
+    if matches!(toks.get(k), Some(Tok::Word(w)) if w == "with") {
+        let mut depth = 0i64;
+        for t in &toks[k..] {
+            match t {
+                Tok::LParen => depth += 1,
+                Tok::RParen => depth -= 1,
+                Tok::Word(w) if depth == 0 && w == "table" => return Err(Reject::Statement),
+                _ => {}
+            }
+        }
     }
     match toks.get(k) {
         Some(Tok::Word(w)) if ALLOWED.contains(&w.as_str()) || w == "with" => Ok(()),
@@ -324,5 +339,23 @@ mod tests {
         assert!(translate(&s(&["with recursive t(n) as (select 1 union all select n+1 from t where n<5) cycle n set is_cycle using path select * from t"])).is_ok());
         assert!(translate(&s(&["with a as (select 1), b as (insert into t select 2 returning *) select * from b"])).is_ok());
         assert_eq!(translate(&s(&["table t"])), Err(Reject::Statement));
+        assert_eq!(translate(&s(&["with a as (select 1) table a"])), Err(Reject::Statement));
+        for ok in [
+            vec!["insert into t values (", ")"],
+            vec!["select 1 limit ", ""],
+            vec!["select 1 offset ", ""],
+            vec!["select (array[1,2])[", "]"],
+            vec!["insert into t(v) values (1) returning ", ""],
+            vec!["update t set v=1 returning ", ""],
+            vec!["merge into t using s on t.id=s.id when matched then update set v=", ""],
+            vec!["insert into t(v) values (1) on conflict (v) do update set v=", ""],
+            vec!["select * from (values (", ")) v(x)"],
+            vec!["select sum(x) over (order by ", ") from t"],
+            vec!["select count(*) filter (where x=", ") from t"],
+            vec!["select array[", "]"],
+            vec!["select ", " collate \"C\""],
+        ] {
+            assert!(translate(&s(&ok)).is_ok(), "{ok:?}");
+        }
     }
 }

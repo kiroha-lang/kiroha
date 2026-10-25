@@ -104,6 +104,10 @@ fn i04_transactions_and_pool_hygiene() {
     let r = pg(r#"d=db("main");try tx(d){t=>sql(d,q`insert into kiri_t(v) values (400)`);fail({code:"x",message:"",data:{}})} catch {e=>e.code}"#);
     assert_eq!(result(&r), r#""x""#);
     assert_eq!(admin("select count(*) from kiri_t where v=400"), vec![vec![Some("1".into())]]);
+    // holes in VALUES, RETURNING and LIMIT positions are parameters
+    let r = pg(r#"d=db("main");x=sql(d,q`insert into kiri_t(v) values (${500}) returning v + ${1} as w`);
+        [one(x.rows).w, len(sql(d,q`select v from kiri_t order by v limit ${2}`).rows)]"#);
+    assert_eq!(result(&r), "[501,2]");
     // no dirty pooled reuse: session settings are reset before reuse
     let r = pg(r#"d=db("main");a=sql(d,q`select set_config('search_path','nowhere',false) as s`);
         b=sql(d,q`select current_setting('search_path') as s`);[one(b.rows).s]"#);

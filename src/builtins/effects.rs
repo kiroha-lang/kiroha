@@ -305,7 +305,12 @@ pub fn http_result(kind: HttpKind, head: bool, max_bytes: u64, resp: RawResponse
     if !(200..=599).contains(&resp.status) {
         return Err(Fail::Err(network_error("invalid_status", "unknown")));
     }
-    let hdr_record = headers::incoming(&resp.headers);
+    // HTTP/2 pseudo-headers are transport metadata, not header fields.
+    let fields: Vec<(String, Vec<u8>)> = resp.headers.iter().filter(|(n, _)| !n.starts_with(':')).cloned().collect();
+    if fields.iter().any(|(n, v)| !headers::valid_field(n, v)) {
+        return Err(Fail::Err(network_error("framing", "unknown")));
+    }
+    let hdr_record = headers::incoming(&fields);
     let bodyless = head || matches!(resp.status, 204 | 304);
     let body: Vec<u8> = if bodyless {
         Vec::new()

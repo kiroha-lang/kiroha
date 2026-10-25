@@ -400,8 +400,8 @@ impl Host for VirtualHost {
                     label: r.id,
                     method: r.method,
                     target: r.target,
+                    upgrade: r.headers.iter().any(|(n, _)| n.eq_ignore_ascii_case("upgrade")),
                     headers: r.headers.iter().map(|(n, v)| (n.clone(), v.chars().map(|c| c as u32 as u8).collect())).collect(),
-                    upgrade: false,
                 }))
             }
             Ev::CancelRoot => Some(HostEvent::CancelRoot),
@@ -414,5 +414,9 @@ impl Host for VirtualHost {
 
     fn diagnostic(&mut self, line: &str) {
         self.diagnostics.push(line.to_string());
+    }
+
+    fn failed(&self) -> bool {
+        self.failure.is_some()
     }
 }

@@ -325,6 +325,9 @@ impl Value {
 
     /// Recursively contains only JSON kinds. Returns the first offending kind.
     pub fn first_non_json(&self) -> Option<Kind> {
+        if crate::interrupt::poll() {
+            return None; // result is discarded by the runtime
+        }
         match self {
             Value::Null | Value::Bool(_) | Value::Num(_) | Value::Str(_) => None,
             Value::Array(a) => a.iter().find_map(|v| v.first_non_json()),
@@ -352,6 +355,9 @@ impl Value {
 
 /// JSON structural equality (§3.5). Caller must have verified both are JSON.
 pub fn json_equal(a: &Value, b: &Value) -> bool {
+    if crate::interrupt::poll() {
+        return false; // result is discarded by the runtime
+    }
     match (a, b) {
         (Value::Null, Value::Null) => true,
         (Value::Bool(x), Value::Bool(y)) => x == y,

@@ -31,11 +31,9 @@ impl<H: Host> Runtime<H> {
             Reply => crate::builtins::server::reply(&args),
             Url => crate::builtins::effects::url_builtin(&args),
             _ => {
-                let limit = self.config.limits.memory_bytes;
-                let base = self.memory_baseline;
-                pure(b, &args, &mut |n: usize| {
-                    if n.is_multiple_of(4096) && crate::alloc::live_bytes().saturating_sub(base) as u64 > limit {
-                        Err(RFail::Abort(AbortReason::Resource("memory")))
+                pure(b, &args, &mut |_n: usize| {
+                    if crate::interrupt::poll() {
+                        Err(RFail::Interrupted)
                     } else {
                         Ok(())
                     }
@@ -59,6 +57,7 @@ pub fn json_fail(e: JsonError) -> RFail {
             vec![("reason", Value::str(reason)), ("offset", Value::int(offset as i64))],
         )),
         JsonError::Overflow => RFail::Abort(AbortReason::Resource("number")),
+        JsonError::Interrupted => RFail::Interrupted,
     }
 }
 
@@ -213,7 +212,12 @@ fn pure(b: Builtin, a: &[Value], tick: Tick) -> BResult {
             if sep.is_empty() {
                 return Err(arg_err(op, "separator must be nonempty"));
             }
-            Ok(Value::array(s.split(&**sep).map(Value::str).collect()))
+            let mut parts = Vec::new();
+            for (i, p) in s.split(&**sep).enumerate() {
+                parts.push(Value::str(p));
+                tick(i)?;
+            }
+            Ok(Value::array(parts))
         }
         Join => {
             let xs = array(op, 1, &a[0])?;

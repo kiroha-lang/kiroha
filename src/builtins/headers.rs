@@ -112,6 +112,12 @@ pub fn latin1(b: &[u8]) -> String {
     b.iter().map(|&c| c as char).collect()
 }
 
+/// A received field: token name, value without controls other than HTAB
+/// (obs-text 0x80..0xFF allowed). Invalid fields are transport failures.
+pub fn valid_field(name: &str, value: &[u8]) -> bool {
+    is_token(name) && value.iter().all(|&c| c == b'\t' || (0x20..0x7f).contains(&c) || c >= 0x80)
+}
+
 /// Normalize incoming headers: lowercase names, OWS-trimmed values, record
 /// keyed by first occurrence with values in wire order.
 pub fn incoming(raw: &[(String, Vec<u8>)]) -> crate::value::Record {
