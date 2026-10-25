@@ -1,0 +1,9 @@
+{
+  "format": "kiri-host/1",
+  "capabilities": {
+    "listen": [{"host": "127.0.0.1", "port": 8080}],
+    "read": ["/tmp/kiri-notes"], "write": ["/tmp/kiri-notes"],
+    "clock": true, "random": true, "log": true
+  },
+  "filesystem_root": "/tmp/kiri-notes"
+}

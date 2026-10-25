@@ -1,0 +1,10 @@
+// HTTP client with bounded concurrency and retries.
+// kiri run examples/fetch.kiri --json --host examples/fetch.host.json
+base = "https://api.github.com";
+repos = ["rust-lang/rust", "tokio-rs/tokio"];
+Repo = open({full_name:str, stargazers_count:int});
+repos | parallel(2){r =>
+  retry({attempts:3, when:{e => e.code == "network" || e.code == "timeout"}, delay:200}){() =>
+    get(url(base, ["repos"] + split(r, "/")), {headers:{"User-Agent":"kiri-example"}}) | check(Repo)
+  } | pick(["full_name", "stargazers_count"])
+}

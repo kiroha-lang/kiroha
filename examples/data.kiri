@@ -1,0 +1,17 @@
+// Pure data processing: run with `kiri run examples/data.kiri --json`
+orders = [
+  {id:1, customer:"ada", total:12.50, items:["pen","ink"]},
+  {id:2, customer:"lin", total:3.10, items:["paper"]},
+  {id:3, customer:"ada", total:7.40, items:[]}
+];
+Order = {id:int, customer:str, total:num, items:[str]};
+checked = check(orders, [Order]);
+by_customer = checked
+  | group(){o => o.customer}
+  | map(){g => {customer:g.key, orders:len(g.items), spent: g.items | map(){o => o.total} | sum()}}
+  | sort(){r => 0 - r.spent};
+{
+  customers: by_customer,
+  average: sum(map(checked){o => o.total}) / len(checked),
+  all_items: checked | map(){o => o.items} | flat() | unique() | sort()
+}

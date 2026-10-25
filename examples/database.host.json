@@ -1,0 +1,5 @@
+{
+  "format": "kiri-host/1",
+  "capabilities": {"databases": ["main"]},
+  "database_pools": {"main": {"dsn_env": "KIRI_PG_MAIN"}}
+}

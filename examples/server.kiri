@@ -1,0 +1,18 @@
+// A small JSON API with an in-memory greeting and file-backed notes.
+// kiri run examples/server.kiri --json --host examples/server.host.json
+// curl localhost:8080/hello/ada ; curl -XPOST -H 'content-type: application/json' -d '{"text":"hi"}' localhost:8080/notes
+Note = {text:str};
+serve({
+  "GET /hello/:name": {r => {greeting: "hello, " + r.params.name, at: now()}},
+  "POST /notes": {r =>
+    n = input(r, Note);
+    id = uuid();
+    write("notes/" + id + ".json", encode(dump(n)));
+    log({event:"note_saved", id});
+    reply(201, {id})
+  },
+  "GET /notes/:id": {r =>
+    try parse(decode(read("notes/" + r.params.id + ".json")))
+    catch {e => if e.code == "io" then reply(404, {error:"no such note"}) else fail(e)}
+  }
+}, {port: 8080})
