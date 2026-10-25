@@ -175,3 +175,20 @@ fn many_response_header_fields_within_header_bytes() {
     let r = run(&format!(r#"len(keys(http("GET","http://127.0.0.1:{port}/").headers))"#), Some(&host(port)));
     assert_eq!(result(&r), "151");
 }
+
+#[test]
+fn unremovable_transfer_coding_is_a_framing_failure() {
+    let gz = gzip(b"[7]");
+    let (port, _) = fixture_server(move |_, _| {
+        let mut out = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: gzip, chunked\r\n\r\n".to_vec();
+        out.extend_from_slice(format!("{:x}\r\n", gz.len()).as_bytes());
+        out.extend_from_slice(&gz);
+        out.extend_from_slice(b"\r\n0\r\n\r\n");
+        out
+    });
+    let r = run(
+        &format!(r#"try http("GET","http://127.0.0.1:{port}/") catch {{e=>[e.code,e.data.reason,e.data.outcome]}}"#),
+        Some(&host(port)),
+    );
+    assert_eq!(result(&r), r#"["network","framing","unknown"]"#);
+}

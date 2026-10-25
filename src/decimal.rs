@@ -56,7 +56,11 @@ impl From<Overflow> for DivError {
 }
 
 fn pow10(n: u64) -> Result<BigInt, Overflow> {
-    if n > MAX_SCALE_DIGITS {
+    pow10_capped(n, MAX_SCALE_DIGITS)
+}
+
+fn pow10_capped(n: u64, cap: u64) -> Result<BigInt, Overflow> {
+    if n > cap {
         return Err(Overflow);
     }
     Ok(num_traits::pow(BigInt::from(10u8), n as usize))
@@ -292,10 +296,13 @@ impl Decimal {
         };
         let k = if ge { k0 } else { k0 - 1 };
         let s = 33 - k;
+        // Internal scaling for the 34-digit quotient is bounded by the operand
+        // sizes (each within the coefficient quota), not by the quota itself.
+        let cap = 2 * MAX_DIGITS + 64;
         let (num, den) = if s >= 0 {
-            (&n * pow10(s as u64)?, d)
+            (&n * pow10_capped(s as u64, cap)?, d)
         } else {
-            (n, &d * pow10((-s) as u64)?)
+            (n, &d * pow10_capped((-s) as u64, cap)?)
         };
         let (mut q, r) = num.div_rem(&den);
         let twice = &r * 2u8;
@@ -321,6 +328,20 @@ impl Decimal {
         if self.abs_cmp(o) == Ordering::Less {
             return Ok(self.clone());
         }
+        if self.exp >= o.exp {
+            // a/b = ca·10^(ea-eb)/cb exactly; the remainder is
+            // (ca · (10^(ea-eb) mod cb)) mod cb, scaled by 10^eb, with the sign
+            // of a. Modular exponentiation keeps this cheap for any exponent gap.
+            let cb = o.coef.abs();
+            let gap = BigInt::from(self.exp as i128 - o.exp as i128);
+            let p = BigInt::from(10u8).modpow(&gap, &cb);
+            let mut r = (self.coef.abs() * p) % &cb;
+            if self.is_negative() {
+                r = -r;
+            }
+            return Ok(Decimal::normalize(r, o.exp));
+        }
+        // ea < eb and |a| >= |b|: the scaling of b is bounded by a's digits.
         let (a, b, e) = Decimal::aligned(self, o)?;
         let r = &a % &b; // num-bigint `%` truncates toward zero, sign of a
         Ok(Decimal::normalize(r, e))
@@ -518,6 +539,12 @@ mod tests {
         assert!(Decimal::parse_json(&"1".repeat(100_001)).is_err());
         assert_eq!(d(&format!("1{}", "0".repeat(150_000))).canonical(), "1e150000");
         assert_eq!(d("7").rem(&d("1e1000000000")).unwrap().canonical(), "7");
+        assert_eq!(d("1e100001").rem(&d("7")).unwrap().canonical(), "5");
+        assert_eq!(d("1e60000").rem(&d("1e-60000")).unwrap().canonical(), "0");
+        assert_eq!(d("-1e100001").rem(&d("7")).unwrap().canonical(), "-5");
+        assert_eq!(d("12.5").rem(&d("0.3")).unwrap().canonical(), "0.2");
+        let big = d("1e99998").add(&d("1")).unwrap();
+        assert_eq!(d("1").div(&big).unwrap().canonical(), "1e-99998");
         assert_eq!(d("0.000").canonical(), "0");
         assert_eq!(d("120.50").canonical(), "120.5");
         assert!(d("1e20000000").add(&d("1")).is_err());

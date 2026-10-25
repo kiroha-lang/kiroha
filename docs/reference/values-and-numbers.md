@@ -38,8 +38,7 @@ ten). Parsing never rounds.
 
 There is no NaN, Infinity or negative zero. This implementation limits
 coefficients to 100,000 decimal digits as a host resource quota (exceeding it
-is a `resource` abort, never rounding); exponents may be arbitrarily large
-within 64-bit range. "Integer" means a number with no
+is a `resource` abort, never rounding) and exponents to about ±2.3×10^18. "Integer" means a number with no
 fractional part; there is no separate integer type.
 
 ```kiri

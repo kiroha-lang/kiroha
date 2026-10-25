@@ -178,6 +178,15 @@ impl Client {
             headers.push((n.as_str().to_string(), v.as_bytes().to_vec()));
         }
         let gzip = codings == ["gzip"];
+        // hyper removes only a final `chunked` transfer coding. Any other
+        // transfer coding (never advertised: no TE header is sent) cannot be
+        // removed, so the response is a framing failure (§10.4).
+        let te_other = resp.headers().get_all("transfer-encoding").iter().any(|v| {
+            String::from_utf8_lossy(v.as_bytes()).split(',').map(|t| t.trim().to_ascii_lowercase()).any(|t| !t.is_empty() && t != "chunked")
+        });
+        if te_other {
+            return net("framing", "unknown");
+        }
         if header_bytes > req.header_limit {
             return EffOutcome::Resource("header_bytes".into());
         }
