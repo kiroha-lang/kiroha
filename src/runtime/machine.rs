@@ -75,6 +75,10 @@ impl<H: Host> Runtime<H> {
             if !virt && steps.is_multiple_of(1024) {
                 let now = self.host.now_ms();
                 self.fire_due_timers(now);
+                if crate::interrupt::cancel_requested() {
+                    let root = self.root_scope;
+                    self.abort_scope(root, AbortReason::Cancelled);
+                }
             }
         }
     }

@@ -14,6 +14,20 @@ use std::time::Instant;
 pub enum Trip {
     Deadline,
     Memory,
+    /// SIGINT/SIGTERM arrived while builtin work held the evaluator.
+    Cancelled,
+}
+
+static CANCEL_REQUESTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Called from a signal handler (async-signal-safe: one atomic store).
+pub fn request_cancel() {
+    CANCEL_REQUESTED.store(true, std::sync::atomic::Ordering::SeqCst);
+}
+
+/// Whether a process cancellation was requested.
+pub fn cancel_requested() -> bool {
+    CANCEL_REQUESTED.load(std::sync::atomic::Ordering::SeqCst)
 }
 
 thread_local! {
@@ -75,6 +89,10 @@ pub fn tripped() -> bool {
 
 fn check() {
     if tripped() {
+        return;
+    }
+    if cancel_requested() {
+        TRIPPED.with(|c| c.set(Some(Trip::Cancelled)));
         return;
     }
     if let Some(at) = AT.with(|c| c.get()) {

@@ -591,6 +591,7 @@ dependencies = [
  "rustls",
  "rustls-native-certs",
  "rustls-pemfile",
+ "signal-hook-registry",
  "tokio",
  "tokio-postgres",
  "tokio-postgres-rustls",

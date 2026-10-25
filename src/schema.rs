@@ -192,6 +192,9 @@ fn mismatch(path: &[PathItem], expected: &'static str, actual: Kind) -> Mismatch
 
 /// First non-JSON location inside v, as a mismatch with expected "json".
 fn json_mismatch(v: &Value, path: &mut Vec<PathItem>) -> Option<Mismatch> {
+    if crate::interrupt::poll() {
+        return None; // result is discarded by the runtime
+    }
     match v {
         Value::Null | Value::Bool(_) | Value::Num(_) | Value::Str(_) => None,
         Value::Array(a) => {

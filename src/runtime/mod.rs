@@ -813,6 +813,10 @@ impl<H: Host> Runtime<H> {
                 let scope = self.budgets.get(&t.budget).map(|b| b.scope).unwrap_or(self.root_scope);
                 self.abort_scope(scope, AbortReason::Resource("memory"));
             }
+            crate::interrupt::Trip::Cancelled => {
+                let root = self.root_scope;
+                self.abort_scope(root, AbortReason::Cancelled);
+            }
         }
         t.seen_epoch = u64::MAX;
         self.abort_of(t.scope).map(|sig| Ctl::Abort(sig, None))

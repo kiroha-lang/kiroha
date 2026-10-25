@@ -184,9 +184,12 @@ Semantic steps check for aborts every step and poll real-time timers every
 a large JSON string, comparing large arrays), so `src/interrupt.rs` arms a
 thread-local checkpoint before each builtin call, operator and effect-result
 conversion with the earliest real-time deadline of the task's scope chain
-and the memory quota. Long loops (JSON parse/dump, JSON equality, schema
-validation, `range`, `flat`, `sum`, `split`, identity `sort`/`unique`) poll it
-once per item and check the clock and heap every 1024 polls. When it trips,
+and the memory quota. Long loops (JSON parse/dump, JSON equality and hashing, schema
+validation including `json` atoms, `range`, `flat`, `sum`, `split`, `replace`,
+identity `sort`/`unique`) poll it
+once per item and check the clock and heap every 1024 polls. A SIGINT/SIGTERM handler sets a process flag that the checkpoints
+also honour, so cancellation is observed even while builtin work holds the
+single-threaded evaluator. When it trips,
 loops stop early, the partial result is discarded, the due timers fire, and
 the task continues as the resulting abort. In addition, due real-time timers
 are fired and the task's abort state re-checked immediately before every

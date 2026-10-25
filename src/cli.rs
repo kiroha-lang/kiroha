@@ -281,6 +281,15 @@ pub fn run_source(bytes: &[u8], config: HostConfig) -> Output {
         Ok(r) => r,
         Err(e) => return cli_failure(true, "configuration", &format!("cannot start runtime: {e}")),
     };
+    // A raw flag set from the signal handler lets builtin work that holds
+    // the single-threaded evaluator observe SIGINT/SIGTERM (§8.3, §15.1);
+    // tokio's listeners below still deliver the event-loop cancellation.
+    #[cfg(unix)]
+    unsafe {
+        for sig in [libc::SIGINT, libc::SIGTERM] {
+            let _ = signal_hook_registry::register(sig, crate::interrupt::request_cancel);
+        }
+    }
     let local = tokio::task::LocalSet::new();
     let outcome = local.block_on(&tokio_rt, async move {
         let config = Rc::new(config);

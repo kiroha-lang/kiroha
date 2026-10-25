@@ -81,7 +81,7 @@ root/request scope with `resource`. See
 
 ## Independent audits
 
-Eight independent read-and-execute audits of sections 2–15 were run against the
+Nine independent read-and-execute audits of sections 2–15 were run against the
 code (each walked the normative rules section by section and confirmed every
 finding by running programs or custom fixture manifests).
 
@@ -101,6 +101,8 @@ finding by running programs or custom fixture manifests).
 | 7 (full, §2–§15) | 4 + 4 minor: overflowing chunk size panicked the server adapter (slot leaked, shutdown hung); >100 response header fields misreported as a `header_bytes` abort; PostgreSQL rows buffered entirely before `max_rows`; `retry` aborting after 400 attempts with zero delay; >256 request header fields rejected; `+1` chunk size accepted; number quota counting non-coefficient digits (trailing zeros, `%` alignment); JSON usage envelopes outside JSON-mode commands | All fixed; adapter futures are additionally panic-isolated (a panic becomes a host resource outcome, never a hang). Regressions: `tests/i05_server.rs` (chunk sizes, 300 headers), `tests/i01_http.rs` (150 response headers), `tests/i03_i04_postgres.rs` (`max_rows` under a 30 MB quota on a 5M-row query), `tests/prose_regressions.rs` (retry, number quota), `tests/i06_i07_i08.rs` (CLI modes), decimal unit tests |
 
 | 8 (full, §2–§15) | 2: a response with a non-`chunked` transfer coding (e.g. `gzip, chunked`) returned the still-encoded body; division/remainder aborted on internal scaling although operands and result were within the quota (`1/(1e99998+1)`, `1e100001 % 7`, `1e60000 % 1e-60000`) | Fixed: unremovable transfer codings are `network`/`framing`; division scaling is bounded by operand sizes and `%` uses modular exponentiation. Regressions: `tests/i01_http.rs`, decimal unit tests. Every other subsection of §2–§15 was reported "verified, no violation" |
+
+| 9 (full, §2–§15) | 2: `json` schema checks and JSON key hashing (`group`/`unique`/`pages` cursors) had no interrupt checkpoint; SIGINT/SIGTERM not observed while builtin work held the evaluator | Fixed: checkpoints added to both traversals; a signal handler sets a flag that every checkpoint honours (cancelled abort). Regressions in `tests/i06_i07_i08.rs`. Every other subsection of §2–§15 was reported "verified, no violation" |
 
 Audit 2 recorded "no new violations" for §2, §3, §4, §5, §6, §7, §8, §9,
 §10 (apart from the fixture header checks), §11 (apart from the two SQL

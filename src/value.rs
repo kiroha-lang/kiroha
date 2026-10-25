@@ -382,6 +382,9 @@ pub fn json_hash(v: &Value) -> u64 {
     use std::hash::{Hash, Hasher};
     let mut h = std::collections::hash_map::DefaultHasher::new();
     fn go(v: &Value, h: &mut std::collections::hash_map::DefaultHasher) {
+        if crate::interrupt::poll() {
+            return; // result is discarded by the runtime
+        }
         match v {
             Value::Null => 0u8.hash(h),
             Value::Bool(b) => {

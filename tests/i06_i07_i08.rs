@@ -79,6 +79,32 @@ fn i07_cpu_bound_cancellation_and_bounded_parallelism() {
         assert!(r.stdout.contains("\"reason\":\"deadline\""), "{src}: {}", r.stdout);
         assert!(t.elapsed().as_millis() < 1500, "{src}");
     }
+    // JSON schema checks and JSON key hashing over huge shared structures
+    // observe the deadline.
+    for src in [
+        "z=fold(range(0,60),[1]){(a,i)=>[a,a]}; check(z,json)",
+        "z=fold(range(0,60),[1]){(a,i)=>[a,a]}; unique([z,z])",
+        "z=fold(range(0,60),[1]){(a,i)=>[a,a]}; pages(z){c=>{items:[],next:null}}",
+    ] {
+        let t = Instant::now();
+        let r = run(src, Some(r#"{"format":"kiri-host/1","limits":{"deadline_ms":300}}"#));
+        assert!(r.stdout.contains("\"reason\":\"deadline\""), "{src}: {}", r.stdout);
+        assert!(t.elapsed().as_millis() < 3000, "{src}");
+    }
+    // SIGINT during long builtin work is observed (cancelled abort, exit 3).
+    {
+        let dir = tempdir("sig");
+        let p = dir.join("s.kiri");
+        std::fs::write(&p, "z=fold(range(0,60),[1]){(a,i)=>[a,a]}; dump(z)").unwrap();
+        let child = kiri().arg("run").arg(&p).arg("--json").stdout(std::process::Stdio::piped()).spawn().unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        unsafe {
+            libc::kill(child.id() as i32, libc::SIGINT);
+        }
+        let out = finish(child.wait_with_output().unwrap());
+        assert_eq!(out.code, 3, "{}", out.stdout);
+        assert!(out.stdout.contains("\"reason\":\"cancelled\""));
+    }
     // memory_bytes is enforced before large allocations (+, dump, encode)
     for src in [
         "d(n,a)=if n==0 then a else d(n-1,a+a); len(d(40,[1]))",
