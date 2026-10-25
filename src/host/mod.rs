@@ -21,6 +21,8 @@ pub struct HttpRequest {
     pub headers: Vec<(String, String)>,
     pub body: Option<Vec<u8>>,
     pub header_limit: u64,
+    /// Decoded-body limit; the adapter bounds raw identity bodies by it.
+    pub max_bytes: u64,
 }
 
 #[derive(Clone, Debug)]

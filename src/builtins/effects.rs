@@ -238,6 +238,7 @@ impl<H: Host> Runtime<H> {
             headers: hdrs,
             body,
             header_limit: self.config.limits.header_bytes,
+            max_bytes,
         };
         Ok(Prepared::Dispatch(
             OpFrame::Http { kind, head: method == "HEAD", max_bytes },
@@ -458,6 +459,11 @@ pub fn format_uuid(b: &[u8]) -> String {
     let mut x = b.to_vec();
     x[6] = (x[6] & 15) | 64;
     x[8] = (x[8] & 63) | 128;
+    format_uuid_raw(&x)
+}
+
+/// Hyphenated lowercase hex of 16 bytes, without version/variant changes.
+pub fn format_uuid_raw(x: &[u8]) -> String {
     let h: Vec<String> = x.iter().map(|c| format!("{c:02x}")).collect();
     format!(
         "{}-{}-{}-{}-{}",
