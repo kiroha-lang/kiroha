@@ -103,13 +103,13 @@ handling, the harness hang and ~60 valid hole positions, and reported the
 remaining items in the table above, all now fixed. It also verified ~150
 documentation snippets and claims as accurate.
 
-## Design choices (permitted by the specification)
+## Design choices (within the specification)
 
 | Area | Choice |
 | --- | --- |
 | HTTP client connections | One connection per request; no pooling, so no hidden session state (§10.1 permits reuse but does not require it). |
 | Server connections | One request per connection with `connection: close`, a valid HTTP/1.1 behavior; HTTP/2 is not offered (optional in §10.1). |
-| Client half-close | TCP cannot distinguish a half-close from a full close before the response is written. Following the spec's "client disconnect aborts its task" (and Go's net/http), EOF while a handler runs is treated as a disconnect; a client that shuts down its sending side early gets no response. |
+| Client half-close | Kiri 0.3.0 does not define half-close; §12.2 requires that a "client disconnect aborts its task". TCP offers no way to tell a half-close from a full close before a response is written (both arrive as FIN/EOF), so honouring §12.2 requires treating EOF during handler execution as a disconnect — the same rule Go's net/http applies. A client that shuts down its sending side before the response therefore receives none. This is the conforming reading of §12.2, not a deviation. |
 | Memory quota | Process live-heap measurement at checkpoints (published strategy above); a single huge allocation may complete before it is observed, which §14.1 leaves implementation-dependent. |
 | Build requirement | `pg_query` needs a C compiler and libclang at build time. |
 
