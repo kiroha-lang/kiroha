@@ -36,7 +36,7 @@ KIRI_TEST_PG_DSN="host=127.0.0.1 port=55432 user=kiri dbname=postgres" cargo tes
 
 | ID | Test | Status | What is exercised |
 | --- | --- | --- | --- |
-| I01 | `tests/i01_http.rs` (4 tests) | pass | Local raw HTTP fixture: GET/DELETE/POST, 4xx/5xx as data, repeated headers and `set-cookie`, 204/205/304, explicit HEAD with unsupported coding, gzip and decoded `max_bytes`, chunked framing, invalid chunked framing, invalid UTF-8/JSON, 302 not followed, one request per call (no retries), no cookies sent, query/header encoding, connection refused → `not_sent` |
+| I01 | `tests/i01_http.rs` (5 tests) | pass | Local raw HTTP fixture: GET/DELETE/POST, 4xx/5xx as data, repeated headers and `set-cookie`, 204/205/304, explicit HEAD with unsupported coding, gzip and decoded `max_bytes`, chunked framing, invalid chunked framing, invalid UTF-8/JSON, 302 not followed, one request per call (no retries), no cookies sent, query/header encoding, connection refused → `not_sent` |
 | I02 | `tests/i02_tls.rs` (2 tests) | pass | rcgen CA + rustls server: valid chain/hostname succeeds; wrong hostname and untrusted chain fail with `tls`/`not_sent`; server that drops after receiving the request → `network`/`unknown` |
 | I03 | `tests/i03_i04_postgres.rs::i03_*` | pass | PostgreSQL 16: every parameter kind, all supported result OIDs (int2/4/8, numeric with 39 digits, text, varchar, bpchar padding, uuid, bool, bytea, json, jsonb with `1e30`), NULL, hostile text as data, duplicate column names, unsupported types (date, float8, array, NaN numeric), DDL/multi-statement rejection, server SQLSTATE, U+0000 bind rejection, explicit conversions |
 | I04 | `tests/i03_i04_postgres.rs::i04_*` | pass | Commit with verified table state, callback-failure rollback, caught poison stays primary (23505) with rollback, tx timeout interrupting a pure loop, `sql` timeout on `pg_sleep`, task confinement and nested-tx ownership, independent autocommit inside a rolled-back tx, `DISCARD ALL` reset before pooled reuse |
@@ -81,7 +81,7 @@ root/request scope with `resource`. See
 
 ## Independent audits
 
-Two independent read-and-execute audits of sections 2–15 were run against the
+Three independent read-and-execute audits of sections 2–15 were run against the
 code (each walked the normative rules section by section and confirmed every
 finding by running programs or custom fixture manifests).
 
@@ -90,10 +90,16 @@ finding by running programs or custom fixture manifests).
 | 1 | 9: SQL holes not checked as ParamRefs; SEARCH/CYCLE and sibling-CTE false rejections; malformed statements sent; pre-admission responses without JSON content type; lenient route escapes; argument validation order in `replace`; `fail` reordering fields; `url` query error position; stacked content codings / 205 coding | All fixed; regression cases in `tests/prose_regressions.rs` |
 | 2 (after fixes) | 5: ParamRef counting missed VALUES/LIMIT/RETURNING/MERGE/window/array positions; deadlines not observed inside long builtin work; harness hang on an unmatched effect while a timer was pending; `WITH … TABLE` accepted; fixture host skipped Upgrade/header-field transport checks | All fixed; regression cases in `tests/prose_regressions.rs`, `tests/i06_i07_i08.rs` (deadline inside builtin work) and `tests/i03_i04_postgres.rs` (holes in VALUES/RETURNING/LIMIT on PostgreSQL 16) |
 
+| 3 (fixes + docs) | 9 code, 5 docs: SELECT INTO in a UNION's leftmost branch accepted; real-server request leaked when its deadline passed inside builtin work; deadlines not re-checked before builtin calls / final result, non-polling builtins; malformed real-server header sections closed silently instead of 400; multi-column SET counted shared ParamRefs twice; Debug-text counting fooled by literals; parenthesized `WITH … (TABLE a)` accepted and `… UNION ALL TABLE a` rejected; repeated trailing semicolons accepted; doc errors (minimum Rust version, server example setup, `source_bytes` wording, test count, an escape example) | All fixed; regressions in `src/sqlcheck.rs` unit tests, `tests/i03_i04_postgres.rs` (SELECT INTO creates no table; multi-column SET), `tests/i05_server.rs` (504 after CPU-bound handler, 400 for malformed heads), `tests/i06_i07_i08.rs` (`flat` and string concatenation honour deadlines) |
+
 Audit 2 recorded "no new violations" for §2, §3, §4, §5, §6, §7, §8, §9,
 §10 (apart from the fixture header checks), §11 (apart from the two SQL
 items), §12, §13, §14.1 and §15, and confirmed 8 of the 9 audit-1 fixes
 (the ninth, ParamRef counting, was the item it re-opened and is now fixed).
+Audit 3 confirmed the audit-2 fixes for the fixture server, HTTP pseudo-header
+handling, the harness hang and ~60 valid hole positions, and reported the
+remaining items in the table above, all now fixed. It also verified ~150
+documentation snippets and claims as accurate.
 
 ## Design choices (permitted by the specification)
 

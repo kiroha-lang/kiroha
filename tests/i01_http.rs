@@ -28,7 +28,7 @@ fn server() -> (u16, std::sync::Arc<std::sync::Mutex<Vec<String>>>) {
             "/304" => raw("304 Not Modified", &[], b""),
             "/head" => raw("200 OK", &["Content-Length: 100", "Content-Encoding: br"], b""),
             "/gzip" => {
-                let mut h = vec![format!("Content-Length: {}", gz.len()), "Content-Encoding: gzip".into()];
+                let mut h = [format!("Content-Length: {}", gz.len()), "Content-Encoding: gzip".into()];
                 let hs: Vec<&str> = h.iter_mut().map(|s| s.as_str()).collect();
                 raw("200 OK", &hs, &gz)
             }

@@ -37,7 +37,7 @@ Details, versions and known deviations are in
 
 ## Build and install
 
-Requires Rust 1.80+ (tested with 1.96), a C compiler and libclang (for the
+Requires Rust 1.88+ (tested with 1.96), a C compiler and libclang (for the
 embedded PostgreSQL parser, `pg_query`; set `LIBCLANG_PATH` if it is not
 found automatically).
 

@@ -95,8 +95,18 @@ impl<H: Host> Runtime<H> {
                 None => self.apply(t, f, args, cb),
             },
             Ctl::Ret(v) => match t.stack.pop() {
-                None => return StepResult::Done(TaskOutcome::Value(v)),
+                None => {
+                    if let Some(c) = self.deadline_due(t) {
+                        t.ctl = c;
+                        return StepResult::Continue;
+                    }
+                    return StepResult::Done(TaskOutcome::Value(v));
+                }
                 Some(fr @ (Frame::BinRight { .. } | Frame::Collect(_) | Frame::Pages(_))) => {
+                    if let Some(c) = self.deadline_due(t) {
+                        t.ctl = c;
+                        return StepResult::Continue;
+                    }
                     self.arm_interrupts(t);
                     let ctl = self.frame_ret(t, fr, v);
                     self.disarm_interrupts(t).unwrap_or(ctl)
@@ -104,7 +114,13 @@ impl<H: Host> Runtime<H> {
                 Some(fr) => self.frame_ret(t, fr, v),
             },
             Ctl::Throw(e) => match t.stack.pop() {
-                None => return StepResult::Done(TaskOutcome::Error(e, t.throw_span)),
+                None => {
+                    if let Some(c) = self.deadline_due(t) {
+                        t.ctl = c;
+                        return StepResult::Continue;
+                    }
+                    return StepResult::Done(TaskOutcome::Error(e, t.throw_span));
+                }
                 Some(fr) => self.frame_throw(t, fr, e),
             },
             Ctl::Effect(o) => {
@@ -363,6 +379,9 @@ impl<H: Host> Runtime<H> {
                 }
             }
             Function::Builtin(b) => {
+                if let Some(c) = self.deadline_due(t) {
+                    return c;
+                }
                 self.arm_interrupts(t);
                 let ctl = self.call_builtin(t, *b, args, cb);
                 self.disarm_interrupts(t).unwrap_or(ctl)

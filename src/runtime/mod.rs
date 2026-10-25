@@ -758,6 +758,20 @@ impl<H: Host> Runtime<H> {
         self.host.now_ms()
     }
 
+    /// Real-time deadline check before heavy work and before delivering a
+    /// final result: fire due timers and report an observed abort.
+    pub fn deadline_due(&mut self, t: &mut Task) -> Option<Ctl> {
+        if self.host.is_virtual() {
+            return None;
+        }
+        let now = self.host.now_ms();
+        if self.next_timer_at().is_some_and(|at| at <= now) {
+            self.fire_due_timers(now);
+            t.seen_epoch = u64::MAX;
+        }
+        self.task_abort(t).map(|s| Ctl::Abort(s, None))
+    }
+
     /// Arm builtin-work checkpoints for a task (earliest deadline on its
     /// scope chain in real time; memory quota always).
     pub fn arm_interrupts(&self, t: &Task) {

@@ -66,7 +66,13 @@ fn i07_cpu_bound_cancellation_and_bounded_parallelism() {
     assert!(r.stdout.contains("\"reason\":\"deadline\""));
     assert!(t.elapsed().as_millis() < 3000);
     // Long builtin work (JSON, equality, schema checks) observes the deadline.
-    for src in ["x=dump(range(0,3000000));len(parse(x))", "range(0,2000000)==range(0,2000000)", "check(range(0,3000000),[int])"] {
+    for src in [
+        "x=dump(range(0,3000000));len(parse(x))",
+        "range(0,2000000)==range(0,2000000)",
+        "check(range(0,3000000),[int])",
+        "xs=range(0,3000000);len(flat([xs,xs,xs,xs,xs,xs,xs,xs,xs,xs,xs,xs,xs,xs,xs,xs]))",
+        "s=dump(range(0,3000000));s2=s+s+s+s+s+s+s+s;s3=s2+s2+s2+s2;len(s3+s3)",
+    ] {
         let t = Instant::now();
         let r = run(src, Some(r#"{"format":"kiri-host/1","limits":{"deadline_ms":20,"eval_steps":100000000000,"memory_bytes":4000000000}}"#));
         assert!(r.stdout.contains("\"reason\":\"deadline\""), "{src}: {}", r.stdout);

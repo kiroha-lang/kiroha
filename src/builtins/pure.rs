@@ -123,8 +123,10 @@ fn pure(b: Builtin, a: &[Value], tick: Tick) -> BResult {
             }
             let mut out = Vec::new();
             for x in xs.iter() {
-                out.extend(x.as_array().unwrap().iter().cloned());
-                tick(out.len())?;
+                for item in x.as_array().unwrap().iter() {
+                    out.push(item.clone());
+                    tick(out.len())?;
+                }
             }
             Ok(Value::array(out))
         }

@@ -94,8 +94,9 @@ on and read-committed isolation, and is reset with `DISCARD ALL` before reuse
 | `deadline_ms` | null | Root deadline from evaluation start |
 | `cleanup_ms` | 1000 | Cleanup grace per scope (1–10000) |
 
-Exceeding a limit is a `resource` (or `deadline`) **abort**, never a catchable
-error.
+Exceeding a runtime limit is a `resource` (or `deadline`) **abort**, never a
+catchable error. `source_bytes` is checked by the CLI before evaluation and
+fails with `phase:"cli"`, code `source_limit` (exit 2).
 
 ## TLS trust store
 

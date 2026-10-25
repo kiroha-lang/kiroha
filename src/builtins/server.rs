@@ -82,6 +82,8 @@ pub enum ReqPhase {
     Body,
     Handler,
     Sending,
+    /// Closing the transport without a response after an abort.
+    Closing,
 }
 
 pub struct RequestFrame {
@@ -578,6 +580,10 @@ impl<H: Host> Runtime<H> {
                 _ => self.send_error(t, f, 400, "bad_request", false),
             },
             ReqPhase::Sending => Ctl::Ret(Value::Null),
+            ReqPhase::Closing => match t.unwinding.clone().or_else(|| self.abort_of(t.scope)) {
+                Some(sig) => Ctl::Abort(sig, None),
+                None => Ctl::Ret(Value::Null),
+            },
             ReqPhase::Handler => {
                 self.harness_failure = Some("effect delivered to a request handler frame".into());
                 Ctl::Waiting
@@ -625,6 +631,11 @@ impl<H: Host> Runtime<H> {
     }
 
     pub fn request_ret(&mut self, t: &mut Task, f: RequestFrame, v: Value) -> Ctl {
+        // The handler may finish after its deadline without an intermediate
+        // checkpoint; the deadline still decides the response.
+        if let Some(sig) = self.deadline_due(t).and(self.abort_of(t.scope)).or_else(|| self.abort_of(t.scope)) {
+            return self.request_abort(t, f, sig, None);
+        }
         match v {
             Value::Reply(r) => {
                 let hdrs = r.headers.clone();
@@ -646,6 +657,9 @@ impl<H: Host> Runtime<H> {
         if f.phase != ReqPhase::Handler {
             return Ctl::Throw(e);
         }
+        if let Some(sig) = self.deadline_due(t).and(self.abort_of(t.scope)).or_else(|| self.abort_of(t.scope)) {
+            return self.request_abort(t, f, sig, None);
+        }
         match err::code_of(&e) {
             "input" => self.send_error(t, f, 400, "bad_request", false),
             "media" => self.send_error(t, f, 415, "unsupported_media_type", false),
@@ -660,20 +674,28 @@ impl<H: Host> Runtime<H> {
     pub fn request_abort(&mut self, t: &mut Task, f: RequestFrame, sig: AbortSig, _carry: Option<EffOutcome>) -> Ctl {
         let own = self.servers.get(&f.server).and_then(|s| s.requests.get(&f.request)).and_then(|r| r.scope);
         let request_scope_only = own == Some(sig.scope);
-        if f.phase == ReqPhase::Sending || !request_scope_only {
+        if f.phase == ReqPhase::Closing {
             return Ctl::Abort(sig, None);
         }
-        match sig.reason {
-            AbortReason::Deadline => {
-                t.unwinding = None;
-                self.send_error(t, f, 504, "timeout", true)
+        if f.phase != ReqPhase::Sending && request_scope_only {
+            match sig.reason {
+                AbortReason::Deadline => {
+                    t.unwinding = None;
+                    return self.send_error(t, f, 504, "timeout", true);
+                }
+                AbortReason::Resource(_) => {
+                    t.unwinding = None;
+                    return self.send_error(t, f, 503, "unavailable", true);
+                }
+                _ => {}
             }
-            AbortReason::Resource(_) => {
-                t.unwinding = None;
-                self.send_error(t, f, 503, "unavailable", true)
-            }
-            _ => Ctl::Abort(sig, None),
         }
+        // No (further) response: close the transport, then finish the abort.
+        let request = f.request;
+        let mut f = f;
+        f.phase = ReqPhase::Closing;
+        t.stack.push(Frame::Request(Box::new(f)));
+        Ctl::Dispatch(Effect::CloseRequest { request }, DispatchOpts { cleanup: true, timeout: None })
     }
 
     fn log_request_error(&mut self, code: &str, path: &str) {

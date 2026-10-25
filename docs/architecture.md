@@ -123,7 +123,10 @@ root task. Each incoming request head is admitted in the §12.2 order
 (target/method → inflight limit → request scope + deadline → body framing,
 coding and size → route lookup → handler) as its own task with a fresh step
 budget. Results, errors and request-scope aborts are mapped to responses in a
-`Request` frame; a deadline sends `504` through a cleanup send. Cancelling the
+`Request` frame; a deadline sends `504` through a cleanup send, and any abort
+that leaves no response (disconnect, shutdown, an interrupted send) closes the
+transport explicitly. Malformed but complete request heads are answered with
+`400` by the adapter before admission. Cancelling the
 root aborts all request scopes, waits for them, then closes the listener.
 
 ## Hosts
@@ -179,7 +182,12 @@ and the memory quota. Long loops (JSON parse/dump, JSON equality, schema
 validation, `range`, `flat`, `sum`, `split`, identity `sort`/`unique`) poll it
 once per item and check the clock and heap every 1024 polls. When it trips,
 loops stop early, the partial result is discarded, the due timers fire, and
-the task continues as the resulting abort. Arbitrary-precision arithmetic
+the task continues as the resulting abort. In addition, due real-time timers
+are fired and the task's abort state re-checked immediately before every
+builtin call, before heavy operator/collection frames, and before a task's
+final value or error is delivered — so work that cannot poll (a single large
+string concatenation, `join`, `encode`) overruns a deadline by at most one
+operation, and its result is never reported after the deadline. Arbitrary-precision arithmetic
 inside one `num-bigint` call is not interruptible; its size is bounded by the
 memory quota and the 20,000,000-digit scaling cap.
 

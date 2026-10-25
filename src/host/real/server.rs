@@ -333,11 +333,16 @@ async fn handle_conn(
     header_limit: u64,
 ) {
     let _ = stream.set_nodelay(true);
-    let (mut rd, wr) = stream.into_split();
+    let (mut rd, mut wr) = stream.into_split();
     let mut buf: Vec<u8> = Vec::new();
     let head_end = loop {
         if let Some(i) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
             break i + 4;
+        }
+        // A complete header section with bare LF line endings is malformed.
+        if buf.windows(2).any(|w| w == b"\n\n") {
+            bad_request(&mut wr).await;
+            return;
         }
         if buf.len() as u64 > header_limit {
             return; // unreadable header section: close without a response
@@ -354,11 +359,17 @@ async fn handle_conn(
     }
     let mut hdrs = vec![httparse::EMPTY_HEADER; 256];
     let mut req = httparse::Request::new(&mut hdrs);
+    // A complete but malformed header section (invalid field names or
+    // octets, bad target, folding, non-HTTP/1.1) is an invalid request.
     match req.parse(&buf[..head_end]) {
         Ok(httparse::Status::Complete(_)) => {}
-        _ => return,
+        _ => {
+            bad_request(&mut wr).await;
+            return;
+        }
     }
     if req.version != Some(1) {
+        bad_request(&mut wr).await;
         return;
     }
     let method = req.method.unwrap_or("").to_string();
@@ -383,4 +394,16 @@ async fn handle_conn(
         headers,
         upgrade,
     }));
+}
+
+/// Pre-admission 400 for an unparseable request head; closes the connection.
+async fn bad_request(wr: &mut OwnedWriteHalf) {
+    let body = b"{\"error\":\"bad_request\"}";
+    let head = format!(
+        "HTTP/1.1 400 Bad Request\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+        body.len()
+    );
+    let _ = wr.write_all(head.as_bytes()).await;
+    let _ = wr.write_all(body).await;
+    let _ = wr.shutdown().await;
 }

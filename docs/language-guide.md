@@ -48,7 +48,7 @@ that never executes is still an error.
 - Reserved words: `null true false if then else do try catch`.
 - Numbers use JSON syntax without a sign: `0`, `12`, `1.5`, `2e-3`.
   `01`, `.5`, `1.`, `1abc` are lexical errors. `-1` is unary minus applied to `1`.
-- Strings use double quotes and JSON escapes (`\n`, `\"`, `é`, surrogate
+- Strings use double quotes and JSON escapes (`\n`, `\"`, `\u00e9`, surrogate
   pairs). There is no interpolation.
 - `q` immediately followed by a backtick starts a SQL query literal
   (see [§14](#14-postgresql)).

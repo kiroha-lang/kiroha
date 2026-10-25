@@ -40,6 +40,7 @@ enum Tok {
     LParen,
     RParen,
     Semi,
+    Comma,
     Other,
 }
 
@@ -155,6 +156,7 @@ fn lex_segment(seg: &str, state: &mut State, toks: &mut Vec<Tok>) -> Result<(), 
                         '(' => Tok::LParen,
                         ')' => Tok::RParen,
                         ';' => Tok::Semi,
+                        ',' => Tok::Comma,
                         _ => Tok::Other,
                     });
                     i += 1;
@@ -247,13 +249,22 @@ fn validate_parsed(sql: &str, holes: usize) -> Result<(), Reject> {
         n if allowed_dml(n) => {}
         _ => return Err(Reject::Statement),
     }
-    // Count ParamRef nodes over the *entire* tree. The derived Debug form of
-    // the protobuf visits every field (VALUES lists, LIMIT/OFFSET, RETURNING,
-    // MERGE actions, window and filter clauses, arrays, collations, ...).
-    let mut counts = vec![0usize; holes + 1];
+    // Inspect the *entire* tree through its derived Debug form, which visits
+    // every field (VALUES lists, LIMIT/OFFSET, RETURNING, MERGE actions,
+    // window/filter clauses, arrays, ...). String contents (SQL literals and
+    // identifiers) are skipped so they cannot be mistaken for nodes.
     let tree = format!("{:?}", parsed.protobuf);
+    let structure = strip_debug_strings(&tree);
+    // SELECT INTO anywhere (PostgreSQL honours it in the leftmost branch of a
+    // set operation) is excluded.
+    if structure.contains("into_clause: Some(") {
+        return Err(Reject::Statement);
+    }
+    // A marker is one source location; multi-column SET shares one source
+    // expression between columns, so count distinct (number, location).
+    let mut seen: Vec<(usize, String)> = Vec::new();
     let needle = "ParamRef(ParamRef { number: ";
-    let mut rest = tree.as_str();
+    let mut rest = structure.as_str();
     while let Some(p) = rest.find(needle) {
         rest = &rest[p + needle.len()..];
         let digits: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
@@ -261,7 +272,17 @@ fn validate_parsed(sql: &str, holes: usize) -> Result<(), Reject> {
         if k == 0 || k > holes {
             return Err(Reject::LiteralParameter);
         }
-        counts[k] += 1;
+        let loc: String = rest
+            .find("location: ")
+            .map(|l| rest[l + 10..].chars().take_while(|c| c.is_ascii_digit() || *c == '-').collect())
+            .unwrap_or_default();
+        if !seen.contains(&(k, loc.clone())) {
+            seen.push((k, loc));
+        }
+    }
+    let mut counts = vec![0usize; holes + 1];
+    for (k, _) in &seen {
+        counts[*k] += 1;
     }
     if counts[1..].iter().any(|c| *c != 1) {
         return Err(Reject::HoleContext);
@@ -271,32 +292,131 @@ fn validate_parsed(sql: &str, holes: usize) -> Result<(), Reject> {
 
 const ALLOWED: &[&str] = &["select", "insert", "update", "delete", "merge"];
 
-/// Lexical pre-check: the statement must start with an allowed command word
-/// (after optional parentheses). This excludes top-level TABLE/VALUES
-/// shorthands, which libpg_query represents as ordinary SELECTs.
+/// Lexical pre-check of the statement shape: at most one top-level `;`
+/// (only at the end), and the main statement — after an optional WITH clause
+/// and parentheses — starts with an allowed command. This excludes top-level
+/// TABLE/VALUES shorthands, which libpg_query represents as ordinary SELECTs,
+/// while allowing them inside a SELECT (e.g. `select 1 union table a`).
 fn validate_tokens(toks: &[Tok]) -> Result<(), Reject> {
+    let mut depth = 0i64;
+    let mut top_semis = Vec::new();
+    for (i, t) in toks.iter().enumerate() {
+        match t {
+            Tok::LParen => depth += 1,
+            Tok::RParen => depth -= 1,
+            Tok::Semi if depth <= 0 => top_semis.push(i),
+            _ => {}
+        }
+    }
+    if top_semis.len() > 1 || top_semis.first().is_some_and(|&i| i + 1 != toks.len()) {
+        return Err(Reject::MultipleStatements);
+    }
     let mut k = 0;
-    while k < toks.len() && toks[k] == Tok::LParen {
+    while toks.get(k) == Some(&Tok::LParen) {
         k += 1;
     }
-    // A top-level TABLE shorthand after a WITH clause is a SelectStmt to
-    // libpg_query; reject a TABLE keyword at parenthesis depth 0.
     if matches!(toks.get(k), Some(Tok::Word(w)) if w == "with") {
-        let mut depth = 0i64;
-        for t in &toks[k..] {
-            match t {
-                Tok::LParen => depth += 1,
-                Tok::RParen => depth -= 1,
-                Tok::Word(w) if depth == 0 && w == "table" => return Err(Reject::Statement),
-                _ => {}
-            }
+        k = skip_with(toks, k + 1)?;
+        while toks.get(k) == Some(&Tok::LParen) {
+            k += 1;
         }
     }
     match toks.get(k) {
-        Some(Tok::Word(w)) if ALLOWED.contains(&w.as_str()) || w == "with" => Ok(()),
-        Some(_) => Err(Reject::Statement),
-        None => Err(Reject::Statement),
+        Some(Tok::Word(w)) if ALLOWED.contains(&w.as_str()) => Ok(()),
+        _ => Err(Reject::Statement),
     }
+}
+
+/// Skip `[RECURSIVE] name [(cols)] AS [NOT] [MATERIALIZED] (body) [SEARCH ...]
+/// [CYCLE ...] {, ...}` and return the index of the main statement.
+fn skip_with(toks: &[Tok], mut k: usize) -> Result<usize, Reject> {
+    if matches!(toks.get(k), Some(Tok::Word(w)) if w == "recursive") {
+        k += 1;
+    }
+    loop {
+        if !matches!(toks.get(k), Some(Tok::Word(_))) {
+            return Err(Reject::Statement);
+        }
+        k += 1;
+        if toks.get(k) == Some(&Tok::LParen) {
+            k = skip_group(toks, k)?;
+        }
+        if !matches!(toks.get(k), Some(Tok::Word(w)) if w == "as") {
+            return Err(Reject::Statement);
+        }
+        k += 1;
+        while matches!(toks.get(k), Some(Tok::Word(w)) if w == "not" || w == "materialized") {
+            k += 1;
+        }
+        if toks.get(k) != Some(&Tok::LParen) {
+            return Err(Reject::Statement);
+        }
+        k = skip_group(toks, k)?;
+        // SEARCH / CYCLE clauses contain no parentheses or commas at depth 0
+        // except column lists separated by commas; skip words and commas
+        // until the main statement or the next CTE begins.
+        if matches!(toks.get(k), Some(Tok::Word(w)) if w == "search" || w == "cycle") {
+            while let Some(t) = toks.get(k) {
+                match t {
+                    Tok::Word(w) if MAIN_START.contains(&w.as_str()) => break,
+                    Tok::LParen => break,
+                    _ => k += 1,
+                }
+            }
+            return Ok(k);
+        }
+        match toks.get(k) {
+            Some(Tok::Comma) => k += 1,
+            _ => return Ok(k),
+        }
+    }
+}
+
+const MAIN_START: &[&str] = &["select", "insert", "update", "delete", "merge", "table", "values"];
+
+fn skip_group(toks: &[Tok], mut k: usize) -> Result<usize, Reject> {
+    let mut depth = 0i64;
+    while let Some(t) = toks.get(k) {
+        match t {
+            Tok::LParen => depth += 1,
+            Tok::RParen => {
+                depth -= 1;
+                if depth == 0 {
+                    return Ok(k + 1);
+                }
+            }
+            _ => {}
+        }
+        k += 1;
+    }
+    Err(Reject::Statement)
+}
+
+/// Remove the contents of double-quoted strings from Rust Debug output.
+fn strip_debug_strings(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut in_str = false;
+    let mut chars = s.chars();
+    while let Some(c) = chars.next() {
+        if in_str {
+            match c {
+                '\\' => {
+                    chars.next();
+                }
+                '"' => {
+                    in_str = false;
+                    out.push('"');
+                }
+                _ => {}
+            }
+        } else {
+            if c == '"' {
+                in_str = true;
+            }
+            out.push(c);
+        }
+    }
+    out
 }
 
 #[cfg(test)]
@@ -317,7 +437,7 @@ mod tests {
         assert_eq!(translate(&s(&["select $1"])), Err(Reject::LiteralParameter));
         assert_eq!(translate(&s(&["select '", "'"])), Err(Reject::HoleContext));
         assert_eq!(translate(&s(&["select 'a;b'; -- c"])), Ok("select 'a;b'; -- c".into()));
-        assert_eq!(translate(&s(&["select $$a;b$$"])).is_ok(), true);
+        assert!(translate(&s(&["select $$a;b$$"])).is_ok());
         assert_eq!(translate(&s(&["select /* ", " */"])), Err(Reject::HoleContext));
         assert_eq!(translate(&s(&["create table t(x int)"])), Err(Reject::Statement));
         assert_eq!(translate(&s(&["values (1)"])), Err(Reject::Statement));
@@ -328,7 +448,7 @@ mod tests {
         assert!(translate(&s(&["with x as (select 1) insert into t select * from x"])).is_ok());
         assert!(translate(&s(&["(select 1)"])).is_ok());
         assert_eq!(translate(&s(&["  "])), Err(Reject::Statement));
-        assert_eq!(translate(&s(&["select E'\\'' || ", ""])).is_ok(), true);
+        assert!(translate(&s(&["select E'\\'' || ", ""])).is_ok());
         assert_eq!(translate(&s(&["select * from ", ""])), Err(Reject::HoleContext));
         assert_eq!(translate(&s(&["select ", "", ""])), Err(Reject::HoleContext));
         assert_eq!(translate(&s(&["select t.", " from t"])), Err(Reject::HoleContext));
@@ -340,6 +460,19 @@ mod tests {
         assert!(translate(&s(&["with a as (select 1), b as (insert into t select 2 returning *) select * from b"])).is_ok());
         assert_eq!(translate(&s(&["table t"])), Err(Reject::Statement));
         assert_eq!(translate(&s(&["with a as (select 1) table a"])), Err(Reject::Statement));
+        assert_eq!(translate(&s(&["with a as (select 1 as x) (table a)"])), Err(Reject::Statement));
+        assert_eq!(translate(&s(&["((table a))"])), Err(Reject::Statement));
+        assert!(translate(&s(&["select 1 union table a"])).is_ok());
+        assert!(translate(&s(&["with a as (select 1 as x) select x from a union all table a"])).is_ok());
+        assert_eq!(translate(&s(&["select 1 as x into kiri_t union select 2"])), Err(Reject::Statement));
+        assert_eq!(translate(&s(&["with a as (select 1) select 1 into t union select 2"])), Err(Reject::Statement));
+        assert_eq!(translate(&s(&["select 1 as x;;"])), Err(Reject::MultipleStatements));
+        assert_eq!(translate(&s(&["select 1; ;"])), Err(Reject::MultipleStatements));
+        assert!(translate(&s(&["select 1; -- done"])).is_ok());
+        assert!(translate(&s(&["update t set (a,b) = (", ", ", ")"])).is_ok());
+        assert!(translate(&s(&["insert into t values (1) on conflict (a) do update set (a,b) = (", ", ", ")"])).is_ok());
+        assert!(translate(&s(&["select ", "::text, 'ParamRef(ParamRef { number: 1'"])).is_ok());
+        assert!(translate(&s(&["select 1 as \"ParamRef(ParamRef { number: 9\""])).is_ok());
         for ok in [
             vec!["insert into t values (", ")"],
             vec!["select 1 limit ", ""],

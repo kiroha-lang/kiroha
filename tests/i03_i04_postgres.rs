@@ -108,6 +108,14 @@ fn i04_transactions_and_pool_hygiene() {
     let r = pg(r#"d=db("main");x=sql(d,q`insert into kiri_t(v) values (${500}) returning v + ${1} as w`);
         [one(x.rows).w, len(sql(d,q`select v from kiri_t order by v limit ${2}`).rows)]"#);
     assert_eq!(result(&r), "[501,2]");
+    // SELECT INTO in a set operation's leftmost branch is rejected before dispatch
+    admin("drop table if exists kiri_into");
+    let r = pg(r#"try sql(db("main"),q`select 1 as x into kiri_into union select 2`) catch {e=>[e.data.phase,e.data.reason]}"#);
+    assert_eq!(result(&r), r#"["prepare","statement"]"#);
+    assert_eq!(admin("select to_regclass('kiri_into') is null"), vec![vec![Some("t".into())]]);
+    // multi-column SET with holes is valid
+    let r = pg(r#"sql(db("main"),q`update kiri_t set (v, id) = (${600}, id) where v = ${500}`).count"#);
+    assert_eq!(result(&r), "1");
     // no dirty pooled reuse: session settings are reset before reuse
     let r = pg(r#"d=db("main");a=sql(d,q`select set_config('search_path','nowhere',false) as s`);
         b=sql(d,q`select current_setting('search_path') as s`);[one(b.rows).s]"#);
