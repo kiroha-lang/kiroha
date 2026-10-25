@@ -178,7 +178,7 @@ fn cell_text(oid: u32, raw: &[u8]) -> String {
 
 /// TLS for PostgreSQL follows the DSN's `sslmode` (default `prefer`), with
 /// certificates verified against the same trust store as HTTPS.
-fn tls_connector() -> tokio_postgres_rustls::MakeRustlsConnect {
+pub fn tls_connector() -> tokio_postgres_rustls::MakeRustlsConnect {
     let provider = std::sync::Arc::new(rustls::crypto::ring::default_provider());
     let cfg = rustls::ClientConfig::builder_with_provider(provider)
         .with_safe_default_protocol_versions()
@@ -267,6 +267,10 @@ impl Pools {
                 }
             }
         }
+    }
+
+    pub fn cancel_token(&self, conn: &str) -> Option<tokio_postgres::CancelToken> {
+        self.inner.borrow().conns.get(conn).map(|c| c.client.cancel_token())
     }
 
     fn client(inner: &Rc<RefCell<Inner>>, conn: &str) -> Option<(Rc<tokio_postgres::Client>, bool)> {

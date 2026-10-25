@@ -93,6 +93,13 @@ fn i04_transactions_and_pool_hygiene() {
     let r = pg(r#"d=db("main");spin()=spin();try tx(d,{timeout:200}){t=>sql(t,q`insert into kiri_t(v) values (300)`);spin()} catch {e=>[e.code,e.data.operation]}"#);
     assert_eq!(result(&r), r#"["timeout","tx"]"#);
     assert_eq!(admin("select count(*) from kiri_t where v=300"), vec![vec![Some("0".into())]]);
+    // tx timeout during a running statement cancels it server-side, so the
+    // rollback is not queued behind it (well under the 1000 ms cleanup grace)
+    let t = std::time::Instant::now();
+    let r = pg(r#"try tx(db("main"),{timeout:100}){t=>sql(t,q`select 1 as x from pg_sleep(3)`)} catch {e=>[e.code,e.data.operation]}"#);
+    assert_eq!(result(&r), r#"["timeout","tx"]"#);
+    assert!(t.elapsed().as_millis() < 900, "{:?}", t.elapsed());
+    assert!(!r.stderr.contains("detached"), "{}", r.stderr);
     // sql timeout on a slow statement
     let r = pg(r#"try sql(db("main"),q`select pg_sleep(5)`,{timeout:200}) catch {e=>[e.code,e.data.outcome]}"#);
     assert_eq!(result(&r), r#"["timeout","unknown"]"#);

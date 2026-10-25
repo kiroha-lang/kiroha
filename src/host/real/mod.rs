@@ -169,8 +169,26 @@ impl Host for RealHost {
                 self.spawn(id, fut);
             }
             Effect::Execute { connection, sql, params } => {
+                // On timeout/abort, send a PostgreSQL CancelRequest so the
+                // backend stops and a following ROLLBACK is not queued behind it.
+                let cancel = self.pg.cancel_token(&connection);
                 let fut = self.pg.execute(connection, sql, params);
-                self.spawn(id, fut);
+                let token = CancellationToken::new();
+                self.tokens.insert(id, token.clone());
+                let tx = self.tx.clone();
+                tokio::task::spawn_local(async move {
+                    let out = tokio::select! {
+                        biased;
+                        _ = token.cancelled() => {
+                            if let Some(c) = cancel {
+                                let _ = c.cancel_query(pg::tls_connector()).await;
+                            }
+                            EffOutcome::Joined
+                        }
+                        o = fut => o,
+                    };
+                    let _ = tx.send(HostEvent::Done(id, out));
+                });
             }
             Effect::Listen { host, port } => {
                 let header_limit = self.config.limits.header_bytes;
@@ -229,6 +247,14 @@ impl Host for RealHost {
 
     fn is_virtual(&self) -> bool {
         false
+    }
+
+    fn stop_accepting(&mut self, listener: &str) {
+        self.servers.stop_accepting(listener);
+    }
+
+    fn drop_request(&mut self, request: u64) {
+        self.servers.close_request(request);
     }
 
     fn diagnostic(&mut self, line: &str) {

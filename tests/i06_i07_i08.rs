@@ -72,6 +72,7 @@ fn i07_cpu_bound_cancellation_and_bounded_parallelism() {
         "check(range(0,3000000),[int])",
         "xs=range(0,3000000);len(flat([xs,xs,xs,xs,xs,xs,xs,xs,xs,xs,xs,xs,xs,xs,xs,xs]))",
         "s=dump(range(0,3000000));s2=s+s+s+s+s+s+s+s;s3=s2+s2+s2+s2;len(s3+s3)",
+        "s=dump(range(0,3000000));len(replace(s+s+s+s,\"1\",\"aaaaaaaaaaaaaaaa\"))",
     ] {
         let t = Instant::now();
         let r = run(src, Some(r#"{"format":"kiri-host/1","limits":{"deadline_ms":20,"eval_steps":100000000000,"memory_bytes":4000000000}}"#));

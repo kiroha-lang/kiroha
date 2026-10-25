@@ -239,7 +239,16 @@ fn pure(b: Builtin, a: &[Value], tick: Tick) -> BResult {
                 return Err(arg_err(op, "search text must be nonempty"));
             }
             let new = string(op, 3, &a[2])?;
-            Ok(Value::str(&s.replace(&**old, new)))
+            let mut out = String::with_capacity(s.len());
+            let mut last = 0;
+            for (i, (pos, _)) in s.match_indices(&**old).enumerate() {
+                out.push_str(&s[last..pos]);
+                out.push_str(new);
+                last = pos + old.len();
+                tick(i)?;
+            }
+            out.push_str(&s[last..]);
+            Ok(Value::str(&out))
         }
         Text => Ok(Value::str(&text_of(op, &a[0])?)),
         Number => {

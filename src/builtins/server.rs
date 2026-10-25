@@ -385,8 +385,16 @@ impl<H: Host> Runtime<H> {
         if self.abort_of(scope).is_none() {
             return;
         }
-        if let Some(s) = self.servers.get_mut(&sid) {
-            s.closing = true;
+        let first = match self.servers.get_mut(&sid) {
+            Some(s) => {
+                let first = !s.closing;
+                s.closing = true;
+                if first { s.listener.clone() } else { None }
+            }
+            None => None,
+        };
+        if let Some(l) = first {
+            self.host.stop_accepting(&l);
         }
         if idle && !woke {
             self.wake_serve(sid, task);
@@ -450,11 +458,15 @@ impl<H: Host> Runtime<H> {
     pub fn server_request(&mut self, req: IncomingRequest) {
         let sid = match self.servers.iter().find(|(_, s)| s.listener.as_deref() == Some(req.listener.as_str())) {
             Some((id, _)) => *id,
-            None => return,
+            None => {
+                self.host.drop_request(req.id);
+                return;
+            }
         };
         {
             let st = self.servers.get(&sid).unwrap();
             if st.closing {
+                self.host.drop_request(req.id);
                 return;
             }
         }

@@ -85,7 +85,7 @@ fn lex_segment(seg: &str, state: &mut State, toks: &mut Vec<Tok>) -> Result<(), 
         let next = chars.get(i + 1).copied();
         match state.clone() {
             State::Ordinary => {
-                if c.is_whitespace() {
+                if matches!(c, ' ' | '\t' | '\n' | '\r' | '\x0b' | '\x0c') {
                     i += 1;
                 } else if c == '-' && next == Some('-') {
                     *state = State::LineComment;
@@ -338,6 +338,10 @@ fn skip_with(toks: &[Tok], mut k: usize) -> Result<usize, Reject> {
             return Err(Reject::Statement);
         }
         k += 1;
+        // U&"name" UESCAPE 'c'
+        if matches!(toks.get(k), Some(Tok::Word(w)) if w == "uescape") {
+            k += 2;
+        }
         if toks.get(k) == Some(&Tok::LParen) {
             k = skip_group(toks, k)?;
         }
@@ -352,24 +356,51 @@ fn skip_with(toks: &[Tok], mut k: usize) -> Result<usize, Reject> {
             return Err(Reject::Statement);
         }
         k = skip_group(toks, k)?;
-        // SEARCH / CYCLE clauses contain no parentheses or commas at depth 0
-        // except column lists separated by commas; skip words and commas
-        // until the main statement or the next CTE begins.
+        // SEARCH / CYCLE clauses: skip their words, column-list commas and
+        // literals. A comma followed by `name [(cols)] AS` starts the next CTE;
+        // a main command word or a parenthesis starts the main statement.
+        let mut next_cte = false;
         if matches!(toks.get(k), Some(Tok::Word(w)) if w == "search" || w == "cycle") {
             while let Some(t) = toks.get(k) {
                 match t {
-                    Tok::Word(w) if MAIN_START.contains(&w.as_str()) => break,
-                    Tok::LParen => break,
+                    Tok::Word(w) if MAIN_START.contains(&w.as_str()) => return Ok(k),
+                    Tok::LParen => return Ok(k),
+                    Tok::Comma if is_cte_start(toks, k + 1) => {
+                        next_cte = true;
+                        k += 1;
+                        break;
+                    }
                     _ => k += 1,
                 }
             }
-            return Ok(k);
+            if !next_cte {
+                return Ok(k);
+            }
+            continue;
         }
         match toks.get(k) {
             Some(Tok::Comma) => k += 1,
             _ => return Ok(k),
         }
     }
+}
+
+/// `name [UESCAPE 'c'] [(cols)] AS` at index k.
+fn is_cte_start(toks: &[Tok], mut k: usize) -> bool {
+    if !matches!(toks.get(k), Some(Tok::Word(_))) {
+        return false;
+    }
+    k += 1;
+    if matches!(toks.get(k), Some(Tok::Word(w)) if w == "uescape") {
+        k += 2;
+    }
+    if toks.get(k) == Some(&Tok::LParen) {
+        match skip_group(toks, k) {
+            Ok(e) => k = e,
+            Err(_) => return false,
+        }
+    }
+    matches!(toks.get(k), Some(Tok::Word(w)) if w == "as")
 }
 
 const MAIN_START: &[&str] = &["select", "insert", "update", "delete", "merge", "table", "values"];
@@ -463,6 +494,18 @@ mod tests {
         assert_eq!(translate(&s(&["with a as (select 1 as x) (table a)"])), Err(Reject::Statement));
         assert_eq!(translate(&s(&["((table a))"])), Err(Reject::Statement));
         assert!(translate(&s(&["select 1 union table a"])).is_ok());
+        assert_eq!(
+            translate(&s(&["with recursive r(n) as (select 1 union all select n+1 from r where n<3) search depth first by n set ord, u as (select 1 as z) table u"])),
+            Err(Reject::Statement)
+        );
+        assert_eq!(
+            translate(&s(&["with recursive r(n) as (select 1) cycle n set c to true default false using p, u as (select 1 as z) (table u)"])),
+            Err(Reject::Statement)
+        );
+        assert!(translate(&s(&["with recursive r(n) as (select 1 union all select n+1 from r where n<3) search depth first by n set ord, u as (select 1 as z) select * from u"])).is_ok());
+        assert!(translate(&s(&["with recursive r(n) as (select 1 union all select n+1 from r where n<3) search breadth first by n, n set ord select * from r"])).is_ok());
+        assert!(translate(&s(&["select 1 as \u{3000}$1"])).is_ok());
+        assert!(translate(&s(&["with U&\"d!0061\" UESCAPE '!' as (select 1) select 1"])).is_ok());
         assert!(translate(&s(&["with a as (select 1 as x) select x from a union all table a"])).is_ok());
         assert_eq!(translate(&s(&["select 1 as x into kiri_t union select 2"])), Err(Reject::Statement));
         assert_eq!(translate(&s(&["with a as (select 1) select 1 into t union select 2"])), Err(Reject::Statement));

@@ -169,6 +169,11 @@ pub trait Host {
     fn is_virtual(&self) -> bool;
     /// Diagnostic sink (stderr for the CLI); best effort.
     fn diagnostic(&mut self, line: &str);
+    /// Stop accepting new connections on a listener (serve cancellation);
+    /// accepted requests continue until joined.
+    fn stop_accepting(&mut self, _listener: &str) {}
+    /// Close a request transport that will never be admitted (no task).
+    fn drop_request(&mut self, _request: u64) {}
     /// A harness failure that must stop the run (fixture host only).
     fn failed(&self) -> bool {
         false

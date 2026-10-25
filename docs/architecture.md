@@ -162,11 +162,16 @@ cancelled.
   converted to exact text (numeric is decoded from base-10000 digits, never
   through floats). Pools are per alias with `max_connections`; release runs
   `DISCARD ALL` plus the baseline settings, otherwise the connection is
-  dropped.
+  dropped. A cancelled or timed-out statement triggers a PostgreSQL
+  CancelRequest, so the backend stops and the following ROLLBACK is not
+  queued behind it.
 - **Server** — a tokio listener and an httparse request-head parser that keeps
   the raw target and header pairs; body framing (Content-Length/chunked) is
   decoded on request of the runtime with the `max_body` limit; a watcher
-  reports client disconnects. One request per connection.
+  reports client disconnects. One request per connection. The whole header
+  section must arrive within 30 s; on serve cancellation the listener stops
+  accepting immediately, and request heads that complete afterwards are
+  closed.
 - **Files** — every path component is opened with `O_NOFOLLOW` relative to
   its parent directory handle; writes go to an exclusive random temp file in
   the target directory, get their mode set, and are installed with `renameat`.

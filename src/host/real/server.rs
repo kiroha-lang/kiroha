@@ -125,8 +125,9 @@ impl Servers {
                     let inner = inner.clone();
                     let tx = tx.clone();
                     let lid = lid.clone();
+                    let live = token.clone();
                     tokio::task::spawn_local(async move {
-                        handle_conn(stream, inner, tx, lid, header_limit).await;
+                        handle_conn(stream, inner, tx, lid, header_limit, live).await;
                     });
                 }
             }
@@ -190,6 +191,9 @@ impl Servers {
                     tokio::select! {
                         _ = token.cancelled() => break,
                         r = rd.read(&mut probe) => match r {
+                            // TCP cannot tell a half-close from a full close
+                            // before writing; like Go's net/http, EOF while the
+                            // handler runs is treated as a client disconnect.
                             Ok(0) | Err(_) => {
                                 let _ = tx.send(HostEvent::Disconnect(request));
                                 break;
@@ -244,6 +248,12 @@ impl Servers {
                 Ok(()) => EffOutcome::Ok(EffValue::Null),
                 Err(_) => io_err("write", "unknown"),
             }
+        }
+    }
+
+    pub fn stop_accepting(&mut self, listener: &str) {
+        if let Some(t) = self.inner.borrow().listeners.get(listener) {
+            t.cancel();
         }
     }
 
@@ -331,10 +341,13 @@ async fn handle_conn(
     tx: mpsc::UnboundedSender<HostEvent>,
     listener: String,
     header_limit: u64,
+    live: CancellationToken,
 ) {
     let _ = stream.set_nodelay(true);
     let (mut rd, mut wr) = stream.into_split();
     let mut buf: Vec<u8> = Vec::new();
+    // The whole header section must arrive within HEADER_TIMEOUT_MS.
+    let head_deadline = tokio::time::Instant::now() + std::time::Duration::from_millis(HEADER_TIMEOUT_MS);
     let head_end = loop {
         if let Some(i) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
             break i + 4;
@@ -348,7 +361,10 @@ async fn handle_conn(
             return; // unreadable header section: close without a response
         }
         let mut chunk = vec![0u8; 8192];
-        let read = tokio::time::timeout(std::time::Duration::from_millis(HEADER_TIMEOUT_MS), rd.read(&mut chunk)).await;
+        let read = tokio::select! {
+            _ = live.cancelled() => return,
+            r = tokio::time::timeout_at(head_deadline, rd.read(&mut chunk)) => r,
+        };
         match read {
             Ok(Ok(0)) | Ok(Err(_)) | Err(_) => return,
             Ok(Ok(k)) => buf.extend_from_slice(&chunk[..k]),
@@ -377,6 +393,9 @@ async fn handle_conn(
     let headers: Vec<(String, Vec<u8>)> = req.headers.iter().map(|h| (h.name.to_string(), h.value.to_vec())).collect();
     let upgrade = headers.iter().any(|(n, _)| n.eq_ignore_ascii_case("upgrade"));
     let framing = framing_of(&headers);
+    if live.is_cancelled() {
+        return; // the listener stopped accepting while the head arrived
+    }
     let rest = buf[head_end..].to_vec();
     let id = {
         let mut i = inner.borrow_mut();
