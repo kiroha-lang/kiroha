@@ -59,6 +59,9 @@ def on_files(files, config):
     examples = File.generated(config, 'examples.md', abs_src_path=str(ROOT / 'examples/README.md'))
     examples.edit_uri = '../examples/README.md'
     files.append(examples)
+    for name in ('favicon.ico', 'favicon-16.png', 'favicon-32.png'):
+        files.append(File.generated(config, f'assets/{name}',
+                                    abs_src_path=str(ROOT / 'assets/branding' / name)))
     return files
 
 

@@ -44,6 +44,9 @@ The language specification and example index are brought into the site from
 their original repository files at build time, so they have one source of truth.
 Reference pages remain ordinary Markdown that you can also read on GitHub.
 
+The favicon files are brought in from `assets/branding/` at build time too.
+See [the branding assets](../assets/branding/README.md) for their sizes and regeneration commands.
+
 Before changing a language rule, check the [specification](../spec.md).
 A wording change should make the existing behavior easier to understand;
 changes to behavior need an implementation and conformance tests as well.

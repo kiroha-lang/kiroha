@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
     paths:
+      - 'assets/branding/**'
       - 'docs/**'
       - 'examples/**'
       - 'spec.md'
@@ -15,6 +16,7 @@ on:
       - '.github/workflows/pages.yml'
   pull_request:
     paths:
+      - 'assets/branding/**'
       - 'docs/**'
       - 'examples/**'
       - 'spec.md'

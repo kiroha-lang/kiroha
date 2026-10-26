@@ -12,7 +12,7 @@ theme:
   language: en
   font: false
   logo: assets/kiroha.svg
-  favicon: assets/kiroha.svg
+  favicon: assets/favicon.ico
   features:
     - navigation.sections
     - navigation.indexes
