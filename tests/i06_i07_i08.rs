@@ -111,6 +111,9 @@ fn i07_cpu_bound_cancellation_and_bounded_parallelism() {
     assert_eq!(r.code, 3);
     assert!(r.stdout.contains("\"reason\":\"deadline\""));
     assert!(t.elapsed().as_millis() < 3000);
+    // A finite builtin may legitimately finish before a wall-clock deadline
+    // on a fast host. Repeat the work so success cannot race the assertion.
+    let repeat = |src: &str| format!("again()=do{{{src};again()}};again()");
     // Long builtin work (JSON, equality, schema checks) observes the deadline.
     for src in [
         "x=dump(range(0,3000000));len(parse(x))",
@@ -121,7 +124,7 @@ fn i07_cpu_bound_cancellation_and_bounded_parallelism() {
         "s=dump(range(0,3000000));len(replace(s+s+s+s,\"1\",\"aaaaaaaaaaaaaaaa\"))",
     ] {
         let t = Instant::now();
-        let r = run(src, Some(r#"{"format":"kiroha-host/1","limits":{"deadline_ms":20,"eval_steps":100000000000,"memory_bytes":4000000000}}"#));
+        let r = run(&repeat(src), Some(r#"{"format":"kiroha-host/1","limits":{"deadline_ms":20,"eval_steps":100000000000,"memory_bytes":4000000000}}"#));
         assert!(r.stdout.contains("\"reason\":\"deadline\""), "{src}: {}", r.stdout);
         assert!(t.elapsed().as_millis() < 1500, "{src}");
     }
@@ -144,15 +147,13 @@ fn i07_cpu_bound_cancellation_and_bounded_parallelism() {
     for src in [
         "d(x,n)=if n==0 then x else d({a:x,b:x},n-1); check(1,maybe(d(json,26)))".to_string(),
         format!("{big} sort(map(range(0,3000)){{i=>s}})"),
-        // Repeat the escaping work: a fast runner can finish one 384 MiB
-        // serialization before the deadline, which is a valid success.
-        "spin(c)=if len(dump(c))>0 then spin(c) else 0; c=fold(range(0,26),\"\\u0001\"){(a,i)=>a+a}; spin(c)".to_string(),
+        "c=fold(range(0,26),\"\\u0001\"){(a,i)=>a+a}; len(dump(c))".to_string(),
         format!("{big} len(url(\"https://a.example\",[replace(s,\"x\",\" \")]))"),
         format!("{big} xs=map(range(0,3000)){{i=>s+\"\"}}; len(unique(xs))"),
         format!("{big} xs=map(range(0,3000)){{i=>s+\"\"}}; xs==map(xs){{x=>x+\"\"}}"),
     ] {
         let t = Instant::now();
-        let r = run(&src, Some(r#"{"format":"kiroha-host/1","limits":{"deadline_ms":400,"eval_steps":100000000000,"memory_bytes":8000000000}}"#));
+        let r = run(&repeat(&src), Some(r#"{"format":"kiroha-host/1","limits":{"deadline_ms":400,"eval_steps":100000000000,"memory_bytes":8000000000}}"#));
         assert!(r.stdout.contains("\"reason\":\"deadline\""), "{src}: {}", r.stdout);
         assert!(t.elapsed().as_millis() < 3500, "{src}: {:?}", t.elapsed());
     }
@@ -176,7 +177,7 @@ fn i07_cpu_bound_cancellation_and_bounded_parallelism() {
         "xs=map(range(0,30)){i=>number(\"1e99990\")+i}; fold(range(0,6),xs){(a,i)=>a+a}",
     ] {
         let t = Instant::now();
-        let r = run(src, Some(r#"{"format":"kiroha-host/1","limits":{"deadline_ms":1500,"eval_steps":100000000000,"memory_bytes":8000000000}}"#));
+        let r = run(&repeat(src), Some(r#"{"format":"kiroha-host/1","limits":{"deadline_ms":1500,"eval_steps":100000000000,"memory_bytes":8000000000}}"#));
         assert!(r.stdout.contains("\"reason\":\"deadline\""), "{src}: {}", r.stdout);
         assert!(t.elapsed().as_millis() < 2600, "{src}: {:?}", t.elapsed());
     }
