@@ -6,12 +6,9 @@ orders = [
 ];
 Order = {id:int, customer:str, total:num, items:[str]};
 checked = check(orders, [Order]);
-by_customer = checked
-  | group(){o => o.customer}
-  | map(){g => {customer:g.key, orders:len(g.items), spent: g.items | map(){o => o.total} | sum()}}
-  | sort(){r => 0 - r.spent};
+by_customer = ((checked.group{o => o.customer}).map{g => {customer:g.key, orders:g.items.size, spent: (g.items.map{o => o.total}).sum()}}).sort{r => 0 - r.spent};
 {
   customers: by_customer,
-  average: sum(map(checked){o => o.total}) / len(checked),
-  all_items: checked | map(){o => o.items} | flat() | unique() | sort()
+  average: checked.map{o => o.total}.sum() / checked.size,
+  all_items: (((checked.map{o => o.items}).flat()).unique()).sort()
 }

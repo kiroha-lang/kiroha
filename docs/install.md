@@ -34,8 +34,8 @@ source build where the POSIX host adapters are supported.
 Pin both the installer and executable to a release:
 
 ```sh
-curl -fsSL https://github.com/kiroha-lang/kiroha/releases/download/v0.4.0/install.sh \
-  | bash -s -- --version 0.4.0
+curl -fsSL https://github.com/kiroha-lang/kiroha/releases/download/v0.5.0/install.sh \
+  | bash -s -- --version 0.5.0
 ```
 
 Choose a different directory:
@@ -91,11 +91,13 @@ both installed binaries passed all 145 conformance cases. The
 [publication record](completion.md#public-distribution) contains the evidence
 and installed Linux binary checksum.
 
-The 0.4.0 language revision adds explicit named-function delimiters; see the
-[migration guide](migration-0.4.md) before running 0.3 source on 0.4.
+The 0.4.0 language revision added explicit named-function delimiters.
 [v0.4.0](https://github.com/kiroha-lang/kiroha/releases/tag/v0.4.0) passed its
 [four-platform release CI](https://github.com/kiroha-lang/kiroha/actions/runs/40271474229).
 Public latest and pinned installers both installed 0.4.0 successfully, and
 the installed binaries passed 175/175 cases and the named-end factorial example.
+
+For current compact definitions and collection members, see the
+[0.5 migration guide](migration-0.5.md) before running older source.
 
 To remove a default installation, delete `~/.local/bin/kiroha`.

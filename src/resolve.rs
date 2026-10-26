@@ -237,6 +237,7 @@ impl<'a> Resolver<'a> {
                 self.expr(recv)?;
                 self.expr(key)
             }
+            Node::Member { recv, .. } => self.expr(recv),
             Node::Unary { e, .. } => self.expr(e),
             Node::Binary { l, r, .. } => {
                 self.expr(l)?;

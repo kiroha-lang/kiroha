@@ -49,9 +49,8 @@ Save this as `fetch.kiroha`:
 
 ```kiroha
 Item = {name:str, price:num};
-get("http://127.0.0.1:8765/items.json")
-  | check([Item])
-  | map(){item => item.name}
+(get("http://127.0.0.1:8765/items.json")
+  | check([Item])).map{item => item.name}
 // ["Tea","Cake"]
 ```
 

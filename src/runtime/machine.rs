@@ -308,6 +308,10 @@ impl<H: Host> Runtime<H> {
                 t.stack.push(Frame::GetRecv { node: id, env: env.clone() });
                 Ctl::Eval(*recv, env)
             }
+            Node::Member { recv, .. } => {
+                t.stack.push(Frame::Member { node: id });
+                Ctl::Eval(*recv, env)
+            }
             Node::Unary { e, .. } => {
                 t.stack.push(Frame::Unary { node: id });
                 Ctl::Eval(*e, env)
@@ -353,6 +357,7 @@ impl<H: Host> Runtime<H> {
         let sig = func.signature();
         let opname: String = match &*func {
             Function::Builtin(b) => b.name().to_string(),
+            Function::BoundMethod { name, .. } => name.to_string(),
             Function::Closure(c) => {
                 self.prog.fn_info(c.node).name.as_deref().map(|s| s.to_string()).unwrap_or_else(|| "function".into())
             }
@@ -373,6 +378,12 @@ impl<H: Host> Runtime<H> {
             _ => {}
         }
         match &*func {
+            Function::BoundMethod { receiver, target, .. } => {
+                let mut full_args = Vec::with_capacity(args.len() + 1);
+                full_args.push(receiver.clone());
+                full_args.extend(args);
+                Ctl::Apply(Value::Func(target.clone()), full_args, cb)
+            }
             Function::Closure(c) => {
                 let info = self.prog.fn_info(c.node);
                 let mut locals = vec![Value::Null; info.nlocals as usize];
@@ -551,6 +562,43 @@ impl<H: Host> Runtime<H> {
                 }
                 t.stack.push(Frame::GetKey { node, recv: v });
                 Ctl::Eval(key, env)
+            }
+            Frame::Member { node } => {
+                let (name, optional) = match prog.node(node) {
+                    Node::Member { name, optional, .. } => (name, *optional),
+                    _ => unreachable!(),
+                };
+                t.cur_node = node;
+                if optional && matches!(v, Value::Null) {
+                    return Ctl::Ret(Value::Null);
+                }
+                if let Some(method) = crate::methods::lookup(v.kind(), name) {
+                    let target = Rc::new(Function::Builtin(method.builtin));
+                    if method.property {
+                        self.charge(t); // property invocation, as distinct from selection
+                        if let Some(stop) = self.checkpoint(t) { return stop; }
+                        return Ctl::Apply(Value::Func(target), vec![v], None);
+                    }
+                    return Ctl::Ret(Value::Func(Rc::new(Function::BoundMethod {
+                        name: name.clone(), receiver: v, target,
+                    })));
+                }
+                if let Value::Record(r) = &v {
+                    if let Some(field) = r.get(name) {
+                        self.charge(t); // field-name literal, as for bracket access
+                        if let Some(stop) = self.checkpoint(t) { return stop; }
+                        return Ctl::Ret(field.clone());
+                    }
+                }
+                if let Some(method) = crate::methods::named(name) {
+                    return self.raise(t, err::type_error(name, err::Pos::Index(0), method.expected(), v.kind()));
+                }
+                self.charge(t); // ordinary field-name literal
+                if let Some(stop) = self.checkpoint(t) { return stop; }
+                match access(&v, &Value::Str(name.clone()), optional) {
+                    Ok(value) => Ctl::Ret(value),
+                    Err(error) => self.raise(t, error),
+                }
             }
             Frame::GetKey { node, recv } => {
                 let optional = matches!(prog.node(node), Node::Get { optional: true, .. });

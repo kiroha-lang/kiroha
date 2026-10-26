@@ -1,4 +1,4 @@
-//! Kiroha 0.4.0 / Web1 language and runtime.
+//! Kiroha 0.5.0 / Web1 language and runtime.
 //!
 //! Pipeline: [`lexer`] → [`parser`] → [`resolve`] produce a resolved
 //! [`ast::Program`]; [`runtime::Runtime`] evaluates it against a
@@ -16,6 +16,7 @@ pub mod host;
 pub mod interrupt;
 pub mod json;
 pub mod lexer;
+pub mod methods;
 pub mod parser;
 pub mod resolve;
 pub mod runtime;

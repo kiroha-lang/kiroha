@@ -9,9 +9,9 @@ and run `kiroha run functions.kiroha --json` when you'd like to try it.
 ## Start with a name
 
 ```kiroha
-fun greet(name) then
+fun greet(name)
   "Hello, " + name + "!"
-end fun greet;
+end fun greet
 
 greet("Ada")
 // "Hello, Ada!"
@@ -21,14 +21,16 @@ The parts are:
 
 | Part | What it means |
 | --- | --- |
-| `fun greet(name) then` | Define `greet`, with one input called `name`. |
+| `fun greet(name)` | Define `greet`, with one input called `name`. |
 | `"Hello, " + name + "!"` | Calculate the result. |
 | `end fun greet` | Finish the definition, repeating its name. |
 | `greet("Ada")` | Call the function with a value. |
 
 The name after `end fun` must match exactly, including capital letters.
 Repeating it makes the boundary clear when you're reading or generating code.
-A call always uses parentheses. Supply one ordinary input for each parameter,
+No `then` or separator after the named end is needed. The `then` in an `if`
+expression is still required.
+A named function call uses parentheses. Supply one ordinary input for each parameter,
 in the same order as the definition.
 
 ## Keep a few local values
@@ -36,11 +38,11 @@ in the same order as the definition.
 A body can contain several steps, separated by semicolons:
 
 ```kiroha
-fun total(price, quantity) then
+fun total(price, quantity)
   subtotal = price * quantity;
   tax = subtotal * 0.1;
   subtotal + tax
-end fun total;
+end fun total
 
 total(12.5, 2)
 // 27.5
@@ -62,9 +64,9 @@ value.
 A named function can call itself. Here is a small factorial:
 
 ```kiroha
-fun fac(n) then
+fun fac(n)
   if n <= 1 then 1 else n * fac(n - 1)
-end fun fac;
+end fun fac
 
 fac(5)
 // 120
@@ -82,20 +84,21 @@ includes a counting example when you're ready to explore that.
 Functions such as `map` take a trailing callback:
 
 ```kiroha
-[1, 2, 3] | map(){n => n * 2}
+[1, 2, 3].map{n => n * 2}
 // [2,4,6]
 ```
 
 The braces describe what to do for each item. `n` is the current item, and
-`n * 2` is its result. The callback comes after the call's parentheses.
+`n * 2` is its result. Here `.map{...}` needs no ordinary arguments, so the callback follows the
+method name directly. With ordinary arguments, write `xs.fold(0){...}`.
 
 You can declare a callback slot on your own function too:
 
 ```kiroha
-fun twice(value){step} then
+fun twice(value){step}
   first = step(value);
   step(first)
-end fun twice;
+end fun twice
 
 twice(2){n => n * 3}
 // 18
@@ -103,6 +106,8 @@ twice(2){n => n * 3}
 
 `value` is an ordinary input. `{step}` declares a separate, required callback
 slot. At the call, `{n => n * 3}` fills that slot. The function applies it twice.
+A complete `{name}` immediately after the parameter list declares the slot.
+To start a body with a shorthand record, write `{name:name}` or `do{{name}}`.
 A callback with two inputs uses `{(a, b) => ...}`; a callback with no inputs
 uses `{() => ...}`.
 
@@ -113,12 +118,12 @@ name defined later in the same scope. Put a helper before the function that
 uses it, or define it inside that function.
 
 ```kiroha
-fun welcome(name) then
-  fun decorate(text) then
+fun welcome(name)
+  fun decorate(text)
     "[" + text + "]"
-  end fun decorate;
+  end fun decorate
   decorate("Welcome, " + name)
-end fun welcome;
+end fun welcome
 
 welcome("Lin")
 // "[Welcome, Lin]"
@@ -128,5 +133,5 @@ The inner definition has its own matching end. If a name is missing or
 mismatched, Kiroha points to the syntax error before running the program.
 
 Next, try these ideas on a list in [Work with data](data.md).
-If you're updating an older program, the [0.4 migration guide](../migration-0.4.md)
-shows how to replace bare function definitions.
+If you're updating an older program, the [0.5 migration guide](../migration-0.5.md)
+shows the compact definitions and collection methods.

@@ -267,7 +267,7 @@ pub type BResult = Result<Value, Fail>;
 impl<H: Host> Runtime<H> {
     pub fn new(prog: Program, mut host: H, config: HostConfig) -> Runtime<H> {
         let mut prelude: Vec<Value> =
-            builtins::ALL.iter().map(|b| Value::Func(Rc::new(Function::Builtin(*b)))).collect();
+            builtins::GLOBALS.iter().map(|b| Value::Func(Rc::new(Function::Builtin(*b)))).collect();
         for a in builtins::ATOMS {
             prelude.push(schema::atom(a));
         }

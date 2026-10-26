@@ -142,7 +142,9 @@ impl<'a> Parser<'a> {
             return Ok(items);
         }
         loop {
-            items.push(self.item()?);
+            let item = self.item()?;
+            let definition = matches!(self.prog.node(item), Node::Define(_));
+            items.push(item);
             if self.at(P::Semi) {
                 self.advance();
                 if is_end(self.peek()) {
@@ -153,6 +155,9 @@ impl<'a> Parser<'a> {
                 }
             } else if is_end(self.peek()) {
                 break;
+            } else if definition {
+                // The matching named end already delimits a definition.
+                continue;
             } else {
                 return Err(self.unexpected("`;`"));
             }
@@ -190,12 +195,11 @@ impl<'a> Parser<'a> {
         }
         self.expect(P::RParen, "`)`")?;
         let mut slot_name = None;
-        if self.at(P::LBrace) {
+        if self.at(P::LBrace) && matches!(self.peek_at(1), Tok::Ident(_)) && matches!(self.peek_at(2), Tok::P(P::RBrace)) {
             self.advance();
             slot_name = Some(self.ident("callback slot name")?.0);
             self.expect(P::RBrace, "`}`")?;
         }
-        self.expect_kw(Kw::Then)?;
         let items = self.sequence(|t| matches!(t, Tok::Kw(Kw::End) | Tok::Eof))?;
         if !self.at_kw(Kw::End) {
             return Err(self.unexpected(&format!("`end fun {name}`")));
@@ -287,11 +291,12 @@ impl<'a> Parser<'a> {
         while self.at(P::Pipe) {
             self.advance();
             let (name, nsp) = self.ident("pipe stage function path")?;
-            let head = self.add(Node::Name { name, var: Var::Unresolved }, nsp);
-            let mut fields = Vec::new();
+            let mut head = self.add(Node::Name { name, var: Var::Unresolved }, nsp);
             while self.at(P::Dot) {
                 self.advance();
-                fields.push(self.word()?.0);
+                let (name, end) = self.word()?;
+                let span = self.prog.span(head).join(end);
+                head = self.add(Node::Member { recv: head, name, optional: false }, span);
             }
             if !self.at(P::LParen) {
                 return Err(self.unexpected("`(` after pipe stage path"));
@@ -299,7 +304,7 @@ impl<'a> Parser<'a> {
             let args = self.arguments()?;
             let cb = self.trailing_callback()?;
             let span = self.prog.span(left).join(self.prev_span());
-            left = self.add(Node::Pipe { left, head, fields, args, cb }, span);
+            left = self.add(Node::Pipe { left, head, fields: Vec::new(), args, cb }, span);
         }
         Ok(left)
     }
@@ -428,9 +433,13 @@ impl<'a> Parser<'a> {
                     let optional = self.at(P::QDot);
                     self.advance();
                     let (w, wsp) = self.word()?;
-                    let key = self.add(Node::Lit(Value::Str(w)), wsp);
                     let span = self.prog.span(e).join(wsp);
-                    e = self.add(Node::Get { recv: e, key, optional }, span);
+                    e = self.add(Node::Member { recv: e, name: w, optional }, span);
+                    if self.at(P::LBrace) {
+                        let cb = self.trailing_callback()?;
+                        let span = self.prog.span(e).join(self.prev_span());
+                        e = self.add(Node::Call { callee: e, args: Vec::new(), cb }, span);
+                    }
                 }
                 Tok::P(P::LBracket) | Tok::P(P::QBracket) => {
                     let optional = self.at(P::QBracket);
@@ -671,7 +680,7 @@ mod tests {
             "[1] | (map)(){x=>x}",
             "q`select ${}`",
             "1+if true then 2 else 3",
-            "fun f(x=1) then x end fun f;f()",
+            "fun f(x=1) x end fun f;f()",
             ";1",
             "a<b<c",
             "a==b==c",
@@ -686,7 +695,7 @@ mod tests {
         for s in [
             "",
             "1;",
-            "fun apply(x){f} then f(x) end fun apply;apply(10){v=>v+1}",
+            "fun apply(x){f} f(x) end fun apply apply(10){v=>v+1}",
             "f(){x=>x}(3)",
             "(a<b)==true",
             "z={() =>7};a={(x,y)=>x+y}",
@@ -694,9 +703,9 @@ mod tests {
             "x=9;r={if:1,\"0\":2,x}",
             "if c then a else b | f()",
             "ns.map",
-            "[1] | ns.map(){x=>x} | sum()",
+            "([1] | ns.map(){x=>x}).sum()",
             "q`select ${do{x=2;{n:x}}}`",
-            "do{fun f() then 1 end fun f;}",
+            "do{fun f() 1 end fun f }",
         ] {
             assert_eq!(code(s), "ok", "{s}");
         }
@@ -705,32 +714,32 @@ mod tests {
     #[test]
     fn named_function_delimiters() {
         for s in [
-            "f(x)=x", "fun f(x)=x", "fun f(x) x end fun f",
-            "fun f() then 1", "fun f() then 1 end", "fun f() then 1 end fun",
-            "fun f() then 1 end f", "fun f() then 1 end fun g",
-            "fun f() then 1 end fun F", "fun f() then 1 end fun f()",
-            "fun f() then fun g() then 1 end fun f end fun g",
-            "fun f() then ; end fun f", "fun f(x,) then x end fun f",
-            "fun f(x=1) then x end fun f", "x=fun f() then 1 end fun f",
-            "fun=1", "end=1", "fun f(end) then 1 end fun f",
-            "fun f(){fun} then 1 end fun f", "end fun f",
+            "f(x)=x", "fun f(x)=x", "fun f(x) then x end fun f",
+            "fun f() 1", "fun f() 1 end", "fun f() 1 end fun",
+            "fun f() 1 end f", "fun f() 1 end fun g",
+            "fun f() 1 end fun F", "fun f() 1 end fun f()",
+            "fun f() fun g() 1 end fun f end fun g",
+            "fun f() ; end fun f", "fun f(x,) x end fun f",
+            "fun f(x=1) x end fun f", "x=fun f() 1 end fun f",
+            "fun=1", "end=1", "fun f(end) 1 end fun f",
+            "fun f(){fun} 1 end fun f", "end fun f",
         ] {
             assert_eq!(code(s), "syntax", "{s}");
         }
         for s in [
-            "fun f() then end fun f", "fun f(x) then y=x+1;y end fun f;f(2)",
-            "fun f() then fun f() then 1 end fun f;f() end fun f",
-            "fun f(x){k} then k(x); end fun f;f(1){x=>x}",
-            "fun // header\nf() then 1 end // end marker\nfun // name\nf",
+            "fun f() end fun f", "fun f(x) y=x+1;y end fun f f(2)",
+            "fun f() fun f() 1 end fun f f() end fun f",
+            "fun f(x){k} k(x); end fun f f(1){x=>x}",
+            "fun // header\nf() 1 end // end marker\nfun // name\nf",
             "{fun:1,end:2}.fun", "{end:2}?.end",
         ] {
             assert_eq!(code(s), "ok", "{s}");
         }
-        let src = "// あ\nfun fac(n) then n end fun other";
+        let src = "// あ\nfun fac(n) n end fun other";
         let d = parse(&tokenize(src).unwrap()).unwrap_err();
         assert!(d.message.contains("end fun fac"));
         assert_eq!(d.span.start, src.find("other").unwrap());
-        let d = parse(&tokenize("fun fac(n) then n").unwrap()).unwrap_err();
+        let d = parse(&tokenize("fun fac(n) n").unwrap()).unwrap_err();
         assert!(d.message.contains("end fun fac"));
     }
 }

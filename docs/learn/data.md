@@ -38,13 +38,12 @@ orders = [
   {item:"Cake", price:4.2, quantity:1},
   {item:"Coffee", price:3, quantity:3}
 ];
-orders | map(){order => order.price * order.quantity}
+orders.map{order => order.price * order.quantity}
 // [5,4.2,9]
 ```
 
-The `|` pipe passes the result on its left into the next call as the first
-ordinary argument. Here it passes `orders` into `map()`. The callback still
-comes after the parentheses.
+`orders` is the receiver of `.map`. The callback describes the result for
+each item. Use `orders.size` when you want the number of orders.
 
 ## Keep the items you want
 
@@ -56,14 +55,13 @@ orders = [
   {item:"Cake", price:4.2, quantity:1},
   {item:"Coffee", price:3, quantity:3}
 ];
-orders
-  | filter(){order => order.quantity >= 2}
-  | map(){order => order.item}
+orders.filter{order => order.quantity >= 2}.map{order => order.item}
 // ["Tea","Coffee"]
 ```
 
 Each step produces a new value; the original `orders` value stays the same.
-You can put a pipe on a new line to make the steps easier to follow.
+You can put each `.filter` or `.map` on a new line to make the steps easier
+to follow.
 
 ## Add up exact amounts
 
@@ -73,9 +71,7 @@ orders = [
   {item:"Cake", price:4.2, quantity:1},
   {item:"Coffee", price:3, quantity:3}
 ];
-orders
-  | map(){order => order.price * order.quantity}
-  | sum()
+orders.map{order => order.price * order.quantity}.sum()
 // 18.2
 ```
 
@@ -90,7 +86,7 @@ it unchanged when it matches:
 ```kiroha
 Order = {item:str, price:num, quantity:int};
 orders = [{item:"Tea", price:2.5, quantity:2}];
-check(orders, [Order]) | map(){order => order.item}
+check(orders, [Order]).map{order => order.item}
 // ["Tea"]
 ```
 

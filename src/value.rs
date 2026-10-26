@@ -162,6 +162,7 @@ impl Record {
 pub enum Function {
     Builtin(crate::builtins::Builtin),
     Closure(Closure),
+    BoundMethod { name: Rc<str>, receiver: Value, target: Rc<Function> },
 }
 
 #[derive(Debug)]
@@ -203,6 +204,12 @@ impl Function {
     pub fn signature(&self) -> Signature {
         match self {
             Function::Builtin(b) => b.signature(),
+            Function::BoundMethod { target, .. } => {
+                let mut sig = target.signature();
+                sig.min = sig.min.saturating_sub(1);
+                sig.max = sig.max.saturating_sub(1);
+                sig
+            }
             Function::Closure(c) => Signature {
                 min: c.nparams,
                 max: c.nparams,
@@ -464,7 +471,12 @@ pub mod err {
 
     pub fn type_error(op: &str, pos: Pos, expected: &str, actual: Kind) -> Value {
         let p = match pos {
-            Pos::Index(i) => Value::int(i as i64),
+            Pos::Index(i) => {
+                // Native collection implementations receive the implicit receiver
+                // first; the public method surface numbers it 0, arguments 1+.
+                let i = if crate::methods::named(op).is_some() { i.saturating_sub(1) } else { i };
+                Value::int(i as i64)
+            }
             Pos::Option(s) => Value::str(s),
         };
         make(

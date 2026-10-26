@@ -78,7 +78,7 @@ fn cancelled_connection_setup_returns_pool_slot() {
     let proxied = format!("host=127.0.0.1 port={port} user={} dbname={} sslmode=disable", cfg.get_user().unwrap(), cfg.get_dbname().unwrap_or("postgres"));
     let h = host().replace("\"max_connections\":2", "\"max_connections\":1");
     let r = run_env(
-        r#"d=db("main"); [(try sql(d,q`select 1 as x`,{timeout:100}) catch {e=>e.code}), one(sql(d,q`select 2 as x`,{timeout:2000}).rows).x]"#,
+        r#"d=db("main"); [(try sql(d,q`select 1 as x`,{timeout:100}) catch {e=>e.code}), sql(d,q`select 2 as x`,{timeout:2000}).rows.one().x]"#,
         Some(&h), &[("KIROHA_PG_MAIN", &proxied)],
     );
     proxy.join().unwrap();
@@ -88,10 +88,10 @@ fn cancelled_connection_setup_returns_pool_slot() {
 #[test]
 fn i03_parameters_results_and_restrictions() {
     need_pg!();
-    let r = pg(r#"d=db("main");x=one(sql(d,q`select ${null}::text as z, ${true}::boolean as b, ${"x'); drop table t; --"}::text as s,
+    let r = pg(r#"d=db("main");x=sql(d,q`select ${null}::text as z, ${true}::boolean as b, ${"x'); drop table t; --"}::text as s,
         ${123456789012345678901234567890.123456789}::numeric as n, ${encode("é")}::bytea as raw, ${{a:1.50,b:[1e30]}}::jsonb as obj,
         ${[1,2]}::json as arr, 7::int2 as i2, 8::int4 as i4, 9007199254740993::int8 as i8, 'ab'::varchar as vc, 'ab'::char(4) as bp,
-        '00000000-0000-4000-8000-000000000000'::uuid as u`).rows);
+        '00000000-0000-4000-8000-000000000000'::uuid as u`).rows.one();
         [x.z,x.b,x.s,x.n,decode(x.raw),x.obj,x.arr,x.i2,x.i4,x.i8,x.vc,x.bp,x.u]"#);
     assert_eq!(
         result(&r),
@@ -133,7 +133,7 @@ fn i04_transactions_and_pool_hygiene() {
     assert_eq!(result(&r), r#"["db","23505"]"#);
     assert_eq!(admin("select count(*) from kiroha_t where v=200"), vec![vec![Some("0".into())]]);
     // tx timeout aborts a pure loop and pending work, then rolls back
-    let r = pg(r#"d=db("main");fun spin() then spin() end fun spin;try tx(d,{timeout:200}){t=>sql(t,q`insert into kiroha_t(v) values (300)`);spin()} catch {e=>[e.code,e.data.operation]}"#);
+    let r = pg(r#"d=db("main");fun spin() spin() end fun spin try tx(d,{timeout:200}){t=>sql(t,q`insert into kiroha_t(v) values (300)`);spin()} catch {e=>[e.code,e.data.operation]}"#);
     assert_eq!(result(&r), r#"["timeout","tx"]"#);
     assert_eq!(admin("select count(*) from kiroha_t where v=300"), vec![vec![Some("0".into())]]);
     // tx timeout during a running statement cancels it server-side, so the
@@ -159,7 +159,7 @@ fn i04_transactions_and_pool_hygiene() {
     // decoded row buffers count against memory_bytes
     let host_mem = r#"{"format":"kiroha-host/1","capabilities":{"databases":["main"]},"database_pools":{"main":{"dsn_env":"KIROHA_PG_MAIN"}},"limits":{"memory_bytes":100000000}}"#;
     let r = run_env(
-        r#"len(sql(db("main"),q`select generate_series(1,1500000) x, repeat(${"a"},500) y`,{max_rows:5000000}).rows)"#,
+        r#"sql(db("main"),q`select generate_series(1,1500000) x, repeat(${"a"},500) y`,{max_rows:5000000}).rows.size"#,
         Some(host_mem),
         &[("KIROHA_PG_MAIN", &dsn().unwrap())],
     );
@@ -179,7 +179,7 @@ fn i04_transactions_and_pool_hygiene() {
     let r = pg(r#"try sql(db("main"),q`select pg_sleep(5)`,{timeout:200}) catch {e=>[e.code,e.data.outcome]}"#);
     assert_eq!(result(&r), r#"["timeout","unknown"]"#);
     // task confinement and nested tx
-    let r = pg(r#"d=db("main");tx(d){t=>[parallel([1],1){x=>try sql(t,q`select 1`) catch {e=>e.data.phase}},
+    let r = pg(r#"d=db("main");tx(d){t=>[[1].parallel(1){x=>try sql(t,q`select 1`) catch {e=>e.data.phase}},
         (try tx(d){u=>1} catch {e=>e.data.phase})]}"#);
     assert_eq!(result(&r), r#"[["ownership"],"ownership"]"#);
     // independent autocommit inside tx survives rollback
@@ -188,7 +188,7 @@ fn i04_transactions_and_pool_hygiene() {
     assert_eq!(admin("select count(*) from kiroha_t where v=400"), vec![vec![Some("1".into())]]);
     // holes in VALUES, RETURNING and LIMIT positions are parameters
     let r = pg(r#"d=db("main");x=sql(d,q`insert into kiroha_t(v) values (${500}) returning v + ${1} as w`);
-        [one(x.rows).w, len(sql(d,q`select v from kiroha_t order by v limit ${2}`).rows)]"#);
+        [x.rows.one().w, sql(d,q`select v from kiroha_t order by v limit ${2}`).rows.size]"#);
     assert_eq!(result(&r), "[501,2]");
     // SELECT INTO in a set operation's leftmost branch is rejected before dispatch
     admin("drop table if exists kiroha_into");
@@ -200,7 +200,7 @@ fn i04_transactions_and_pool_hygiene() {
     assert_eq!(result(&r), "1");
     // no dirty pooled reuse: session settings are reset before reuse
     let r = pg(r#"d=db("main");a=sql(d,q`select set_config('search_path','nowhere',false) as s`);
-        b=sql(d,q`select current_setting('search_path') as s`);[one(b.rows).s]"#);
+        b=sql(d,q`select current_setting('search_path') as s`);[b.rows.one().s]"#);
     assert_eq!(result(&r), r#"["\"$user\", public"]"#);
 }
 

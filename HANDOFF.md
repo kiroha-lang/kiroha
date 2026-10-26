@@ -1,9 +1,24 @@
-# Handoff: Kiroha 0.4.0 / Web1
+# Handoff: Kiroha 0.5.0 / Web1
+
+## Current revision and contribution workflow
+
+Use `fun greet(name) ... end fun greet` with no header `then` or required
+separator after its end. Keep `if ... then`. Collections use receiver methods
+and `.size`; see [the 0.5 migration](docs/migration-0.5.md). The receiver registry
+and common bound-call path prepare future extensions without exposing an
+extension declaration syntax. Current inventory: 31 globals, 19 methods,
+one size property and five schema atoms; 213 embedded cases.
+
+**Do not push directly to main.** Make changes on a working branch, open a
+pull request, wait for checks, then merge. Documentation examples are checked
+against the runtime built from the same revision, so breaking syntax changes
+can be reviewed before a release exists. The sections below preserve the
+previous publication and independent-audit evidence.
 
 ## Documentation website
 
 The friendly English documentation is published at
-https://kiroha-lang.github.io/kiroha/ (22 content pages). It includes a guided
+https://kiroha-lang.github.io/kiroha/ (23 content pages). It includes a guided
 first program, functions, data, a local HTTP walkthrough, troubleshooting,
 the complete reference and the specification. Search, copy buttons, dark mode
 and mobile navigation were verified on the public site at 1440×900 and 390×844.
@@ -16,7 +31,7 @@ at build time without duplicate copies. See [documentation contribution](docs/co
 for preview and validation commands. Build dependencies are pinned in
 `requirements-docs.txt`; generated `site/` output is ignored.
 
-## Current 0.4 syntax revision
+## Historical 0.4 syntax revision
 
 The function syntax is now `fun fac(n) then ... end fun fac`. Both `fun` and
 `end` are reserved, the closing name must match exactly, and bodies are

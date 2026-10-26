@@ -36,7 +36,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -49,12 +49,21 @@ jobs:
         run: python -m mkdocs build --strict
       - name: Check pages and internal links
         run: python scripts/docs/check_site.py site
-      - name: Check beginner programs with the published runtime
-        shell: bash
+      - uses: dtolnay/rust-toolchain@1.96.0
+      - uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: verify-rust1.96-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock', 'Cargo.toml') }}
+          restore-keys: verify-rust1.96-${{ runner.os }}-${{ runner.arch }}-
+      - name: Install native build dependencies
+        run: sudo apt-get update && sudo apt-get install -y libclang-dev
+      - name: Check beginner programs with this revision
         run: |
-          curl -fsSL https://github.com/kiroha-lang/kiroha/releases/download/v0.4.0/install.sh \
-            | bash -s -- --version 0.4.0 --install-dir "$RUNNER_TEMP/kiroha-docs-bin"
-          python scripts/docs/check_examples.py --kiroha "$RUNNER_TEMP/kiroha-docs-bin/kiroha"
+          cargo build --release --locked
+          python scripts/docs/check_examples.py --kiroha target/release/kiroha
       - name: Upload Pages artifact
         if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v4

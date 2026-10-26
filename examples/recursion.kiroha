@@ -1,12 +1,12 @@
 // Named recursion, proper tail calls and exact arithmetic.
-fun fac(n) then
+fun fac(n)
   if n <= 1 then 1 else n * fac(n - 1)
-end fun fac;
-fun fib(n, a, b) then
+end fun fac
+fun fib(n, a, b)
   if n == 0 then a else fib(n - 1, b, a + b)
-end fun fib;
-fun collatz(n, steps) then
+end fun fib
+fun collatz(n, steps)
   if n == 1 then steps
   else collatz(if n % 2 == 0 then n / 2 else 3 * n + 1, steps + 1)
-end fun collatz;
+end fun collatz
 {fac20: fac(20), fib100: fib(100, 0, 1), collatz27: collatz(27, 0), third: 1/3, sum: 0.1 + 0.2}

@@ -1,6 +1,6 @@
 # Architecture
 
-This document describes how this implementation realizes the Kiroha 0.4.0 /
+This document describes how this implementation realizes the Kiroha 0.5.0 /
 Web1 contract. Language-visible behavior is fixed by [`spec.md`](../spec.md);
 everything here is an engineering choice.
 
@@ -30,7 +30,8 @@ source bytes ─▶ lexer ─▶ parser ─▶ resolver ─▶ Program (arena, r
 | `src/url.rs` | URL acceptance rules and the `url` constructor |
 | `src/sqlcheck.rs` | Query translation, hole-context lexing and statement validation with libpg_query (PostgreSQL 16 grammar) |
 | `src/runtime/` | Task engine (`mod.rs`), evaluator (`machine.rs`), frames |
-| `src/builtins/` | The 51 functions: `pure`, `callbacks`, `effects`, `db`, `server`, helpers |
+| `src/methods.rs` | Receiver-kind registry, member signatures and properties |
+| `src/builtins/` | The 51 native operations: `pure`, `callbacks`, `effects`, `db`, `server`, helpers |
 | `src/host/` | `Host` trait, config, path rules, virtual and real hosts |
 | `src/conformance.rs`, `src/cli.rs`, `src/wire.rs` | Embedded test protocol, CLI, wire values |
 
@@ -45,6 +46,12 @@ nested queries inside holes work). The parser parses each hole as a complete
 The parser is hand-written recursive descent following the EBNF levels. The
 non-context-free rules are implemented directly: definitions start with `fun`
 and require a matching `end fun name`; bindings use IDENT/`=` lookahead.
+Dot selection creates a bound function holding an immutable receiver and an
+ordinary callable target. Invocation uses the same call/arity/callback path as
+other functions, inserting the receiver only internally. Member parsing never
+consults builtin names, leaving room for future extension targets. The registry
+currently exposes 19 methods and `.size`; 31 globals populate the prelude.
+
 Named functions use the same sequence execution path as lambdas. Other rules
 include lambda-vs-record by checking for a lambda head followed by
 `=>`, the "at most one comparison" rule by tracking whether each operand of

@@ -1,4 +1,4 @@
-//! The closed 51-function prelude (spec §7.1) plus the five schema atoms.
+//! The 51 native operations (31 globals and 20 receiver members) (spec §7.1) plus the five schema atoms.
 
 pub mod args;
 pub mod callbacks;
@@ -12,11 +12,11 @@ use crate::value::{CallbackPolicy, Signature};
 
 macro_rules! builtins {
     ($( $variant:ident = $name:literal, $min:literal, $max:literal, $cb:ident; )*) => {
-        /// Every callable prelude function.
+        /// Every native operation; GLOBALS selects prelude bindings.
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
         pub enum Builtin { $( $variant, )* }
 
-        /// Prelude functions in inventory order.
+        /// Native operations in inventory order.
         pub const ALL: &[Builtin] = &[ $( Builtin::$variant, )* ];
 
         impl Builtin {
@@ -34,7 +34,7 @@ macro_rules! builtins {
 }
 
 builtins! {
-    Len = "len", 1, 1, Absent;
+    Len = "size", 1, 1, Absent;
     Range = "range", 2, 3, Absent;
     Map = "map", 1, 1, Required;
     Filter = "filter", 1, 1, Required;
@@ -90,10 +90,20 @@ builtins! {
 /// Schema atom names, after the functions in the prelude table.
 pub const ATOMS: &[&str] = &["str", "num", "int", "bool", "json"];
 
+/// The global surface excludes receiver-based collection operations.
+pub const GLOBALS: &[Builtin] = &[
+    Builtin::Range, Builtin::Text, Builtin::Number, Builtin::Parse, Builtin::Dump,
+    Builtin::Encode, Builtin::Decode, Builtin::Check, Builtin::Maybe, Builtin::Optional,
+    Builtin::Open, Builtin::Sleep, Builtin::Retry, Builtin::Pages, Builtin::Fail,
+    Builtin::Http, Builtin::Get, Builtin::Post, Builtin::Url, Builtin::Db,
+    Builtin::Sql, Builtin::Tx, Builtin::Serve, Builtin::Input, Builtin::Reply,
+    Builtin::Env, Builtin::Read, Builtin::Write, Builtin::Now, Builtin::Uuid, Builtin::Log,
+];
+
 /// Prelude table index for a name.
 pub fn prelude_index(name: &str) -> Option<u32> {
-    if let Some(i) = ALL.iter().position(|b| b.name() == name) {
+    if let Some(i) = GLOBALS.iter().position(|b| b.name() == name) {
         return Some(i as u32);
     }
-    ATOMS.iter().position(|a| *a == name).map(|i| (ALL.len() + i) as u32)
+    ATOMS.iter().position(|a| *a == name).map(|i| (GLOBALS.len() + i) as u32)
 }
