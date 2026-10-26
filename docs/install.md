@@ -50,8 +50,11 @@ files. `KIROHA_RELEASE_BASE_URL` can point to a release mirror with the same
 Requires Rust 1.88+ (tested with 1.96), a C compiler and libclang for
 `pg_query`. On Debian/Ubuntu, `sudo apt-get install build-essential libclang-dev`
 provides the native build requirements. On macOS, use the Xcode command-line
-tools and `brew install llvm`, then export
+tools and `brew install llvm protobuf`, then export
 `LIBCLANG_PATH="$(brew --prefix llvm)/lib"` if automatic discovery fails.
+Set `PROTOC_NO_VENDOR=1` and `PROTOC="$(brew --prefix protobuf)/bin/protoc"`
+to use Homebrew's compiler instead of the dependency's older bundled protobuf,
+whose build configuration is incompatible with CMake 4.
 
 ```sh
 git clone https://github.com/kiroha-lang/kiroha.git

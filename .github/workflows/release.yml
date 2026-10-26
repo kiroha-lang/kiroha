@@ -47,8 +47,12 @@ jobs:
             sudo apt-get update
             sudo apt-get install -y libclang-dev
           else
-            brew install llvm
+            # prost-build 0.10's bundled protobuf predates CMake 4. Use the
+            # native protoc rather than rebuilding that old CMake project.
+            brew install llvm protobuf
             echo "LIBCLANG_PATH=$(brew --prefix llvm)/lib" >> "$GITHUB_ENV"
+            echo 'PROTOC_NO_VENDOR=1' >> "$GITHUB_ENV"
+            echo "PROTOC=$(brew --prefix protobuf)/bin/protoc" >> "$GITHUB_ENV"
           fi
       - name: Check release version
         shell: bash
