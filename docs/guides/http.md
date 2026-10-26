@@ -1,9 +1,7 @@
 # Read JSON over HTTP
 
-This walkthrough uses a tiny server on your own computer, so you can try a
-real request without signing up for a service. You'll need Kiroha and Python 3.
-If Python isn't available, you can still read the steps or use the
-[public-API example](../../examples/fetch.kiroha) with its matching host file.
+This walkthrough runs a small HTTP server and client in Kiroha, so you can
+try a real request on your own computer. You only need Kiroha installed.
 
 ## 1. Make a small JSON file
 
@@ -16,17 +14,49 @@ Create a folder for this example and a file called `items.json` inside it:
 ]
 ```
 
-Open a terminal in that folder and start a local server:
+## 2. Start a Kiroha server
+
+Save the following as `server.kiroha` in the same folder:
+
+```kiroha
+serve({
+  "GET /items.json": {request =>
+    reply(200, read("items.json"), {"Content-Type":"application/json"})
+  }
+}, {port:8765})
+```
+
+This serves one route. `read` returns the file as bytes, and `reply` sends
+those bytes with a JSON content type. It is a small server for this example;
+`serve` can also route requests to other Kiroha handlers.
+
+The server needs permission to listen and to read the file. Save this as
+`server.host.json`, replacing **both** occurrences of `/absolute/path/to/example`
+with the absolute path of the folder containing `items.json` (run `pwd -P` in the
+folder to see it):
+
+```json
+{
+  "format":"kiroha-host/1",
+  "filesystem_root":"/absolute/path/to/example",
+  "capabilities":{
+    "listen":[{"host":"127.0.0.1","port":8765}],
+    "read":["/absolute/path/to/example"]
+  }
+}
+```
+
+In a terminal, start the server:
 
 ```sh
-python3 -m http.server 8765 --bind 127.0.0.1
+kiroha run server.kiroha --json --host server.host.json
 ```
 
 Leave that terminal running. You can stop it with `Ctrl+C` when you're done.
 If port 8765 is already in use, choose another port and use that same number
-in the server command, host file and program below.
+in both programs and both host files below.
 
-## 2. Choose the permission
+## 3. Choose the client's permission
 
 In the same folder, save this as `local.host.json`:
 
@@ -39,11 +69,11 @@ In the same folder, save this as `local.host.json`:
 }
 ```
 
-This allows requests to that one origin. An origin includes the scheme,
-host and port. A new Kiroha program has no network permission until you give
-it a host configuration.
+This allows the client to request that one origin. An origin includes the
+scheme, host and port. A new Kiroha program has no network permission until
+you give it a host configuration.
 
-## 3. Write the request
+## 4. Write and run the request
 
 Save this as `fetch.kiroha`:
 
@@ -55,27 +85,24 @@ type Item = {name:str, price:num};
 ```
 
 `get` reads the response as JSON. `check` makes sure it is a list of items
-with the expected fields. `map` selects each name.
-
-## 4. Run it in a second terminal
-
-Open another terminal in the same folder and run:
+with the expected fields. `map` selects each name. In a second terminal, open the same folder and run:
 
 ```sh
 kiroha run fetch.kiroha --json --host local.host.json
 ```
 
-The tagged result represents `["Tea","Cake"]`. You have made a real HTTP
-request, checked the data and transformed it into a new list.
+The tagged result represents `["Tea","Cake"]`. Both the server and the client
+are Kiroha programs, and the request has gone over a real HTTP connection.
 
 ## If the request doesn't work
 
-- **`permission`:** Check that you passed `--host local.host.json` and that the
-  origin matches the URL, including `http` and port 8765.
-- **`network`:** Check that the Python server is still running. Its terminal
-  should show a request when you run Kiroha.
-- **A non-2xx response (`http`):** Check the filename and the folder where you
-  started Python. The URL must point to `items.json`.
+- **Server `permission`:** Check both the `listen` endpoint and the absolute
+  `read` directory in `server.host.json`.
+- **Client `permission`:** Check that you passed `--host local.host.json` and
+  that its origin matches the URL, including `http` and the port.
+- **`network`:** Check that the Kiroha server is still running in its terminal.
+- **A non-2xx response (`http`):** Check that `items.json` exists in the
+  configured `filesystem_root` and that the route matches the URL.
 - **`validation`:** The request worked, but a field didn't match the schema.
   Check the JSON file's field names and value kinds.
 
