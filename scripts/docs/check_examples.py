@@ -2,14 +2,13 @@
 """Run the beginner documentation's programs against a real Kiroha executable."""
 import argparse
 from decimal import Decimal
-from functools import partial
-from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
 import re
 import subprocess
 import tempfile
-import threading
+import socket
+import time
 
 ROOT = Path(__file__).resolve().parents[2]
 PURE = ('index.md', 'getting-started.md', 'learn/functions.md', 'learn/data.md', 'guides/troubleshooting.md', 'types.md')
@@ -63,26 +62,50 @@ def main():
             run(args.kiroha, source, expected)
             count += 1
     page = ROOT / 'docs/guides/http.md'
-    items, host = [json.loads(s) for s in fences(page, 'json')]
-    class QuietHandler(SimpleHTTPRequestHandler):
-        def log_message(self, *_):
-            pass
+    items, server_host, client_host = [json.loads(s) for s in fences(page, 'json')]
+    server_source, client_source = fences(page, 'kiroha')
     with tempfile.TemporaryDirectory(prefix='kiroha-doc-http.') as folder:
         directory = Path(folder)
         (directory / 'items.json').write_text(json.dumps(items))
-        host_path = directory / 'local.host.json'
-        host_path.write_text(json.dumps(host))
-        server = ThreadingHTTPServer(('127.0.0.1', 8765), partial(QuietHandler, directory=folder))
-        thread = threading.Thread(target=server.serve_forever, daemon=True)
-        thread.start()
+        # Use a free local port so the example can run alongside other tests.
+        with socket.socket() as listener:
+            listener.bind(('127.0.0.1', 0))
+            port = listener.getsockname()[1]
+        server_source = server_source.replace('8765', str(port))
+        client_source = client_source.replace('8765', str(port))
+        server_host['filesystem_root'] = folder
+        server_host['capabilities']['read'] = [folder]
+        server_host['capabilities']['listen'][0]['port'] = port
+        client_host['capabilities']['http'] = [f'http://127.0.0.1:{port}']
+        server_path = directory / 'server.kiroha'
+        server_path.write_text(server_source)
+        server_host_path = directory / 'server.host.json'
+        server_host_path.write_text(json.dumps(server_host))
+        client_host_path = directory / 'local.host.json'
+        client_host_path.write_text(json.dumps(client_host))
+        server = subprocess.Popen([args.kiroha, 'run', str(server_path), '--json', '--host', str(server_host_path)],
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         try:
-            run(args.kiroha, fences(page, 'kiroha')[0], '["Tea","Cake"]', host_path)
-            count += 1
+            for _ in range(100):
+                if server.poll() is not None:
+                    raise AssertionError('Kiroha server exited: ' + ''.join(server.communicate()))
+                try:
+                    with socket.create_connection(('127.0.0.1', port), timeout=.1):
+                        break
+                except OSError:
+                    time.sleep(.05)
+            else:
+                raise AssertionError('Kiroha server did not start')
+            run(args.kiroha, client_source, '["Tea","Cake"]', client_host_path)
+            count += 2
         finally:
-            server.shutdown()
-            server.server_close()
-            thread.join()
-    print(f'{count} beginner programs passed, including the documented HTTP request.')
+            server.terminate()
+            try:
+                server.communicate(timeout=5)
+            except subprocess.TimeoutExpired:
+                server.kill()
+                server.communicate()
+    print(f'{count} beginner programs passed, including the Kiroha HTTP server and request.')
 
 
 if __name__ == '__main__':
