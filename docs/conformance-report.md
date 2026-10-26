@@ -33,7 +33,35 @@ inspected files; Codex **0.164.0** installs identical bytes and discovers the
 skill without errors in temporary state. The plugin's PostgreSQL-specific DB
 recipe is statically checked; real backend behavior is verified by runtime tests.
 The historical audits below describe earlier revisions, not a new independent
-audit of 0.7. Hosted publication evidence is added after checks finish.
+audit of 0.7. Public distribution evidence follows.
+
+
+### Public 0.7.0 distribution (2026-10-27)
+
+[PR6](https://github.com/kiroha-lang/kiroha/pull/6) merged the database adapters
+at source `8f52d533fb16f4f8d9099de9e705b7d7174e899c`, the immutable
+[v0.7.0 tag](https://github.com/kiroha-lang/kiroha/releases/tag/v0.7.0).
+[PR7](https://github.com/kiroha-lang/kiroha/pull/7) moved ARM builds from the
+retiring macOS 14 runner to macOS 15 and added tagged-source recovery dispatch.
+The [release run](https://github.com/kiroha-lang/kiroha/actions/runs/40344545672)
+checked out the same tag in verification, all four native builds and publishing.
+It passed the 104-test three-container suite and all 253 cases on Linux/macOS
+x86_64/ARM64 before publishing the verified archives and installer.
+
+The public **latest** and **pinned** installers were both executed into isolated
+directories. Each installed **0.7.0**, passed **253/253** cases and committed a
+transaction through each of PostgreSQL, MySQL and MariaDB from one source
+program. No user installation was overwritten. The published
+[database guide](https://kiroha-lang.github.io/kiroha/guides/databases/), host
+configuration and branding pages return HTTP 200; all five served branding
+images match canonical bytes. Both guide programs pass static checking, and
+the first executes unchanged on all three servers. The public main marketplace
+also installs plugin 0.3.0 with identical files and discovers its skill on Codex
+0.164.0 without errors.
+
+The superseded macOS-14 release attempts were canceled after queueing; they
+are infrastructure retries, not passing release evidence. The tag was never
+moved. The task-owned local test servers were shut down after verification.
 
 
 ## 0.6.0 lightweight types and simple generics (2026-10-26)
