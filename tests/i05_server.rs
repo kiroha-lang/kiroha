@@ -295,3 +295,32 @@ fn maximum_header_quota_accepts_fragmented_request() {
     socket.read_to_string(&mut response).unwrap();
     assert_eq!(status(&response), "200", "{response}");
 }
+
+#[test]
+fn declared_request_sizes_do_not_saturate_into_the_limit() {
+    for wide in [false, true] {
+        let port = free_port();
+        let dir = tempdir("srv-body-size");
+        let sp = dir.join("s.kiroha");
+        let max = if wide { "1e21" } else { "18446744073709551615" };
+        std::fs::write(&sp, format!(r#"serve({{"POST /":{{r=>1}}}},{{port:{port},timeout:100,max_body:{max}}})"#)).unwrap();
+        let hp = dir.join("h.json");
+        std::fs::write(&hp, format!(r#"{{"format":"kiroha-host/1","capabilities":{{"listen":[{{"host":"127.0.0.1","port":{port}}}]}}}}"#)).unwrap();
+        struct Guard(std::process::Child);
+        impl Drop for Guard { fn drop(&mut self) { let _ = self.0.kill(); let _ = self.0.wait(); } }
+        let _guard = Guard(kiroha().arg("run").arg(sp).arg("--json").arg("--host").arg(hp).stdout(std::process::Stdio::null()).spawn().unwrap());
+        for _ in 0..100 {
+            if TcpStream::connect(("127.0.0.1", port)).is_ok() { break; }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        for framing in ["Content-Length: 18446744073709551616\r\n\r\n", "Transfer-Encoding: chunked\r\n\r\n10000000000000000\r\n"] {
+            let raw = format!("POST / HTTP/1.1\r\nHost: x\r\n{framing}");
+            let r = send(port, raw.as_bytes());
+            assert_eq!(status(&r), if wide { "503" } else { "413" }, "{r}");
+        }
+        // The largest representable declaration is within the configured
+        // limit; with no body it times out, rather than being called oversized.
+        let r = send(port, b"POST / HTTP/1.1\r\nHost: x\r\nContent-Length: 18446744073709551615\r\n\r\n");
+        assert_eq!(status(&r), "504", "{r}");
+    }
+}

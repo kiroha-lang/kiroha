@@ -36,11 +36,11 @@ KIROHA_TEST_PG_DSN="host=127.0.0.1 port=55432 user=kiri dbname=postgres" cargo t
 
 | ID | Test | Status | What is exercised |
 | --- | --- | --- | --- |
-| I01 | `tests/i01_http.rs` (12 tests) | pass | Local raw HTTP fixture: GET/DELETE/POST, 4xx/5xx as data, repeated headers and `set-cookie`, 204/205/304, explicit HEAD with unsupported coding, gzip and decoded `max_bytes`, chunked framing, invalid chunked framing, invalid UTF-8/JSON, 302 not followed, one request per call (no retries), no cookies sent, query/header encoding, connection refused → `not_sent` |
+| I01 | `tests/i01_http.rs` (13 tests) | pass | Local raw HTTP fixture: GET/DELETE/POST, 4xx/5xx as data, repeated headers and `set-cookie`, 204/205/304, explicit HEAD with unsupported coding, gzip and decoded `max_bytes`, chunked framing, invalid chunked framing, invalid UTF-8/JSON, 302 not followed, one request per call (no retries), no cookies sent, query/header encoding, connection refused → `not_sent` |
 | I02 | `tests/i02_tls.rs` (2 tests) | pass | rcgen CA + rustls server: valid chain/hostname succeeds; wrong hostname and untrusted chain fail with `tls`/`not_sent`; server that drops after receiving the request → `network`/`unknown` |
 | I03 | `tests/i03_i04_postgres.rs::i03_*`, `cancelled_connection_setup_returns_pool_slot` | pass | PostgreSQL 16: every parameter kind, all supported result OIDs (int2/4/8, numeric with 39 digits, text, varchar, bpchar padding, uuid, bool, bytea, json, jsonb with `1e30`), NULL, hostile text as data, duplicate column names, unsupported types (date, float8, array, NaN numeric), DDL/multi-statement rejection, server SQLSTATE, U+0000 bind rejection, explicit conversions |
 | I04 | `tests/i03_i04_postgres.rs::i04_*` | pass | Commit with verified table state, callback-failure rollback, caught poison stays primary (23505) with rollback, tx timeout interrupting a pure loop, `sql` timeout on `pg_sleep`, task confinement and nested-tx ownership, independent autocommit inside a rolled-back tx, `DISCARD ALL` reset before pooled reuse |
-| I05 | `tests/i05_server.rs` (3 tests) | pass | Raw-socket requests: literal-over-parameter precedence, encoded slash, plus/query decoding, explicit HEAD (no body) and OPTIONS, implicit HEAD → 405 + Allow, JSON input, 415, 413 by Content-Length, chunked request body, 504, 500 for bare bytes, absolute-form target 400, 503 at `max_inflight`, client disconnect freeing the slot, SIGINT shutdown (exit 3) and closed listener |
+| I05 | `tests/i05_server.rs` (4 tests) | pass | Raw-socket requests: literal-over-parameter precedence, encoded slash, plus/query decoding, explicit HEAD (no body) and OPTIONS, implicit HEAD → 405 + Allow, JSON input, 415, 413 by Content-Length, chunked request body, 504, 500 for bare bytes, absolute-form target 400, 503 at `max_inflight`, client disconnect freeing the slot, SIGINT shutdown (exit 3) and closed listener |
 | I06 | `tests/i06_i07_i08.rs::i06_*` | pass | Mode preservation (0640 kept), new files 0600, no parent creation, symlink target and symlinked directory refused, outside file untouched, `..` rejected, missing file `not_found`, no temp files left, component-based permission, `max_file_bytes` abort |
 | I07 | `tests/i06_i07_i08.rs::i07_*` | pass | Pure infinite loop stopped by `deadline_ms` within the deadline (try handler not run), bounded parallelism timing, first failure cancelling a sleeping sibling, `eval_steps` exhaustion, 1,000,000-iteration tail loop |
 | I08 | `tests/i06_i07_i08.rs::i08_*` | pass | Tagged numbers/bytes/opaque containers, stderr isolation of `log`, exit codes 0/1/2/3, configuration and `source_bytes` limits, `check` without effects, unreadable and invalid-UTF-8 sources, duplicate/unknown options, stdin source, `spec --compact`, `--version`, conformance run |
@@ -89,7 +89,7 @@ root/request scope with `resource`. See
 
 ## Independent audits
 
-Nineteen independent read-and-execute audits of sections 2–15 were run against the
+Twenty independent read-and-execute audits of sections 2–15 were run against the
 code (each walked the normative rules section by section and confirmed every
 finding by running programs or custom fixture manifests).
 
@@ -132,6 +132,8 @@ finding by running programs or custom fixture manifests).
 
 | 19 (full, §2–§16) | 2: valid informational responses rejected after 16; long chunk/trailer lines depended on packet fragmentation; zero-step cancellation never fired | Fixed: unlimited internal informational responses, streaming extension validation, trailer bounds from the remaining field budget, shared transport heap accounting and start-line buffers independent of fragmentation; abort_after_steps=0 cancels before any expression/effect. Long fragmented metadata, memory-budget and zero-step regressions added. |
 
+| 20 (full source walk, executed corpus/semantic/HTTP/TLS/server checks) | 2: external body declarations above u64::MAX became indistinguishable from the maximum configured body limit; failed temporary-file unlink was not diagnosed | Fixed: retain an overflow sentinel for framing comparisons, preserve whether a configured byte bound exceeds native capacity, return 413/limit or explicit transport resource termination without waiting for impossible bodies; failed unlink emits a best-effort sanitized cleanup diagnostic without replacing the primary outcome. Added exact/overflow/wide-bound wire controls and a deterministic OS unlink-failure regression. |
+
 Audit 2 recorded "no new violations" for §2, §3, §4, §5, §6, §7, §8, §9,
 §10 (apart from the fixture header checks), §11 (apart from the two SQL
 items), §12, §13, §14.1 and §15, and confirmed 8 of the 9 audit-1 fixes
@@ -150,6 +152,7 @@ documentation snippets and claims as accurate.
 | Client half-close | Kiroha 0.3.0 does not define half-close; §12.2 requires that a "client disconnect aborts its task". TCP offers no way to tell a half-close from a full close before a response is written (both arrive as FIN/EOF), so honouring §12.2 requires treating EOF during handler execution as a disconnect — the same rule Go's net/http applies. A client that shuts down its sending side before the response therefore receives none. This is the conforming reading of §12.2, not a deviation. |
 | Number size | Coefficients (significant digits, excluding a spelling's leading/trailing zeros) are limited to 100,000 decimal digits (operands and results), and exponents to about ±2.3×10^18; exceeding it is a `resource` abort with `{resource:"number"}`. §3.2 allows coefficient limits only as host resource termination; the quota bounds the cost of a single uninterruptible arbitrary-precision operation to tens of milliseconds, so deadlines and other tasks are not starved. |
 | Memory quota | Process live-heap measurement at checkpoints (published strategy above); a single huge allocation may complete before it is observed, which §14.1 leaves implementation-dependent. |
+| Native body capacity | Decoded body counters/buffers use native u64 capacity. A wider configured limit still accepts ordinary bodies; a declared body outside that capacity terminates with `resource` / `transport`, without substituting a smaller successful body. Wire numerals retain an overflow sentinel for comparisons with representable limits. |
 | Clock capacity | Durations and absolute monotonic timestamps must fit u64 milliseconds; inability to represent a time aborts with `resource` / `{resource:"clock"}` rather than shortening a wait or substituting a timeout. Cleanup may abandon unresponsive work within its bounded grace. |
 | Build requirement | `pg_query` needs a C compiler and libclang at build time. |
 

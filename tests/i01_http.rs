@@ -64,6 +64,21 @@ fn response_metadata_uses_memory_budget_and_not_fragment_length() {
     }
 }
 
+#[test]
+fn declared_response_sizes_do_not_saturate_into_the_limit() {
+    let (port, _) = fixture_server(|path, _| match path {
+        "/chunk" => raw("200 OK", &["Transfer-Encoding: chunked"], b"10000000000000000\r\n"),
+        _ => raw("200 OK", &["Content-Length: 18446744073709551616"], b""),
+    });
+    for path in ["length", "chunk"] {
+        let src = format!(r#"try http("GET","http://127.0.0.1:{port}/{path}",{{max_bytes:18446744073709551615}}) catch {{e=>e.code}}"#);
+        assert_eq!(result(&run(&src, Some(&host(port)))), r#""limit""#);
+        let r = run(&src.replace("max_bytes:18446744073709551615", "max_bytes:1e21"), Some(&host(port)));
+        assert_eq!(r.code, 3, "{}", r.stdout);
+        assert!(r.stdout.contains("\"resource\":\"transport\""), "{}", r.stdout);
+    }
+}
+
 fn server() -> (u16, std::sync::Arc<std::sync::Mutex<Vec<String>>>) {
     fixture_server(|path, _head| {
         let gz = gzip(br#"{"x":1}"#);

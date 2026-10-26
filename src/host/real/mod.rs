@@ -255,8 +255,8 @@ impl Host for RealHost {
                 let out = self.servers.listen(&host, port, header_limit);
                 self.done_now(id, out);
             }
-            Effect::ReadBody { request, max_body } => {
-                let fut = self.servers.read_body(request, max_body);
+            Effect::ReadBody { request, max_body, max_body_wide } => {
+                let fut = self.servers.read_body(request, max_body, max_body_wide);
                 self.spawn(id, fut);
             }
             Effect::SendResponse { request, status, headers, body, suppress_body } => {

@@ -55,6 +55,7 @@ pub struct ServeOpts {
     pub port: u16,
     pub timeout: u64,
     pub max_body: u64,
+    pub max_body_wide: bool,
     pub max_inflight: u64,
 }
 
@@ -284,7 +285,7 @@ impl<H: Host> Runtime<H> {
                 None => 128,
             };
             reject_unknown(op, o, &["host", "port", "timeout", "max_body", "max_inflight"])?;
-            Ok((routes, ServeOpts { host, port, timeout, max_body, max_inflight }))
+            Ok((routes, ServeOpts { host, port, timeout, max_body, max_inflight, max_body_wide: field(o, "max_body").and_then(Value::as_num).is_some_and(|d| d.to_u64().is_none()) }))
         })();
         let (routes, opts) = match res {
             Ok(x) => x,
@@ -501,9 +502,9 @@ impl<H: Host> Runtime<H> {
             }
         };
         // Stage 2: admission.
-        let (inflight, max, timeout, max_body, scope) = {
+        let (inflight, max, timeout, max_body, max_body_wide, scope) = {
             let st = self.servers.get(&sid).unwrap();
-            (st.inflight, st.opts.max_inflight, st.opts.timeout, st.opts.max_body, st.scope)
+            (st.inflight, st.opts.max_inflight, st.opts.timeout, st.opts.max_body, st.opts.max_body_wide, st.scope)
         };
         if inflight >= max || self.live_tasks + 1 > self.config.limits.max_tasks {
             self.respond_task(sid, &req, 503, "unavailable", false);
@@ -538,7 +539,7 @@ impl<H: Host> Runtime<H> {
         let ctl = if req.framing_invalid {
             Ctl::Effect(EffOutcome::Err(err::make("framing", "invalid body framing", vec![])))
         } else if coding_ok {
-            Ctl::Dispatch(Effect::ReadBody { request: req.id, max_body }, DispatchOpts::default())
+            Ctl::Dispatch(Effect::ReadBody { request: req.id, max_body, max_body_wide }, DispatchOpts::default())
         } else {
             Ctl::Effect(EffOutcome::Err(err::make("media", "content coding", vec![("reason", Value::str("content_encoding"))])))
         };

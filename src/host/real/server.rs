@@ -20,7 +20,7 @@ const HEADER_TIMEOUT_MS: u64 = 30_000;
 #[derive(Clone, Copy, Debug)]
 enum Framing {
     Empty,
-    Length(u64),
+    Length(u128),
     Chunked,
     Invalid,
 }
@@ -131,7 +131,7 @@ impl Servers {
         EffOutcome::Ok(EffValue::Str(id))
     }
 
-    pub fn read_body(&mut self, request: u64, max_body: u64) -> impl Future<Output = EffOutcome> {
+    pub fn read_body(&mut self, request: u64, max_body: u64, max_body_wide: bool) -> impl Future<Output = EffOutcome> {
         let inner = self.inner.clone();
         let tx = self.tx.clone();
         let memory = self.memory;
@@ -150,11 +150,12 @@ impl Servers {
                 Framing::Empty => Ok(Vec::new()),
                 Framing::Invalid => Err(BodyFault::BadFraming),
                 Framing::Length(n) => {
-                    if n > max_body {
+                    if n > max_body as u128 {
+                        if max_body_wide { return EffOutcome::Resource("transport".into()); }
                         Err(BodyFault::TooLarge)
                     } else {
                         let mut ok = true;
-                        while (buf.len() as u64) < n {
+                        while (buf.len() as u128) < n {
                             let mut chunk = vec![0u8; 16384];
                             match rd.read(&mut chunk).await {
                                 Ok(0) | Err(_) => {
@@ -181,6 +182,7 @@ impl Servers {
                     .await
                     {
                         Ok(()) => Ok(out),
+                        Err(ChunkErr::TooLarge) if max_body_wide => return EffOutcome::Resource("transport".into()),
                         Err(ChunkErr::TooLarge) => Err(BodyFault::TooLarge),
                         Err(ChunkErr::Memory) => return EffOutcome::Resource("memory".into()),
                         Err(ChunkErr::TrailerTooLarge) => return EffOutcome::Resource("header_bytes".into()),

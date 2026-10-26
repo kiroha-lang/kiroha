@@ -23,6 +23,7 @@ pub struct HttpRequest {
     pub header_limit: u64,
     /// Decoded-body limit; the adapter bounds raw identity bodies by it.
     pub max_bytes: u64,
+    pub max_bytes_wide: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -69,7 +70,7 @@ pub enum Effect {
     Release { connection: String, discard: bool },
     Sleep(u64),
     Listen { host: String, port: u16 },
-    ReadBody { request: u64, max_body: u64 },
+    ReadBody { request: u64, max_body: u64, max_body_wide: bool },
     SendResponse { request: u64, status: u16, headers: Vec<(String, String)>, body: Vec<u8>, suppress_body: bool },
     CloseRequest { request: u64 },
     CloseListener { listener: String },

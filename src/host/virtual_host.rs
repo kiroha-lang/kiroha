@@ -415,7 +415,7 @@ impl Host for VirtualHost {
                 }
                 self.push(self.now.checked_add(srv.cancel_at_ms).unwrap(), 0, Ev::CancelRoot);
             }
-            Effect::ReadBody { request, max_body } => {
+            Effect::ReadBody { request, max_body, .. } => {
                 let body = self.bodies.get(request).cloned().unwrap_or_default();
                 let res = if body.len() as u64 > *max_body { Err(super::BodyFault::TooLarge) } else { Ok(body) };
                 self.complete_now(id, EffOutcome::Ok(EffValue::Body(res)));

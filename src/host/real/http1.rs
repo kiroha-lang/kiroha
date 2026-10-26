@@ -53,7 +53,7 @@ pub fn trim_ows(mut s: &[u8]) -> &[u8] {
 #[derive(Clone, Copy)]
 enum ChunkState { Hex, NameStart, Name, NameBws, ValueStart, Token, Quoted, Escape, AfterValue, BeforeSemi }
 
-struct ChunkSize { state: ChunkState, size: u64, digits: bool }
+struct ChunkSize { state: ChunkState, size: u128, digits: bool }
 
 impl ChunkSize {
     fn new() -> Self { Self { state: ChunkState::Hex, size: 0, digits: false } }
@@ -64,7 +64,7 @@ impl ChunkSize {
         self.state = match self.state {
             Hex if c.is_ascii_hexdigit() => {
                 self.digits = true;
-                self.size = self.size.saturating_mul(16).saturating_add((c as char).to_digit(16).unwrap() as u64);
+                self.size = self.size.saturating_mul(16).saturating_add((c as char).to_digit(16).unwrap() as u128).min(u64::MAX as u128 + 1);
                 Hex
             }
             Hex if !self.digits => return false,
@@ -89,13 +89,13 @@ impl ChunkSize {
         true
     }
 
-    fn finish(&self) -> Option<u64> {
+    fn finish(&self) -> Option<u128> {
         use ChunkState::*;
         if self.digits && matches!(self.state, Hex | Name | Token | AfterValue) { Some(self.size) } else { None }
     }
 }
 
-pub fn parse_chunk_size(line: &[u8]) -> Option<u64> {
+pub fn parse_chunk_size(line: &[u8]) -> Option<u128> {
     let mut parser = ChunkSize::new();
     for &c in line { if !parser.feed(c) { return None; } }
     parser.finish()
@@ -103,11 +103,11 @@ pub fn parse_chunk_size(line: &[u8]) -> Option<u64> {
 
 /// Content-Length per RFC 9110 §8.6: `1*DIGIT`, possibly a comma-separated list
 /// of identical values. `Ok(None)` when no field is present; numerals beyond
-/// `u64` saturate to `u64::MAX`; invalid or conflicting values are `Err`.
+/// `u64` retain an overflow sentinel `u64::MAX + 1`; invalid/conflicting values are `Err`.
 #[allow(clippy::result_unit_err)] // the only failure is "invalid or conflicting"
-pub fn content_length<'a>(values: impl Iterator<Item = &'a [u8]>) -> Result<Option<u64>, ()> {
+pub fn content_length<'a>(values: impl Iterator<Item = &'a [u8]>) -> Result<Option<u128>, ()> {
     let mut seen: Option<Vec<u8>> = None;
-    let mut value = 0u64;
+    let mut value = 0u128;
     for v in values {
         for part in v.split(|&c| c == b',') {
             let p = trim_ows(part);
@@ -119,7 +119,7 @@ pub fn content_length<'a>(values: impl Iterator<Item = &'a [u8]>) -> Result<Opti
             if seen.as_ref().is_some_and(|s| *s != norm) {
                 return Err(());
             }
-            value = norm.iter().fold(0u64, |n, &d| n.saturating_mul(10).saturating_add((d - b'0') as u64));
+            value = norm.iter().fold(0u128, |n, &d| n.saturating_mul(10).saturating_add((d - b'0') as u128).min(u64::MAX as u128 + 1));
             seen = Some(norm);
         }
     }
@@ -171,7 +171,7 @@ impl<R: AsyncRead + Unpin> Src<'_, R> {
         let c = self.buf[self.pos]; self.pos += 1; Ok(c)
     }
 
-    async fn chunk_size(&mut self) -> Result<u64, ()> {
+    async fn chunk_size(&mut self) -> Result<u128, ()> {
         let mut parser = ChunkSize::new();
         let mut count = 0usize;
         loop {
@@ -268,9 +268,10 @@ pub async fn read_chunked_bounded<R, E>(
                 }
             }
         }
-        if size > max_total.saturating_sub(total) {
+        if size > max_total.saturating_sub(total) as u128 {
             return Err(ChunkErr::TooLarge);
         }
+        let size = size as u64;
         let mut left = size;
         while left > 0 {
             if src.pos == src.buf.len() {
@@ -297,7 +298,9 @@ mod tests {
         assert_eq!(parse_chunk_size(b"7 ; a=b"), Some(7));
         assert_eq!(parse_chunk_size(b"7;a=\"q\\\"x\""), Some(7));
         assert_eq!(parse_chunk_size(b"00000000000000005"), Some(5));
-        assert_eq!(parse_chunk_size(b"ffffffffffffffffff"), Some(u64::MAX));
+        assert_eq!(parse_chunk_size(b"ffffffffffffffffff"), Some(u64::MAX as u128 + 1));
+        assert_eq!(parse_chunk_size(b"ffffffffffffffff"), Some(u64::MAX as u128));
+        assert_eq!(parse_chunk_size(b"10000000000000000"), Some(u64::MAX as u128 + 1));
         for bad in [&b" 7"[..], b"7 ", b"7;\x01", b"7;", b"7;=b", b"+7", b"", b"7;a=", b"7;a=\"x"] {
             assert_eq!(parse_chunk_size(bad), None, "{:?}", String::from_utf8_lossy(bad));
         }
@@ -312,7 +315,9 @@ mod tests {
         assert_eq!(cl(&[b"5", b"6"]), Err(()));
         assert_eq!(cl(&[b""]), Err(()));
         assert_eq!(cl(&[b"+5"]), Err(()));
-        assert_eq!(cl(&[b"99999999999999999999999"]), Ok(Some(u64::MAX)));
+        assert_eq!(cl(&[b"99999999999999999999999"]), Ok(Some(u64::MAX as u128 + 1)));
+        assert_eq!(cl(&[b"18446744073709551615"]), Ok(Some(u64::MAX as u128)));
+        assert_eq!(cl(&[b"18446744073709551616"]), Ok(Some(u64::MAX as u128 + 1)));
         assert_eq!(cl(&[b"99999999999999999999999", b"99999999999999999999998"]), Err(()));
     }
 

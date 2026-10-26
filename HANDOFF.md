@@ -8,9 +8,9 @@ The checkout remains `/home/mizushima/dev/kiri`.
 
 ## Current state
 
-- Audits 1–19 are fixed. The recent boundary findings and fixes
+- Audits 1–20 are fixed. The recent boundary findings and fixes
   are recorded in [the conformance report](docs/conformance-report.md).
-- A fresh full audit 20 and final verification of the renamed tree are next.
+- A fresh full audit 21 and final verification of the renamed tree are next.
   Do not claim completion until they pass.
 - The normative contract is [spec.md](spec.md), especially §15.3. Optional
   fuzzing, Miri/sanitizers and a mechanically linked proof are future work,

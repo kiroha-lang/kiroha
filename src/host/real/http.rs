@@ -124,7 +124,7 @@ impl Client {
 
 enum Mode {
     None,
-    Length(u64),
+    Length(u128),
     Chunked,
     /// Delimited by the end of the connection.
     Close,
@@ -296,7 +296,7 @@ where
         raw_cap,
     };
     let too_large = |gzip: bool| {
-        if gzip {
+        if gzip || req.max_bytes_wide {
             EffOutcome::Resource("transport".into())
         } else {
             EffOutcome::Err(crate::builtins::effects::limit_error(req.max_bytes))
@@ -305,10 +305,10 @@ where
     match mode {
         Mode::None => {}
         Mode::Length(n) => {
-            if n > raw_cap {
+            if n > raw_cap as u128 {
                 return too_large(gzip);
             }
-            let mut left = n;
+            let mut left = n as u64;
             if !buf.is_empty() && left > 0 {
                 let k = (buf.len() as u64).min(left) as usize;
                 if let Err(e) = sink.push(&buf[..k]) {

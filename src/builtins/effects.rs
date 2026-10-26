@@ -243,6 +243,7 @@ impl<H: Host> Runtime<H> {
             body,
             header_limit: self.config.limits.header_bytes,
             max_bytes,
+            max_bytes_wide: field(o, "max_bytes").and_then(Value::as_num).is_some_and(|d| d.to_u64().is_none()),
         };
         Ok(Prepared::Dispatch(
             OpFrame::Http { kind, head: method == "HEAD", max_bytes },

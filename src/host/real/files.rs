@@ -133,6 +133,15 @@ fn temp_name(name: &str) -> Result<String, getrandom::Error> {
     Ok(format!(".{name}.kiroha-{hex}.tmp"))
 }
 
+fn cleanup_temp(dir: &OwnedFd, tmp: &str, mut diagnostic: impl FnMut(&[u8])) {
+    if unlinkat(dir, tmp, AtFlags::empty()).is_err() {
+        // No path or underlying OS message: cleanup diagnostics must not leak
+        // task data, and failure to write the diagnostic cannot replace the
+        // primary error/abort (§8.4, §13.2).
+        diagnostic(b"{\"event\":\"cleanup_error\",\"operation\":\"write\",\"reason\":\"unlink\"}\n");
+    }
+}
+
 fn replace_blocking(path: &str, bytes: &[u8], cancel: &Cancel) -> FileRes {
     let (dir, name) = match open_parent(path) {
         Ok(x) => x,
@@ -168,7 +177,7 @@ fn replace_blocking(path: &str, bytes: &[u8], cancel: &Cancel) -> FileRes {
         Err(e) => return io("write", reason_of(e), "not_applied"),
     };
     let cleanup = |dir: &OwnedFd| {
-        let _ = unlinkat(dir, tmp.as_str(), AtFlags::empty());
+        cleanup_temp(dir, tmp.as_str(), |line| { let _ = std::io::stderr().lock().write_all(line); });
     };
     // 3. write, set mode, close
     let mut f = std::fs::File::from(fd);
@@ -205,5 +214,25 @@ fn replace_blocking(path: &str, bytes: &[u8], cancel: &Cancel) -> FileRes {
             cleanup(&dir);
             io("write", reason_of(e), "not_applied")
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn failed_unlink_records_a_cleanup_diagnostic() {
+        let root = std::env::temp_dir().join(format!("kiroha-unlink-{}-{}", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        // unlinkat without REMOVEDIR must fail for a directory, independently
+        // of the test user's permissions. This exercises a real OS failure.
+        std::fs::create_dir_all(root.join("temp")).unwrap();
+        let (dir, name) = open_parent(root.join("temp").to_str().unwrap()).unwrap();
+        let mut log = Vec::new();
+        cleanup_temp(&dir, &name, |line| log.extend_from_slice(line));
+        assert!(root.join("temp").is_dir());
+        std::fs::remove_dir_all(&root).unwrap();
+        let text = std::str::from_utf8(&log).unwrap();
+        assert_eq!(text, "{\"event\":\"cleanup_error\",\"operation\":\"write\",\"reason\":\"unlink\"}\n");
     }
 }

@@ -184,7 +184,7 @@ cancelled.
   reports client disconnects. One request per connection. The whole header
   section must arrive within 30 s; `header_bytes` counts the field section
   only (start-line buffers obey the shared heap budget) and trailers count
-  too; Content-Length and chunk sizes are parsed as saturating numerals, so an
+  too; Content-Length and chunk sizes preserve a native-overflow sentinel, so an
   over-limit size is `413` rather than a framing error; header-level framing
   errors are reported to the runtime (`framing_invalid`) so that they take
   precedence over the Content-Encoding check (`400` before `415`). On serve
@@ -222,6 +222,13 @@ string concatenation, `join`, `encode`) overruns a deadline by at most one
 operation, and its result is never reported after the deadline. Arbitrary-precision arithmetic
 inside one `num-bigint` call is not interruptible; its size is bounded by the
 memory quota and the 100,000-digit coefficient/scaling quota.
+
+Wire body-size parsers preserve the distinction between u64::MAX and a
+larger numeral. A declaration exceeding a representable configured limit is
+rejected immediately; when the configured limit itself is wider, a body
+outside native buffer/counter capacity is a `resource` / `transport` abort.
+Failure to remove a file temporary emits a sanitized best-effort
+`cleanup_error` diagnostic; its primary error or abort remains unchanged.
 
 ## Clock capacity
 
