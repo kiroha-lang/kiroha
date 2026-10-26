@@ -70,88 +70,132 @@ pub fn get<'a>(h: &'a [(String, String)], name: &str) -> Option<&'a str> {
     h.iter().find(|(n, _)| n == name).map(|(_, v)| v.as_str())
 }
 
+/// Length in bytes of a quoted-string at the start of `b` (RFC 9110 §5.6.4):
+/// `DQUOTE *( qdtext / quoted-pair ) DQUOTE`.
+pub fn quoted_string_len(b: &[u8]) -> Option<usize> {
+    if b.first() != Some(&b'"') {
+        return None;
+    }
+    let mut k = 1;
+    while k < b.len() {
+        match b[k] {
+            b'"' => return Some(k + 1),
+            b'\\' => {
+                let c = *b.get(k + 1)?;
+                if !(c == b'\t' || c == b' ' || (0x21..=0x7e).contains(&c) || c >= 0x80) {
+                    return None;
+                }
+                k += 2;
+            }
+            c if c == b'\t' || c == b' ' || c == 0x21 || (0x23..=0x5b).contains(&c) || (0x5d..=0x7e).contains(&c) || c >= 0x80 => {
+                k += 1
+            }
+            _ => return None,
+        }
+    }
+    None
+}
+
+/// Unescape a complete quoted-string (quoted-pairs stand for their octet).
+fn unquote(b: &[u8]) -> String {
+    let mut out = Vec::with_capacity(b.len());
+    let mut k = 1;
+    while k + 1 < b.len() {
+        if b[k] == b'\\' {
+            out.push(b[k + 1]);
+            k += 2;
+        } else {
+            out.push(b[k]);
+            k += 1;
+        }
+    }
+    out.iter().map(|&c| c as char).collect()
+}
+
+/// A parsed media type: lowercase type, lowercase subtype, parameters.
+pub type MediaType = (String, String, Vec<(String, String)>);
+
+/// Parse `type "/" subtype *( OWS ";" OWS [ parameter ] )` with
+/// `parameter = token "=" ( token / quoted-string )` (RFC 9110 §8.3.1,
+/// §5.6.6). Returns lowercase type/subtype and (lowercase name, value).
+pub fn parse_media_type(v: &str) -> Option<MediaType> {
+    let b = v.as_bytes();
+    let ows = |mut k: usize| {
+        while k < b.len() && (b[k] == b' ' || b[k] == b'\t') {
+            k += 1;
+        }
+        k
+    };
+    let token = |k: usize| {
+        let mut e = k;
+        while e < b.len() && is_token_char(b[e]) {
+            e += 1;
+        }
+        e
+    };
+    let mut k = ows(0);
+    let e = token(k);
+    if e == k || b.get(e) != Some(&b'/') {
+        return None;
+    }
+    let ty = v[k..e].to_ascii_lowercase();
+    k = e + 1;
+    let e = token(k);
+    if e == k {
+        return None;
+    }
+    let sub = v[k..e].to_ascii_lowercase();
+    k = ows(e);
+    let mut params = Vec::new();
+    while k < b.len() {
+        if b[k] != b';' {
+            return None;
+        }
+        k = ows(k + 1);
+        if k >= b.len() || b[k] == b';' {
+            continue; // empty parameter
+        }
+        let e = token(k);
+        if e == k || b.get(e) != Some(&b'=') {
+            return None;
+        }
+        let name = v[k..e].to_ascii_lowercase();
+        k = e + 1;
+        let value = if b.get(k) == Some(&b'"') {
+            let n = quoted_string_len(&b[k..])?;
+            let val = unquote(&b[k..k + n]);
+            k += n;
+            val
+        } else {
+            let e = token(k);
+            if e == k {
+                return None;
+            }
+            let val = v[k..e].to_string();
+            k = e;
+            val
+        };
+        params.push((name, value));
+        k = ows(k);
+    }
+    Some((ty, sub, params))
+}
+
 /// application/json with at most one charset=utf-8 parameter (quoted allowed).
 pub fn is_json_media(v: &str) -> bool {
-    let mut parts = v.split(';');
-    let mt = parts.next().unwrap_or("").trim_matches(|c| c == ' ' || c == '\t');
-    if !mt.eq_ignore_ascii_case("application/json") {
-        return false;
-    }
-    // RFC 9110 §5.6.6: `*( OWS ";" OWS [ parameter ] )` — empty parameters are legal.
-    let params: Vec<&str> = parts.filter(|p| !p.trim_matches(|c| c == ' ' || c == '\t').is_empty()).collect();
-    match params.len() {
-        0 => true,
-        1 => {
-            let p = params[0].trim_matches(|c| c == ' ' || c == '\t');
-            let (k, val) = match p.split_once('=') {
-                Some(x) => x,
-                None => return false,
-            };
-            let k = k.trim_matches(|c| c == ' ' || c == '\t');
-            let val = val.trim_matches(|c| c == ' ' || c == '\t');
-            let val = if val.len() >= 2 && val.starts_with('"') && val.ends_with('"') { &val[1..val.len() - 1] } else { val };
-            k.eq_ignore_ascii_case("charset") && val.eq_ignore_ascii_case("utf-8")
-        }
+    match parse_media_type(v) {
+        Some((t, s, params)) if t == "application" && s == "json" => match params.as_slice() {
+            [] => true,
+            [(name, value)] => name == "charset" && value.eq_ignore_ascii_case("utf-8"),
+            _ => false,
+        },
         _ => false,
     }
 }
 
-/// Syntactically valid media type (RFC 9110 §8.3.1):
-/// `type "/" subtype *( OWS ";" OWS parameter )`,
-/// `parameter = token "=" ( token / quoted-string )`.
+/// Syntactically valid media type (RFC 9110 §8.3.1).
 pub fn is_media_type(v: &str) -> bool {
-    let ows = |s: &str| s.trim_matches(|c| c == ' ' || c == '\t').to_string();
-    let b = v.as_bytes();
-    // split on ';' outside quoted strings
-    let mut parts: Vec<String> = Vec::new();
-    let (mut cur, mut quoted, mut i) = (String::new(), false, 0);
-    while i < b.len() {
-        let c = b[i] as char;
-        if quoted && c == '\\' && i + 1 < b.len() {
-            cur.push(c);
-            cur.push(b[i + 1] as char);
-            i += 2;
-            continue;
-        }
-        if c == '"' {
-            quoted = !quoted;
-        }
-        if c == ';' && !quoted {
-            parts.push(std::mem::take(&mut cur));
-        } else {
-            cur.push(c);
-        }
-        i += 1;
-    }
-    if quoted {
-        return false;
-    }
-    parts.push(cur);
-    let mt = ows(&parts[0]);
-    let ok_type = match mt.split_once('/') {
-        Some((a, b)) => is_token(a) && is_token(b),
-        None => false,
-    };
-    ok_type
-        && parts[1..].iter().all(|p| {
-            let p = ows(p);
-            if p.is_empty() {
-                return true; // empty parameter (RFC 9110 §5.6.6)
-            }
-            match p.split_once('=') {
-                Some((k, val)) => {
-                    is_token(k)
-                        && (is_token(val)
-                            || (val.len() >= 2
-                                && val.starts_with('"')
-                                && val.ends_with('"')
-                                && val[1..val.len() - 1]
-                                    .bytes()
-                                    .all(|c| c == b'\t' || (0x20..0x7f).contains(&c) || c >= 0x80)))
-                }
-                None => false,
-            }
-        })
+    parse_media_type(v).is_some()
 }
 
 /// Content-Encoding must be absent or identity.
@@ -213,5 +257,8 @@ mod tests {
         assert!(is_json_media("application/json;"));
         assert!(is_json_media("application/json; charset=utf-8;"));
         assert!(!is_json_media("application/json; charset=utf-8; a=b"));
+        assert!(!is_media_type("text/plain; a=\"x\"\"y\""));
+        assert!(is_json_media("application/json; charset=\"utf\\-8\""));
+        assert!(is_json_media("Application/JSON ; CHARSET=UTF-8"));
     }
 }

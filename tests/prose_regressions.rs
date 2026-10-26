@@ -105,7 +105,14 @@ const MANIFEST: &str = r#"{
   {"id":"http-options-validated-in-table-order",
    "source":"u=\"https://f.invalid/\";[(try get(u,{headers:{\"accept-encoding\":\"br\"},timeout:null}) catch {e=>e.code}),(try post(u,{a:1},{headers:{\"content-type\":\"text/plain\"},timeout:\"x\"}) catch {e=>e.code}),(try http(\"GET\",u,{body:encode(\"x\"),timeout:\"x\"}) catch {e=>e.code}),(try http(\"HEAD\",u,{body:encode(\"\"),max_bytes:\"big\"}) catch {e=>e.code})]",
    "host":{"capabilities":{"http":["https://f.invalid"]}},
-   "expect":{"phase":"value","json":"[\"argument\",\"argument\",\"argument\",\"argument\"]"}}
+   "expect":{"phase":"value","json":"[\"argument\",\"argument\",\"argument\",\"argument\"]"}},
+  {"id":"media-type-quoting-and-accept-encoding-empties",
+   "source":"u=\"https://f.invalid/\";[(try reply(200,encode(\"x\"),{\"content-type\":\"text/plain; a=\\\"x\\\"\\\"y\\\"\"}) catch {e=>e.code}),post(u,1,{headers:{\"content-type\":\"application/json; charset=\\\"utf\\\\-8\\\"\"}}),http(\"GET\",u,{headers:{\"accept-encoding\":\"\"}}).status,http(\"GET\",u,{headers:{\"accept-encoding\":\"gzip, \"}}).status]",
+   "host":{"capabilities":{"http":["https://f.invalid"]}},
+   "fixtures":[{"id":"p","op":"http","match":{"method":"POST"},"ok":{"status":200,"headers":[],"body_base64":"Mg=="}},
+     {"id":"g1","op":"http","match":{"method":"GET"},"ok":{"status":204,"headers":[],"body_base64":""}},
+     {"id":"g2","op":"http","match":{"method":"GET"},"ok":{"status":204,"headers":[],"body_base64":""}}],
+   "expect":{"phase":"value","json":"[\"argument\",2,204,204]"}}
  ]}"#;
 
 #[test]

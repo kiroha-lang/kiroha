@@ -181,9 +181,10 @@ impl<H: Host> Runtime<H> {
         };
         // Header-field rules belong to the `headers` option (validated first).
         if let Some(ae) = headers::get(&hdrs, "accept-encoding") {
+            // Empty value / empty list elements are legal (RFC 9110 §12.5.3, §5.6.1).
             let ok = ae.split(',').all(|tok| {
-                let coding = tok.split(';').next().unwrap_or("").trim();
-                coding.eq_ignore_ascii_case("gzip") || coding.eq_ignore_ascii_case("identity")
+                let coding = tok.split(';').next().unwrap_or("").trim_matches(|c| c == ' ' || c == '\t');
+                coding.is_empty() || coding.eq_ignore_ascii_case("gzip") || coding.eq_ignore_ascii_case("identity")
             });
             if !ok {
                 return Err(arg_err(op, "Accept-Encoding may request only gzip or identity"));

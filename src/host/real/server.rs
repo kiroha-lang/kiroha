@@ -30,6 +30,7 @@ struct ConnState {
     buf: Vec<u8>,
     framing: Framing,
     watcher: Option<CancellationToken>,
+    header_limit: u64,
 }
 
 #[derive(Default)]
@@ -139,11 +140,11 @@ impl Servers {
         let inner = self.inner.clone();
         let tx = self.tx.clone();
         async move {
-            let (mut rd, mut buf, framing) = {
+            let (mut rd, mut buf, framing, header_limit) = {
                 let mut i = inner.borrow_mut();
                 match i.conns.get_mut(&request) {
                     Some(c) => match c.read.take() {
-                        Some(r) => (r, std::mem::take(&mut c.buf), c.framing),
+                        Some(r) => (r, std::mem::take(&mut c.buf), c.framing, c.header_limit),
                         None => return EffOutcome::Ok(EffValue::Body(Err(BodyFault::BadFraming))),
                     },
                     None => return EffOutcome::Ok(EffValue::Body(Err(BodyFault::BadFraming))),
@@ -175,7 +176,7 @@ impl Servers {
                         }
                     }
                 }
-                Framing::Chunked => read_chunked(&mut rd, buf, max_body).await,
+                Framing::Chunked => read_chunked(&mut rd, buf, max_body, header_limit).await,
             };
             // Watch for client disconnect while the handler runs.
             let token = CancellationToken::new();
@@ -279,7 +280,58 @@ impl Servers {
     }
 }
 
-async fn read_chunked(rd: &mut OwnedReadHalf, mut buf: Vec<u8>, max_body: u64) -> Result<Vec<u8>, BodyFault> {
+/// `chunk-size [ chunk-ext ]` (RFC 9112 §7.1.1):
+/// `1*HEXDIG *( BWS ";" BWS ext-name [ BWS "=" BWS ( token / quoted-string ) ] )`.
+fn parse_chunk_size(line: &[u8]) -> Option<u64> {
+    use crate::builtins::headers::{is_token_char, quoted_string_len};
+    let hex_end = line.iter().position(|c| !c.is_ascii_hexdigit()).unwrap_or(line.len());
+    if hex_end == 0 || hex_end > 16 {
+        return None;
+    }
+    let size = u64::from_str_radix(std::str::from_utf8(&line[..hex_end]).ok()?, 16).ok()?;
+    let bws = |mut k: usize| {
+        while k < line.len() && (line[k] == b' ' || line[k] == b'\t') {
+            k += 1;
+        }
+        k
+    };
+    let token_end = |k: usize| {
+        let mut e = k;
+        while e < line.len() && is_token_char(line[e]) {
+            e += 1;
+        }
+        e
+    };
+    let mut k = hex_end;
+    while k < line.len() {
+        k = bws(k);
+        if line.get(k) != Some(&b';') {
+            return None;
+        }
+        k = bws(k + 1);
+        let e = token_end(k);
+        if e == k {
+            return None;
+        }
+        k = e;
+        let after = bws(k);
+        if line.get(after) == Some(&b'=') {
+            k = bws(after + 1);
+            if line.get(k) == Some(&b'"') {
+                k += quoted_string_len(&line[k..])?;
+            } else {
+                let e = token_end(k);
+                if e == k {
+                    return None;
+                }
+                k = e;
+            }
+        }
+    }
+    Some(size)
+}
+
+async fn read_chunked(rd: &mut OwnedReadHalf, mut buf: Vec<u8>, max_body: u64, header_limit: u64) -> Result<Vec<u8>, BodyFault> {
     let mut out = Vec::new();
     let mut pos = 0usize;
     async fn need(rd: &mut OwnedReadHalf, buf: &mut Vec<u8>, upto: usize) -> Result<(), BodyFault> {
@@ -311,19 +363,23 @@ async fn read_chunked(rd: &mut OwnedReadHalf, mut buf: Vec<u8>, max_body: u64) -
     }
     loop {
         let l = line(rd, &mut buf, &mut pos).await?;
-        let size_text = std::str::from_utf8(&l).map_err(|_| BodyFault::BadFraming)?;
-        let size_text = size_text.split(';').next().unwrap_or("").trim();
-        if size_text.is_empty() || size_text.len() > 16 || !size_text.bytes().all(|c| c.is_ascii_hexdigit()) {
-            return Err(BodyFault::BadFraming);
-        }
-        let size = u64::from_str_radix(size_text, 16).map_err(|_| BodyFault::BadFraming)?;
+        let size = parse_chunk_size(&l).ok_or(BodyFault::BadFraming)?;
         if size == 0 {
-            // trailers until empty line
+            // trailers until empty line; the trailer section is a received
+            // field section bounded by header_bytes (§14.1)
+            let mut trailer_bytes: u64 = 0;
             loop {
                 let t = line(rd, &mut buf, &mut pos).await?;
                 if t.is_empty() {
                     return Ok(out);
                 }
+                trailer_bytes += t.len() as u64 + 2;
+                if trailer_bytes > header_limit {
+                    return Err(BodyFault::BadFraming);
+                }
+                // drop consumed bytes so the buffer cannot grow without bound
+                buf.drain(..pos);
+                pos = 0;
                 // trailer-section = *( field-line CRLF ) (RFC 9112 §7.1.2)
                 let ok = match t.iter().position(|&c| c == b':') {
                     Some(i) => {
@@ -421,7 +477,7 @@ async fn handle_conn(
         let mut i = inner.borrow_mut();
         i.next_req += 1;
         let id = i.next_req;
-        i.conns.insert(id, ConnState { read: Some(rd), write: Some(wr), buf: rest, framing, watcher: None });
+        i.conns.insert(id, ConnState { read: Some(rd), write: Some(wr), buf: rest, framing, watcher: None, header_limit });
         id
     };
     let _ = tx.send(HostEvent::Request(IncomingRequest {

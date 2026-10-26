@@ -89,7 +89,7 @@ root/request scope with `resource`. See
 
 ## Independent audits
 
-Thirteen independent read-and-execute audits of sections 2–15 were run against the
+Fourteen independent read-and-execute audits of sections 2–15 were run against the
 code (each walked the normative rules section by section and confirmed every
 finding by running programs or custom fixture manifests).
 
@@ -119,6 +119,8 @@ finding by running programs or custom fixture manifests).
 | 12 (full, §2–§15) | 1 (low): `reply` accepted a syntactically invalid custom Content-Type parameter for Bytes bodies | Fixed: media types validated per RFC 9110 §8.3.1 (`token "=" (token / quoted-string)` parameters). Regressions in `src/builtins/headers.rs` unit tests and `tests/prose_regressions.rs`. Every other subsection of §2–§15 "verified, no violation", including normal results, interruptibility, memory quotas, deep nesting, scheduler step counts and PostgreSQL 16 behaviour |
 
 | 13 (full, §2–§15, incl. RFC syntax) | 3 (low–medium): empty media-type parameters (`application/json;`) rejected; http/get/post header and body rules checked after `timeout`/`max_bytes`; malformed chunked trailer fields accepted by the server | Fixed: RFC 9110 §5.6.6 empty parameters accepted; option rules validated in table order; trailer fields validated (RFC 9112 §7.1.2). Regressions in `tests/prose_regressions.rs`, `tests/i05_server.rs`, header unit tests. Every other subsection "verified, no violation" |
+
+| 14 (full, §2–§15, incl. RFC syntax) | 5: chunked trailer section not bounded by `header_bytes` (memory growth); lenient chunk-size lines (whitespace, malformed extensions); bare `"` inside quoted media-type parameters accepted; empty Accept-Encoding / empty list elements rejected; quoted-pairs in `charset` not unescaped | Fixed: trailer section counted against `header_bytes` with buffer draining; RFC 9112 §7.1.1 chunk-size/extension parser; RFC 9110 media-type parser with quoted-string unescaping; empty Accept-Encoding elements accepted. Regressions in `tests/i05_server.rs`, `tests/prose_regressions.rs`, header unit tests. Every other subsection "verified, no violation" |
 
 Audit 2 recorded "no new violations" for §2, §3, §4, §5, §6, §7, §8, §9,
 §10 (apart from the fixture header checks), §11 (apart from the two SQL

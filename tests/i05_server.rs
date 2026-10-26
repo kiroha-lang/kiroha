@@ -118,6 +118,36 @@ fn routing_framing_limits_and_shutdown() {
     ] {
         assert_eq!(status(&send(port, raw)), "400");
     }
+    // Chunk-size lines follow RFC 9112 §7.1.1 strictly.
+    let chunked = |size_line: &str| {
+        let raw = format!(
+            "POST /in HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\n\r\n{size_line}\r\n{{\"n\":1}}\r\n0\r\n\r\n"
+        );
+        status(&send(port, raw.as_bytes())).to_string()
+    };
+    for bad in [" 7", "7 ", "7;\u{1}", "7;", "+7"] {
+        assert_eq!(chunked(bad), "400", "{bad:?}");
+    }
+    for good in ["7", "7;ext", "7 ; a=b", "7;a=\"q\\\"x\""] {
+        assert_eq!(chunked(good), "200", "{good:?}");
+    }
+    // A trailer section beyond header_bytes is rejected (no unbounded growth).
+    {
+        let mut s = TcpStream::connect(("127.0.0.1", port)).unwrap();
+        s.set_read_timeout(Some(Duration::from_secs(10))).unwrap();
+        s.write_all(b"POST /in HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\n\r\n7\r\n{\"n\":1}\r\n0\r\n").unwrap();
+        let pad = format!("X-Pad: {}\r\n", "a".repeat(8000));
+        for _ in 0..64 {
+            if s.write_all(pad.as_bytes()).is_err() {
+                break;
+            }
+        }
+        let _ = s.write_all(b"\r\n");
+        let mut out = Vec::new();
+        let _ = s.read_to_end(&mut out);
+        let r = String::from_utf8_lossy(&out).to_string();
+        assert_eq!(status(&r), "400", "{r}");
+    }
     let r = send(port, b"POST /in HTTP/1.1\r\nHost: x\r\nContent-Type: application/json; charset=utf-8;\r\nTransfer-Encoding: chunked\r\n\r\n7\r\n{\"n\":3}\r\n0\r\nX-T: ok\r\n\r\n");
     assert_eq!(body(&r), r#"{"n":3}"#);
     // Many small header fields within header_bytes are fine.
