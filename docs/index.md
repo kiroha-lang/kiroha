@@ -15,7 +15,7 @@ have a clear beginning and a matching named end.
 [Install Kiroha](install.md){ .md-button }
 
 ```kiroha
-fun greet(name)
+fun greet(name:str)
   "Hello, " + name + "!"
 end fun greet
 

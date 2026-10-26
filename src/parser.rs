@@ -4,16 +4,19 @@ use crate::ast::{BinOp, Body, FnInfo, Node, NodeId, Program, UnOp, Var};
 use crate::diag::{Diagnostic, Span};
 use crate::lexer::{Kw, Tok, Token, P};
 use crate::value::Value;
+use crate::types::{TypeExpr, TypeExprKind, TypeRef, TypeParam};
 use std::collections::HashSet;
+use std::borrow::Cow;
 use std::rc::Rc;
 
 struct Parser<'a> {
-    toks: &'a [Token],
+    toks: Cow<'a, [Token]>,
     pos: usize,
     prog: &'a mut Program,
 }
 
 type PResult<T> = Result<T, Diagnostic>;
+type Parameters = (Vec<Rc<str>>, Vec<Option<TypeExpr>>);
 
 fn syntax(msg: impl Into<String>, span: Span) -> Diagnostic {
     Diagnostic::new("parse", "syntax", msg, span)
@@ -23,7 +26,7 @@ fn syntax(msg: impl Into<String>, span: Span) -> Diagnostic {
 pub fn parse(toks: &[Token]) -> PResult<Program> {
     let mut prog = Program::default();
     let items = {
-        let mut p = Parser { toks, pos: 0, prog: &mut prog };
+        let mut p = Parser { toks: Cow::Borrowed(toks), pos: 0, prog: &mut prog };
         let items = p.sequence(|t| matches!(t, Tok::Eof))?;
         p.expect_eof()?;
         items
@@ -169,13 +172,23 @@ impl<'a> Parser<'a> {
         if self.at_kw(Kw::Fun) {
             return self.definition();
         }
+        if self.at_kw(Kw::Type) {
+            let start = self.advance().span;
+            let (name, _) = self.ident("type name")?;
+            let params = self.type_params()?;
+            self.expect(P::Assign, "`=`")?;
+            let body = self.type_expr()?;
+            let span = start.join(body.span);
+            return Ok(self.add(Node::TypeDecl { name, params, body, alias: 0 }, span));
+        }
         if let Tok::Ident(_) = self.peek() {
-            if matches!(self.peek_at(1), Tok::P(P::Assign)) {
+            if matches!(self.peek_at(1), Tok::P(P::Assign | P::Colon)) {
                 let (name, sp) = self.ident("identifier")?;
-                self.advance(); // =
+                let annotation = self.annotation()?;
+                self.expect(P::Assign, "`=`")?;
                 let e = self.expr()?;
                 let span = sp.join(self.prog.span(e));
-                return Ok(self.add(Node::Bind { name, slot: 0, e }, span));
+                return Ok(self.add(Node::Bind { name, slot: 0, e, annotation }, span));
             }
         }
         self.expr()
@@ -184,22 +197,26 @@ impl<'a> Parser<'a> {
     fn definition(&mut self) -> PResult<NodeId> {
         let sp = self.advance().span; // fun
         let (name, _) = self.ident("function name")?;
+        let type_params = self.type_params()?;
         self.expect(P::LParen, "`(`")?;
-        let mut params = Vec::new();
-        if !self.at(P::RParen) {
-            params.push(self.ident("parameter")?.0);
-            while self.at(P::Comma) {
-                self.advance();
-                params.push(self.ident("parameter")?.0);
-            }
-        }
+        let (params, param_types) = self.parameters()?;
         self.expect(P::RParen, "`)`")?;
         let mut slot_name = None;
-        if self.at(P::LBrace) && matches!(self.peek_at(1), Tok::Ident(_)) && matches!(self.peek_at(2), Tok::P(P::RBrace)) {
-            self.advance();
-            slot_name = Some(self.ident("callback slot name")?.0);
-            self.expect(P::RBrace, "`}`")?;
+        let mut slot_type = None;
+        if self.at(P::LBrace) {
+            let saved = self.pos;
+            let slot = (|| -> PResult<_> {
+                self.advance();
+                let name = self.ident("callback slot name")?.0;
+                let annotation = self.annotation()?;
+                self.expect(P::RBrace, "`}`")?;
+                let unambiguous = annotation.as_ref().is_none_or(|a| matches!(a.kind, TypeExprKind::Function { .. })) || self.at(P::Colon);
+                if !unambiguous { return Err(self.unexpected("callback function type")); }
+                Ok((name, annotation))
+            })();
+            match slot { Ok((name, annotation)) => { slot_name = Some(name); slot_type = annotation; }, Err(_) => self.pos = saved }
         }
+        let result_type = self.annotation()?;
         let items = self.sequence(|t| matches!(t, Tok::Kw(Kw::End) | Tok::Eof))?;
         if !self.at_kw(Kw::End) {
             return Err(self.unexpected(&format!("`end fun {name}`")));
@@ -214,6 +231,7 @@ impl<'a> Parser<'a> {
         let info = FnInfo {
             name: Some(name),
             params,
+            param_types, type_params, result_type, slot_type,
             slot_name,
             body: Body::Seq(items),
             nlocals: 0,
@@ -221,6 +239,114 @@ impl<'a> Parser<'a> {
             def_slot: 0,
         };
         Ok(self.add(Node::Define(info), span))
+    }
+
+    fn annotation(&mut self) -> PResult<Option<TypeExpr>> {
+        if !self.at(P::Colon) { return Ok(None); }
+        self.advance();
+        Ok(Some(self.type_expr()?))
+    }
+    fn parameters(&mut self) -> PResult<Parameters> {
+        let mut names = Vec::new();
+        let mut annotations = Vec::new();
+        if !self.at(P::RParen) {
+            loop {
+                names.push(self.ident("parameter")?.0);
+                annotations.push(self.annotation()?);
+                if !self.at(P::Comma) { break; }
+                self.advance();
+            }
+        }
+        Ok((names, annotations))
+    }
+    fn type_gt(&mut self) -> PResult<()> {
+        if self.at(P::Ge) {
+            // In a type argument/parameter list, >= is the closing > then =.
+            // Preserve normal comparison tokenization everywhere else.
+            let span = self.span();
+            self.toks.to_mut()[self.pos] = Token { tok: Tok::P(P::Gt), span: Span::new(span.start, span.start + 1) };
+            self.toks.to_mut().insert(self.pos + 1, Token { tok: Tok::P(P::Assign), span: Span::new(span.start + 1, span.end) });
+        }
+        self.expect(P::Gt, "`>`")?;
+        Ok(())
+    }
+    fn type_params(&mut self) -> PResult<Vec<TypeParam>> {
+        let mut params = Vec::new();
+        if self.at(P::Lt) {
+            self.advance();
+            loop {
+                params.push(TypeParam { name: self.ident("type parameter")?.0, id: 0 });
+                if !self.at(P::Comma) { break; }
+                self.advance();
+            }
+            self.type_gt()?;
+        }
+        Ok(params)
+    }
+    fn type_args(&mut self) -> PResult<Vec<TypeExpr>> {
+        self.expect(P::Lt, "`<`")?;
+        let mut args = vec![self.type_expr()?];
+        while self.at(P::Comma) { self.advance(); args.push(self.type_expr()?); }
+        self.type_gt()?;
+        Ok(args)
+    }
+    fn type_expr(&mut self) -> PResult<TypeExpr> {
+        let start = self.span();
+        let kind = match self.peek().clone() {
+            Tok::Ident(name) => {
+                self.advance();
+                if matches!(&*name, "maybe" | "optional" | "open") && self.at(P::LParen) {
+                    self.advance();
+                    let inner = Box::new(self.type_expr()?);
+                    self.expect(P::RParen, "`)`")?;
+                    TypeExprKind::Wrap { name, inner }
+                } else {
+                    let args = if self.at(P::Lt) { self.type_args()? } else { Vec::new() };
+                    TypeExprKind::Name { name, args, target: TypeRef::Unresolved }
+                }
+            }
+            Tok::Kw(Kw::Null) => {
+                self.advance();
+                TypeExprKind::Name { name: Rc::from("null"), args: Vec::new(), target: TypeRef::Unresolved }
+            }
+            Tok::P(P::LBracket) => {
+                self.advance(); let inner = Box::new(self.type_expr()?);
+                self.expect(P::RBracket, "`]`")?; TypeExprKind::Array(inner)
+            }
+            Tok::P(P::LBrace) => {
+                self.advance(); let mut fields = Vec::new(); let mut seen = HashSet::new();
+                if !self.at(P::RBrace) {
+                    loop {
+                        let span = self.span();
+                        let name = if let Tok::Str(s) = self.peek().clone() { self.advance(); s } else { self.word()?.0 };
+                        if !seen.insert(name.clone()) { return Err(Diagnostic::new("parse", "duplicate_key", "duplicate type field", span)); }
+                        self.expect(P::Colon, "`:`")?;
+                        fields.push((name, self.type_expr()?));
+                        if !self.at(P::Comma) { break; } self.advance();
+                    }
+                }
+                self.expect(P::RBrace, "`}`")?; TypeExprKind::Record(fields)
+            }
+            Tok::P(P::LParen) => {
+                self.advance(); let mut params = Vec::new();
+                if !self.at(P::RParen) {
+                    params.push(self.type_expr()?);
+                    while self.at(P::Comma) { self.advance(); params.push(self.type_expr()?); }
+                }
+                self.expect(P::RParen, "`)`")?;
+                let callback = if self.at(P::LBrace) {
+                    self.advance(); let cb = Box::new(self.type_expr()?); self.expect(P::RBrace, "`}`")?; Some(cb)
+                } else { None };
+                if self.at(P::Arrow) {
+                    self.advance();
+                    TypeExprKind::Function { params, callback, result: Box::new(self.type_expr()?) }
+                } else if params.len() == 1 && callback.is_none() {
+                    return Ok(TypeExpr { kind: params.pop().unwrap().kind, span: start.join(self.prev_span()) });
+                } else { return Err(self.unexpected("`=>` in function type")); }
+            }
+            _ => return Err(self.unexpected("type expression")),
+        };
+        Ok(TypeExpr { kind, span: start.join(self.prev_span()) })
     }
 
     fn expr(&mut self) -> PResult<NodeId> {
@@ -297,6 +423,10 @@ impl<'a> Parser<'a> {
                 let (name, end) = self.word()?;
                 let span = self.prog.span(head).join(end);
                 head = self.add(Node::Member { recv: head, name, optional: false }, span);
+            }
+            if self.at(P::Lt) {
+                let args = self.type_args()?; let span = self.prog.span(head).join(self.prev_span());
+                head = self.add(Node::Instantiate { callee: head, args, schema: None }, span);
             }
             if !self.at(P::LParen) {
                 return Err(self.unexpected("`(` after pipe stage path"));
@@ -423,6 +553,13 @@ impl<'a> Parser<'a> {
         let mut e = self.primary()?;
         loop {
             match self.peek() {
+                Tok::P(P::Lt) => {
+                    let saved = self.pos;
+                    match self.type_args() {
+                        Ok(args) => { let span = self.prog.span(e).join(self.prev_span()); e = self.add(Node::Instantiate { callee: e, args, schema: None }, span); }
+                        Err(_) => { self.pos = saved; return Ok(e); }
+                    }
+                }
                 Tok::P(P::LParen) => {
                     let args = self.arguments()?;
                     let cb = self.trailing_callback()?;
@@ -454,61 +591,37 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn is_lambda_head(&self) -> bool {
-        // at "{"
-        match self.peek_at(1) {
-            Tok::Ident(_) => matches!(self.peek_at(2), Tok::P(P::Arrow)),
-            Tok::P(P::LParen) => {
-                if matches!(self.peek_at(2), Tok::P(P::RParen)) {
-                    return matches!(self.peek_at(3), Tok::P(P::Arrow));
-                }
-                // "(" IDENT "," Params ")"
-                let mut k = 2;
-                if !matches!(self.peek_at(k), Tok::Ident(_)) {
-                    return false;
-                }
-                k += 1;
-                let mut count = 1;
-                while matches!(self.peek_at(k), Tok::P(P::Comma)) {
-                    if !matches!(self.peek_at(k + 1), Tok::Ident(_)) {
-                        return false;
-                    }
-                    k += 2;
-                    count += 1;
-                }
-                count >= 2 && matches!(self.peek_at(k), Tok::P(P::RParen)) && matches!(self.peek_at(k + 1), Tok::P(P::Arrow))
-            }
-            _ => false,
+    fn is_lambda_head(&mut self) -> bool {
+        let saved = self.pos;
+        self.advance(); // {
+        let result = self.lambda_parameters().is_ok() && self.at(P::Arrow);
+        self.pos = saved;
+        result
+    }
+
+    fn lambda_parameters(&mut self) -> PResult<Parameters> {
+        if self.at(P::LParen) {
+            self.advance();
+            let result = self.parameters()?;
+            if result.0.len() == 1 { return Err(self.unexpected("at least two parenthesized lambda parameters")); }
+            self.expect(P::RParen, "`)`")?;
+            Ok(result)
+        } else {
+            let name = self.ident("parameter")?.0;
+            let annotation = self.annotation()?;
+            Ok((vec![name], vec![annotation]))
         }
     }
 
     fn lambda(&mut self) -> PResult<NodeId> {
         let sp = self.expect(P::LBrace, "`{`")?;
-        let mut params = Vec::new();
-        if self.at(P::LParen) {
-            self.advance();
-            if !self.at(P::RParen) {
-                params.push(self.ident("parameter")?.0);
-                while self.at(P::Comma) {
-                    self.advance();
-                    params.push(self.ident("parameter")?.0);
-                }
-            }
-            self.expect(P::RParen, "`)`")?;
-        } else {
-            params.push(self.ident("parameter")?.0);
-        }
+        let (params, param_types) = self.lambda_parameters()?;
         self.expect(P::Arrow, "`=>`")?;
         let items = self.sequence(|t| matches!(t, Tok::P(P::RBrace)))?;
         let end = self.expect(P::RBrace, "`}`")?;
         let info = FnInfo {
-            name: None,
-            params,
-            slot_name: None,
-            body: Body::Seq(items),
-            nlocals: 0,
-            captures: Vec::new(),
-            def_slot: 0,
+            name: None, params, param_types, type_params: Vec::new(), result_type: None, slot_type: None,
+            slot_name: None, body: Body::Seq(items), nlocals: 0, captures: Vec::new(), def_slot: 0,
         };
         Ok(self.add(Node::Lambda(info), sp.join(end)))
     }
@@ -635,7 +748,7 @@ impl<'a> Parser<'a> {
                     if toks.len() == 1 {
                         return Err(syntax("empty query hole", h.span));
                     }
-                    let mut sub = Parser { toks: &toks, pos: 0, prog: self.prog };
+                    let mut sub = Parser { toks: Cow::Borrowed(&toks), pos: 0, prog: self.prog };
                     let e = sub.expr()?;
                     if !matches!(sub.peek(), Tok::Eof) {
                         return Err(sub.unexpected("`}` closing query hole"));

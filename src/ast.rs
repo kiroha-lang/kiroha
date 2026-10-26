@@ -18,6 +18,7 @@ pub enum Var {
     SelfFn,
     /// A prelude binding (index into the prelude table).
     Prelude(u32),
+    TypeAlias(u32),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -76,6 +77,10 @@ pub enum Body {
 pub struct FnInfo {
     pub name: Option<Rc<str>>,
     pub params: Vec<Rc<str>>,
+    pub param_types: Vec<Option<crate::types::TypeExpr>>,
+    pub type_params: Vec<crate::types::TypeParam>,
+    pub result_type: Option<crate::types::TypeExpr>,
+    pub slot_type: Option<crate::types::TypeExpr>,
     pub slot_name: Option<Rc<str>>,
     pub body: Body,
     /// Number of local slots needed by one activation.
@@ -106,7 +111,9 @@ pub enum Node {
     Try { e: NodeId, name: Rc<str>, slot: u32, items: Vec<NodeId> },
     Query { segments: Rc<Vec<String>>, holes: Vec<NodeId> },
     Group(NodeId),
-    Bind { name: Rc<str>, slot: u32, e: NodeId },
+    Bind { name: Rc<str>, slot: u32, e: NodeId, annotation: Option<crate::types::TypeExpr> },
+    TypeDecl { name: Rc<str>, params: Vec<crate::types::TypeParam>, body: crate::types::TypeExpr, alias: u32 },
+    Instantiate { callee: NodeId, args: Vec<crate::types::TypeExpr>, schema: Option<Value> },
     Define(FnInfo),
 }
 
@@ -116,6 +123,9 @@ pub struct Program {
     pub spans: Vec<Span>,
     pub items: Vec<NodeId>,
     pub nlocals: u32,
+    pub aliases: Vec<crate::types::Alias>,
+    pub next_type_param: u32,
+    pub inferred_types: Vec<Option<crate::types::Ty>>,
 }
 
 impl Program {

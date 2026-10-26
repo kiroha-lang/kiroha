@@ -1,12 +1,12 @@
-# Kiroha 0.5.0 — Web1 Language and Runtime Specification
+# Kiroha 0.6.0 — Web1 Language and Runtime Specification
 
-**Revision:** 0.5.0 · **Profile:** Web1 · **Date:** 2026-10-26
+**Revision:** 0.6.0 · **Profile:** Web1 · **Date:** 2026-10-26
 **Deliverables:** this self-contained implementation specification and `measurement.json`.
 
 Kiroha is a small, strict, immutable expression language for LLM-generated programs that manipulate JSON, call web services, serve APIs and use PostgreSQL. Its single canonical callback syntax is a mandatory trailing lambda, with a matching declaration-side callback slot:
 
 ```kiroha
-fun apply(x){f} f(x) end fun apply
+fun apply<T,U>(x:T){f:(T)=>U}:U f(x) end fun apply
 apply(10){v=>v+1};
 
 urls=["https://a.example/data","https://b.example/data"];
@@ -43,7 +43,7 @@ The declaration and call both have an ordinary argument channel and a separate c
 
 Sections 2–16 are the normative implementation contract. MUST/MUST NOT express conformance requirements. SHOULD is used only for explicitly optional engineering advice. Examples and test expectations must agree with the normative rules; an implementation may not silently choose a different behavior to match its host language.
 
-This file replaces the Kiroha 0.4.0 specification as the implementation authority for 0.5.0. It defines lexical/syntactic rules, static resolution, values, evaluation, 31 global functions, 19 collection methods and the size property, external effects, host configuration, a CLI and an embedded conformance corpus. No prior chat, hidden design document, skill, existing implementation or unstated API is needed to determine Kiroha semantics.
+This file replaces the Kiroha 0.5.0 specification as the implementation authority for 0.6.0. It defines lexical/syntactic rules, static resolution, values, evaluation, 31 global functions, 19 collection methods and the size property, external effects, host configuration, a CLI and an embedded conformance corpus. No prior chat, hidden design document, skill, existing implementation or unstated API is needed to determine Kiroha semantics.
 
 This revision has a Rust reference implementation in this repository. Embedded cases remain normative acceptance requirements; recorded execution results are in `docs/conformance-report.md`. Token measurements report document/source length only. Finite review and tests do not prove that every future implementation will be bug-free.
 
@@ -68,7 +68,7 @@ The generation surface is small because common work has explicit runtime/library
 | Portability | Host-independent values; explicit I/O and configuration boundaries |
 | Tests | Embedded machine-readable cases plus required real integration scenarios |
 
-The 0.3.0 baseline fixed details not settled by the prior short contract: grammar disambiguation, comparison nonchaining, scalar-based strings, canonical decimal/JSON spelling, static error timing, callback preflight, complete error data, timeout/cleanup scopes, URL/header/framing policies, SQL parsing/typing, filesystem replacement, CLI/wire formats and conformance fixtures. It also treats HTTP 205 as bodyless. The 0.4.0 revision introduced explicit `fun` and matching named ends. Version 0.5.0 removes function-header `then`, makes a separator after a definition optional, and moves collection operations to receiver methods with `.size` for length. Conditional `then` remains mandatory. The native operation inventory remains 51 entries; its public surface is 31 globals, 19 methods and one property. Token counts below measure length, not generation success.
+The 0.3.0 baseline fixed details not settled by the prior short contract: grammar disambiguation, comparison nonchaining, scalar-based strings, canonical decimal/JSON spelling, static error timing, callback preflight, complete error data, timeout/cleanup scopes, URL/header/framing policies, SQL parsing/typing, filesystem replacement, CLI/wire formats and conformance fixtures. It also treats HTTP 205 as bodyless. The 0.4.0 revision introduced explicit `fun` and matching named ends. Version 0.5.0 removes function-header `then`, makes a separator after a definition optional, and moves collection operations to receiver methods with `.size` for length. Conditional `then` remains mandatory. The native operation inventory remains 51 entries; its public surface is 31 globals, 19 methods and one property. Version 0.6.0 adds explicit structural types, lightweight checking and simple generics, with no implicit any. Token counts below measure length, not generation success.
 
 ### 0.4 Agent build instruction
 
@@ -82,16 +82,16 @@ The exact text between the text fence below is extracted by `kiroha spec --compa
 
 <!-- KIROHA_GENERATION_CARD_BEGIN -->
 ```text
-Kiroha 0.5.0 / Web1
+Kiroha 0.6.0 / Web1
 Write only this language/API. No imports, host escape, invented methods or implicit variables. Task URLs, credentials, DB schemas and requirements are separate input.
 
 CORE
 Case-sensitive ASCII identifiers; JSON null/true/false, JSON-number syntax, double-quoted JSON strings, arrays [e,...], records {key:e,...}. Identifier keys need no quotes; {x}={x:x}. Duplicate decoded keys error. // line comments. Newlines are whitespace; bindings and expressions need ; between items; a function definition ends itself. No trailing commas, spread, assignment or coercion.
 Immutable values: JSON, functions, Bytes, schemas, Query, DB/transaction handles, Reply. Records retain insertion order. Equality accepts only recursively JSON values, ignoring record-key order; opaque/function comparison errors. Strings use Unicode scalars.
 Numbers: exact finite decimals; parse,+,-,*,comparison exact; / rounds to 34 significant digits ties-even; % uses exact rational quotient truncated toward zero. Zero divisor errors. int=integer-valued number. + also joins two strings or arrays. No NaN/Infinity.
-Sequences: top level, do {...}, named-function and lambda bodies. x=e binds; fun f(x,y) sequence end fun f defines a self-recursive function. Opening/closing names must match exactly; both fun and end are reserved. No then in a function header and no required ; after its named end. if still requires then. Old f(x)=e syntax is invalid. Last expression returns; empty/end-in-definition returns null; trailing ; preserves value. Duplicate same-scope names error; inner scopes shadow. All names resolve statically including dead branches. Definitions see earlier bindings/self, not later names. Closures capture lexical symbols. Proper tail calls use bounded continuation space.
+Sequences: top level, do {...}, named-function and lambda bodies. x=e binds; fun f(x:num,y:num):num sequence end fun f defines a self-recursive function. Opening/closing names must match exactly; both fun and end are reserved. No then in a function header and no required ; after its named end. if still requires then. Old f(x)=e syntax is invalid. Last expression returns; empty/end-in-definition returns null; trailing ; preserves value. Duplicate same-scope names error; inner scopes shadow. All names resolve statically including dead branches. Definitions see earlier bindings/self, not later names. Closures capture lexical symbols. Proper tail calls use bounded continuation space.
 Lambdas: {x=>sequence}, {(x,y)=>sequence}, {()=>sequence}; no bare arrow, .field lambda, or {(x)=>...}. Braces with lambda header are lambdas, otherwise records; use do for other sequences.
-fun f(x,y){body} sequence end fun f declares positional parameters and one separate REQUIRED callback slot. Calls: f(a,b) or f(a,b){x=>sequence}. Ordinary calls require parentheses, including (). A dot member with zero ordinary arguments may take its trailing callback directly: xs.map{x=>x*2}. Other methods use xs.sum(), xs.take(3). x.size is a property, not a call. One trailing lambda supplies the slot. f(a,{x=>x}), f(a){existing}, missing/extra slots invalid. Reuse g with f(a){x=>g(x)}. Grouped lambda also forbidden as entire ordinary argument. Functions in variables/records/arrays are ordinary data. Aliases retain signatures. User arity exact; no user defaults. A full {IDENT} after a definition parameter list declares its callback slot; a first-body shorthand record must use {x:x} or do{{x}}.
+fun f(x:num,y:num){body:(num)=>num}:num sequence end fun f declares positional parameters and one separate REQUIRED callback slot. Calls: f(a,b) or f(a,b){x=>sequence}. Ordinary calls require parentheses, including (). A dot member with zero ordinary arguments may take its trailing callback directly: xs.map{x=>x*2}. Other methods use xs.sum(), xs.take(3). x.size is a property, not a call. One trailing lambda supplies the slot. f(a,{x=>x}), f(a){existing}, missing/extra slots invalid. Reuse g with f(a){x=>g(x)}. Grouped lambda also forbidden as entire ordinary argument. Functions in variables/records/arrays are ordinary data. Aliases retain signatures. User arity exact; no user defaults. A full {IDENT} after a definition parameter list declares its callback slot; a first-body shorthand record must use {x:x} or do{{x}}.
 Evaluate callee, ordinary args left-to-right, create trailing closure, check arity, invoke. Builtins check callbacks before effects/empty shortcuts. Bodies run only when invoked. Defaults only when omitted, never null; unknown options error.
 e | f(a,b){x=>body} evaluates e once first, inserts it as FIRST ordinary argument; callback stays separate. Stage callee identifier/dotted path, always (). Pipes left-associate; no implicit map/unwrap/flatten.
 Control: if bool then e else e; do {sequence}; try e catch {err=>sequence}. if/try start an expression; group as operands. Else consumes full expression. Group whole control results before pipe/access: (try...catch {...}) | f(). Catch ordinary runtime errors only.
@@ -99,9 +99,13 @@ Dot members bind registered methods by receiver kind; a matching method/property
 Precedence: call/access; unary ! -; * / %; + -; comparison; &&; ||; ??; |. Max one unparenthesized comparison (< <= > >= == !=). Binary left-associative except ?? right. &&/|| short-circuit bool only. ?? replaces only null. Ordering two numbers or two strings, scalar lexicographic.
 q`SQL ${expr} SQL` creates Query; holes evaluate left-to-right. Query text allows newlines, escapes \\, \` and \${. SQL holes bind values only, outside quotes/comments. Ordinary strings never interpolate.
 
+TYPES
+Declare type Point={x:num,y:num}; type Box<T>={value:T}; bind p:Point={x:1,y:2}. Named params and callback slots require types; recursive functions require result :T. Nonrecursive result/bindings infer locally. Lambda parameters infer from a known expected function type or need annotations, e.g. {x:num=>x+1}. No whole-program inference, auto-generalization or implicit any; ambiguous=>annotation required. any must be explicit and retains runtime checks. json is unknown JSON, not any: validate before projection.
+Types: primitives str/num/int/bool/null/json, opaque bytes/query/database/transaction/reply, [T], {k:T}, maybe(T), optional(T) fields, open(record), (T,U)=>R, (T){(U)=>V}=>R, schema<T>, any/never. Aliases structural, record extras allowed statically; arrays covariant. fun id<T>(x:T):T x end fun id; id(1) or id<num>(1). Simple rank-one generics only, erased; T is not a runtime value. Pass schema<T> for generic validation. Type aliases lexical, no forward/recursive aliases. Concrete aliases (Box<num>) are schemas.
+
 SCHEMAS
-Atoms str,num,int,bool,json. [S]=homogeneous array of any length; {k:S}=closed required-field record. maybe(S) adds null. optional(S) permits field absence, not null; only immediate field schema. open(recordSchema) allows/preserves extra JSON fields. No literal scalar schemas/unions.
-check(v,S) fully validates S then v, returns unchanged v; no defaults/coercion/stripping. Malformed schema=>schema; mismatch=>validation data={path,expected,actual}, no payload. optional(maybe(str)) accepts absent/null/string; maybe(optional(str)) invalid.
+Atoms str,num,int,bool,json. Prefer named type declarations; schema<T> describes a validator. [S]=homogeneous array of any length; {k:S}=closed required-field record. maybe(S) adds null. optional(S) permits field absence, not null; only immediate field schema. open(recordSchema) allows/preserves extra JSON fields. No literal scalar schemas/unions.
+Static width compatibility allows extras; runtime check of a closed record rejects them. check(v,S) fully validates S then v, returns unchanged v; no defaults/coercion/stripping. Malformed schema=>schema; mismatch=>validation data={path,expected,actual}, no payload. optional(maybe(str)) accepts absent/null/string; maybe(optional(str)) invalid.
 
 DATA (callbacks sequential unless parallel)
 x.size: array/record/string-scalars/Bytes length.
@@ -175,9 +179,9 @@ A source file is strict UTF-8 without a byte-order mark. A string is a sequence 
 
 Outside strings and query text, whitespace is exactly space, horizontal tab, CR, and LF. `//` begins a comment through the next CR/LF or end of file. There are no block comments or automatic semicolon insertion. Newlines do not terminate expressions. A leading shebang is not accepted.
 
-An identifier matches `[A-Za-z_][A-Za-z0-9_]*` and is case-sensitive. Reserved words are exactly `null true false if then else do try catch fun end`. An identifier token excluding these words is called `IDENT`. `WORD` means an identifier-shaped token including reserved words. WORD is permitted as an unquoted record key or after `.`/`?.`. A shorthand field must be an IDENT, because it refers to a binding.
+An identifier matches `[A-Za-z_][A-Za-z0-9_]*` and is case-sensitive. Reserved words are exactly `null true false if then else do try catch fun end type`. An identifier token excluding these words is called `IDENT`. `WORD` means an identifier-shaped token including reserved words. WORD is permitted as an unquoted record key or after `.`/`?.`. A shorthand field must be an IDENT, because it refers to a binding.
 
-Prelude names, including `map`, `str` and `json`, are ordinary bindings and can be shadowed. `q` alone is an ordinary identifier; the adjacent character sequence `q` followed by a backtick starts a query literal regardless of any binding named q. Whitespace between q and the backtick is invalid.
+Prelude names, including `range`, `str` and `json`, are ordinary bindings and can be shadowed. `q` alone is an ordinary identifier; the adjacent character sequence `q` followed by a backtick starts a query literal regardless of any binding named q. Whitespace between q and the backtick is invalid.
 
 Use maximal munch for identifiers and the operators `=> == != <= >= && || ?? ?. ?[`. Other punctuation is `( ) [ ] { } , ; : . + - * / % ! < > = |` and the query delimiters. There are no other operators. `? [` is not `?[`. Comments are recognized before a single division token.
 
@@ -191,7 +195,7 @@ DIGIT = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9";
 NONZERO = "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9";
 ```
 
-A source minus is a unary/binary operator, not part of a NUMBER token. A number immediately followed by an identifier character, an extra decimal point, or a digit after a leading zero is a lexical error: `01`, `1abc`, `1.2.3`, `.5` and `1.` are invalid. `1-2` and `1e-2` are valid. Field access on a numeric expression requires grouping, for example `(1).x`; it then fails by type at runtime.
+A source minus is a unary/binary operator, not part of a NUMBER token. A number immediately followed by an identifier character, an extra decimal point, or a digit after a leading zero is a lexical error: `01`, `1abc`, `1.2.3`, `.5` and `1.` are invalid. `1-2` and `1e-2` are valid. Field access on a numeric expression requires grouping, for example `(1).x`; it then fails static type checking (or runtime checking through explicit `any`).
 
 Strings use double quotes and JSON escapes: `\" \\ \/ \b \f \n \r \t \uHHHH`. Raw U+0000..U+001F, raw line endings, unknown escapes, and unpaired surrogates are invalid. A high-surrogate escape must be followed immediately by a low-surrogate escape and is decoded to one scalar. There is no string interpolation. Strings may contain scalar U+0000 via an escape; some external APIs reject it explicitly.
 
@@ -203,11 +207,24 @@ The following EBNF is normative. `{ X }` means repetition, `[ X ]` means optiona
 Program     = Sequence, EOF;
 Sequence    = { FunctionDef, [ ";" ] | SimpleItem, ";" }, [ SimpleItem ];
 Item        = FunctionDef | SimpleItem;
-SimpleItem  = Binding | Expr;
-Binding     = IDENT, "=", Expr;
-FunctionDef = "fun", IDENT, "(", [ Params ], ")",
-              [ "{", IDENT, "}" ], Sequence, "end", "fun", IDENT;
-Params      = IDENT, { ",", IDENT };
+SimpleItem  = TypeDecl | Binding | Expr;
+TypeDecl    = "type", IDENT, [ TypeParams ], "=", TypeExpr;
+Binding     = IDENT, [ ":", TypeExpr ], "=", Expr;
+FunctionDef = "fun", IDENT, [ TypeParams ], "(", [ Params ], ")",
+              [ "{", IDENT, [ ":", TypeExpr ], "}" ],
+              [ ":", TypeExpr ], Sequence, "end", "fun", IDENT;
+Params      = Param, { ",", Param };
+Param       = IDENT, [ ":", TypeExpr ];
+TypeParams  = "<", IDENT, { ",", IDENT }, ">";
+TypeArgs    = "<", TypeExpr, { ",", TypeExpr }, ">";
+TypeExpr    = (IDENT | "null"), [ TypeArgs ]
+            | "[", TypeExpr, "]"
+            | "{", [ TypeField, { ",", TypeField } ], "}"
+            | ("maybe" | "optional" | "open"), "(", TypeExpr, ")"
+            | "(", [ TypeList ], ")", [ "{", TypeExpr, "}" ], "=>", TypeExpr
+            | "(", TypeExpr, ")";
+TypeList    = TypeExpr, { ",", TypeExpr };
+TypeField   = (WORD | STRING), ":", TypeExpr;
 
 Expr        = IfExpr | TryExpr | PipeExpr;
 IfExpr      = "if", Expr, "then", Expr, "else", Expr;
@@ -215,7 +232,7 @@ TryExpr     = "try", Expr, "catch", Handler;
 Handler     = "{", IDENT, "=>", Sequence, "}";
 
 PipeExpr    = Coalesce, { "|", Stage };
-Stage       = Path, Arguments, [ Lambda ];
+Stage       = Path, [ TypeArgs ], Arguments, [ Lambda ];
 Path        = IDENT, { ".", WORD };
 Coalesce    = OrExpr, [ "??", Coalesce ];
 OrExpr      = AndExpr, { "||", AndExpr };
@@ -226,7 +243,7 @@ Additive    = Product, { ("+" | "-"), Product };
 Product     = Unary, { ("*" | "/" | "%"), Unary };
 Unary       = ("!" | "-"), Unary | Postfix;
 Postfix     = Primary, { Suffix };
-Suffix      = Arguments, [ Lambda ]
+Suffix      = TypeArgs | Arguments, [ Lambda ]
             | ("." | "?."), WORD, [ Lambda ]
             | "[", Expr, "]" | "?[", Expr, "]";
 Arguments   = "(", [ Expr, { ",", Expr } ], ")";
@@ -238,13 +255,13 @@ Array       = "[", [ Expr, { ",", Expr } ], "]";
 Record      = "{", [ Field, { ",", Field } ], "}";
 Field       = (WORD | STRING), ":", Expr | IDENT;
 Lambda      = "{", LambdaHead, "=>", Sequence, "}";
-LambdaHead  = IDENT | "(", ")" | "(", IDENT, ",", Params, ")";
+LambdaHead  = Param | "(", ")" | "(", Param, ",", Params, ")";
 ```
 
 Additional mandatory parsing constraints:
 
 1. No trailing commas are permitted. Empty arrays, records, argument lists, parameter lists, and sequences are valid. Leading or repeated sequence semicolons are invalid.
-2. At the start of an Item, `fun` begins a function definition. There is no header `then`; its body is a Sequence ending at `end fun IDENT`. A complete `{ IDENT }` immediately after the parameter list is a callback-slot declaration; other brace forms begin the body. To return a shorthand record as the first body expression, write `{x:x}` or `do{{x}}` instead of `{x}`. The closing IDENT MUST exactly match the opening function name, including case. All three closing tokens are required. Named functions may nest; each closing name belongs to the innermost open definition. Empty bodies and a trailing body semicolon are permitted. A definition may be followed by the next item without a semicolon; one optional semicolon is accepted. Bindings and expressions still require a semicolon before another item. The old `f(x)=e` spelling is invalid. Recognize a binding only for IDENT followed by `=`. Otherwise parse an expression. No expression may contain a binding or definition except through a sequence.
+2. At the start of an Item, `fun` begins a function definition. There is no header `then`; its body is a Sequence ending at `end fun IDENT`. A complete `{ IDENT }` immediately after the parameter list is a callback-slot declaration. A typed slot `{ IDENT : TypeExpr }` is selected when TypeExpr is a function type or the closing brace is followed by a result-type colon; otherwise braces begin the body. A slot using a type alias therefore requires an explicit result annotation. To return a shorthand record as the first body expression, write `{x:x}` or `do{{x}}` instead of `{x}`. The closing IDENT MUST exactly match the opening function name, including case. All three closing tokens are required. Named functions may nest; each closing name belongs to the innermost open definition. Empty bodies and a trailing body semicolon are permitted. A definition may be followed by the next item without a semicolon; one optional semicolon is accepted. Bindings and expressions still require a semicolon before another item. The old `f(x)=e` spelling is invalid. Recognize a binding for IDENT followed by `=` or `:`. A `type` item declares a type alias and follows binding separator rules. Otherwise parse an expression. No expression may contain a binding or definition except through a sequence.
 3. At an expression-position `{`, a syntactically valid LambdaHead followed by `=>` selects Lambda; otherwise parse Record. There is no general brace block. `do {…}` is the expression form for a sequence outside a lambda.
 4. The only zero/one/multiple-parameter lambda heads are `()=>`, `x=>`, and `(x,y,...)=>`. In particular `{(x)=>x}` is invalid.
 5. For each ordinary call argument, strip all grouping nodes; if the resulting root node is Lambda, reject with a parse diagnostic. This includes pipe-stage arguments. The rule does not recursively reject lambdas stored in records/arrays, or expressions that compute function values.
@@ -253,8 +270,8 @@ Additional mandatory parsing constraints:
 8. Record literal keys are decoded strings. A repeated decoded key is a parse error, including `{a:1,"a":2}` and escaped equivalents.
 9. `if` and `try` occur at the beginning of Expr, not as unparenthesized arithmetic/postfix operands. Write `1+(if c then 2 else 3)`. The else expression consumes a full Expr. Write `(if c then a else b) | f()` to pipe the complete conditional.
 10. A try expression ends after its handler. To pipe/access/call its result, group it: `(try a catch {e=>b}) | f()`. The protected expression may itself contain pipes. Catch is a one-parameter handler syntax, not a general callable expression.
-11. Static names, duplicate parameters, and same-scope definitions are checked after parsing, before any program effect. Arity is a runtime check, including where a compiler could infer it.
-12. Whitespace may occur between tokens, including between `)` and an attached Lambda. Only the adjacency of q/backtick and multi-character tokens is significant.
+11. Static names, duplicate parameters, and same-scope definitions are checked after parsing, before any program effect. Known call and callback arities are checked statically. Calls through explicit `any` retain runtime arity/preflight checks.
+12. Whitespace may occur between tokens, including between `)` and an attached Lambda. Only the adjacency of q/backtick and multi-character tokens is significant. In a type parameter/argument list, `>=` closes the list then supplies `=`. At a postfix `<`, select TypeArgs only if a complete type argument list parses; otherwise retain comparison parsing. These are syntactic decisions, independent of name lookup.
 
 These constraints are part of syntax, not optional lint rules. There is no automatic currying, user extension declaration, destructuring, spread, assignment, import, user operator, macro, async/await construct, return statement, or implicit variable. A name such as `await` can still be an ordinary user-defined IDENT.
 
@@ -264,8 +281,10 @@ Implementations may use other representations, but MUST preserve these distincti
 
 ```text
 Program(items)
-Bind(name, expr)
-Define(name, positionalNames, callbackNameOrNone, bodySequence)
+Bind(name, annotationOrNone, expr)
+TypeDecl(name, typeParameters, typeExpression)
+Instantiate(callee, typeArguments)
+Define(name, typeParameters, typedParameters, typedCallbackOrNone, resultTypeOrNone, bodySequence)
 Literal(value)
 Array(elements)
 Record(ordered decoded-key/expression pairs)
@@ -387,7 +406,7 @@ Ordering accepts two numbers or two strings of the same kind. String order is le
 
 ## 4. Static resolution and lexical scope
 
-Before evaluation, tokenize, parse, and resolve **the whole program**, including unused function bodies and unreachable branches. Run phases in that order; do not proceed to a later phase after failure. Any error prevents all program effects. Implementations may collect several diagnostics within a phase; the CLI's primary diagnostic is from the first failing phase and has the earliest source-start offset among its detected diagnostics. Error recovery beyond the primary failure is optional.
+Before evaluation, tokenize, parse, resolve, and type-check **the whole program**, including unused function bodies and unreachable branches. Run phases in that order; do not proceed to a later phase after failure. Any error prevents all program effects. Implementations may collect several diagnostics within a phase; the CLI's primary diagnostic is from the first failing phase and has the earliest source-start offset among its detected diagnostics. Error recovery beyond the primary failure is optional.
 
 Each top-level sequence, do sequence, lambda body, named function body, and catch-handler body establishes a lexical scope. Function parameters and a callback-slot name occupy the function body's scope. The function body is a sequence in that parameter scope; local bindings cannot redeclare parameters or the callback slot. An additional explicit do creates a child scope.
 
@@ -405,11 +424,111 @@ Examples:
 ```kiroha
 x=1; fun f() x end fun f do { x=2; f() }       // 1
 x=7; do { y=x; x=9; y }          // 7
-fun fac(n) if n<=1 then 1 else n*fac(n-1) end fun fac fac(5)
-fun apply(x){f} f(x) end fun apply apply(10){v=>v+1}
+fun fac(n:int):int if n<=1 then 1 else n*fac(n-1) end fun fac fac(5)
+fun apply<T,U>(x:T){f:(T)=>U}:U f(x) end fun apply apply(10){v=>v+1}
 ```
 
 `fun f() g() end fun f fun g() 1 end fun g f()` is a check-phase name error even though g would be bound before the call. `if false then unknown else 1` is also a name error. A named function's self-reference is implemented with an immutable recursive cell or equivalent; no general user-visible mutable cell is introduced.
+
+### 4.1 Type declarations and compatibility
+
+`type Name = TypeExpr;` declares a structural alias. `type Box<T> = {value:T};`
+declares a generic alias. The declaration is lexical, evaluated in source order,
+and introduces both a type name and (when reifiable) a schema expression name.
+Its right-hand side sees earlier aliases and its own type parameters, not itself
+or later declarations. Recursive aliases and duplicate same-scope names or type
+parameters are rejected. Ordinary value bindings do not declare type names.
+Type parameters occupy the type namespace only; their names are not runtime
+values. Value shadowing does not change an already resolved type reference.
+
+Primitive types are `any never null bool int num str json bytes query database
+transaction reply`; `schema<T>` is a validation descriptor type. Array `[T]`,
+record `{key:T}`, function `(T,U)=>R`, callback-taking function
+`(T){(U)=>V}=>R`, `maybe(T)`, field-only `optional(T)`, and `open(recordType)`
+complete the annotation forms. Type fields reject duplicate decoded keys.
+`int` means an integer-valued decimal and is compatible with `num`. `never`
+has no normally returning value and is compatible with every result type.
+`json` admits recursively JSON data, but cannot be used as an arbitrary
+record, function or primitive without validation. `any` is an explicit dynamic
+escape hatch, compatible in both directions. It MUST NOT be inserted as the
+type of missing or ambiguous information.
+
+Alias names are transparent; compatibility is structural. Records require each
+required field with a compatible type and permit additional fields. An optional
+expected field may be absent; an optional actual field cannot satisfy a required
+one. `open` tracks extra JSON fields. Immutable arrays are covariant. Function
+ordinary parameters and callback inputs are contravariant; results are covariant.
+Accepted arities must cover every call allowed by the expected signature; a
+required callback cannot stand in for a function without a slot or with an
+optional slot. These rules do not remove runtime validation or domain errors.
+
+### 4.2 Lightweight local inference
+
+Named function parameters and declared callback slots MUST have annotations.
+A nonrecursive named function may infer its result from its body; a recursive
+function MUST declare its result type, including recursion captured by a nested
+closure. Variable bindings infer from initializers unless annotated. Lambdas use
+parameter annotations or an expected function type from a binding, argument or
+callback slot. A lambda lacking both is rejected. Function result expressions,
+record/array elements, and conditional/handler branches use their local context.
+There is no whole-program inference, implicit polymorphic generalization,
+recursive-signature fixed point, or fallback to `any`.
+
+Branches and heterogeneous arrays may form internal unions. Numeric arithmetic
+preserves `int` for integer `+ - * %`, while division returns `num`. Arrays
+concatenate element types. Null comparison in a direct `if x==null` or
+`if x!=null` refines that local/captured variable in each branch. Optional access
+and `??` propagate/remove null locally. General union syntax, arbitrary control
+flow inference, and refinements based on numeric predicates are not provided.
+If a local type variable remains undetermined, reject with
+`type_annotation_required` and request an annotation or explicit type arguments.
+
+### 4.3 Simple generics
+
+`fun identity<T>(value:T):T value end fun identity` explicitly quantifies type
+parameters. A generic function body is checked once with rigid parameters;
+`value+1` is invalid for an unconstrained `T`. Calls instantiate parameters by
+matching ordinary arguments, expected results and the trailing callback locally.
+`identity<num>(1)`, `Box<num>`, and `xs.fold<num>(0){(a,x)=>a+x}` supply explicit
+arguments. Type argument counts must match. A later argument must be compatible
+with the instantiation already established; use a broader explicit argument
+when needed (for example a `num` accumulator initialized with `0`). Generic
+functions are rank one: higher-rank polymorphism, bounds, recursive aliases,
+higher-kinded parameters, and implicit generalization are not part of 0.6.
+
+Type parameters are erased at runtime. A generic function receives no hidden
+type descriptor; accept `schema<T>` explicitly when validation is needed.
+Builtin signatures also use concrete types and explicit quantification, never
+implicit `any`. `get`, `post`, `parse`, and one-argument `input` return `json`;
+SQL columns return `json` or `bytes` and need validation before a more specific
+use. Explicitly specialized `input<T>` requires its schema argument.
+
+### 4.4 Validation bridge and diagnostics
+
+Concrete aliases of data/opaque types may be used as runtime validation schemas:
+`type Point={x:num,y:num}; check(v,Point)` returns type `Point` on success.
+Generic aliases require concrete arguments, such as `Box<num>`. `schema<T>`
+values carry a validation result type and let generic code call `check(value,s)`.
+Function/schema types and erased parameters cannot themselves be reified as
+validation schemas (`type_reification`). `type Dynamic=any` accepts any runtime
+kind, `type Empty=never` accepts no value, and `type N=null` accepts null.
+The five existing prelude schema atoms remain unchanged; `any` is a type name,
+not an added prelude variable. Legacy array/record schema values remain valid.
+
+Static record compatibility allows extra fields, while `check(v,Point)` retains
+closed-record validation and rejects extras; `open(Point)` accepts extra JSON
+fields. The runtime validator returns the original value without coercion.
+Type declarations return null in a sequence and ordinary generic specialization
+is erased; schema expressions supply a shared concrete descriptor.
+
+Known type mismatches are check-phase diagnostics (`type`, `type_name`,
+`type_arity`, `type_annotation_required`, `duplicate_type_parameter`,
+`type_reification`); they occur before any effect and cannot be caught by `try`.
+Known ordinary/callback arity errors use check-phase `arity`. Explicit `any`
+permits dynamic operations, while checking unrelated expressions normally.
+`x:any=1+"x"` remains invalid because the initializer contains a known bad
+operation. Runtime preflight, schema, validation, bounds, capability and I/O
+errors still apply to code that passes the static phase.
 
 ## 5. Evaluation and calls
 
@@ -439,14 +558,14 @@ A call performs:
 4. Check that the callee is a function. Check ordinary positional arity first; a failure has arity reason positional. Only if that succeeds, check callback presence (missing_callback or unexpected_callback).
 5. Enter the function or builtin.
 
-These ordering rules apply even if the callee is not callable. An argument's error can therefore precede the callee type/arity error. Compile-time optimization MUST preserve this observable behavior.
+These runtime ordering rules apply to programs that pass static checking, including explicit dynamic calls whose callee is not callable. An argument's error can therefore precede the callee type/arity error. Compile-time optimization MUST preserve this observable behavior.
 
-`fun apply(x){f} f(x) end fun apply` declares one ordinary parameter and one independent required callback parameter. `apply(10){v=>v+1}` supplies those two channels. Inside the body f is an ordinary function value. The slot name carries no invocation count or timing magic: the function body controls whether/how often it calls f.
+`fun apply<T,U>(x:T){f:(T)=>U}:U f(x) end fun apply` declares one ordinary parameter and one independent required callback parameter. `apply(10){v=>v+1}` supplies those two channels. Inside the body f is an ordinary function value. The slot name carries no invocation count or timing magic: the function body controls whether/how often it calls f.
 
 The following distinctions are normative:
 
 ```kiroha
-fun apply(x){f} f(x) end fun apply
+fun apply<T,U>(x:T){f:(T)=>U}:U f(x) end fun apply
 g={v=>v+1};
 apply(10){v=>g(v)}       // valid; 11
 ```
@@ -459,7 +578,7 @@ apply(10){g}                    invalid syntax: not a Lambda
 apply(10){v=>v+1}{w=>w}        invalid syntax: second callback
 ```
 
-A user function can intentionally accept function-valued ordinary data: `fun invoke(f,x) f(x) end fun invoke g={x=>x+1}; invoke(g,2)` is valid. Records and arrays may also carry functions. This does not fill, erase, or reinterpret a declared callback slot.
+A user function can intentionally accept function-valued ordinary data: `fun invoke<T,U>(f:(T)=>U,x:T):U f(x) end fun invoke g={x:num=>x+1}; invoke(g,2)` is valid. Records and arrays may also carry functions. This does not fill, erase, or reinterpret a declared callback slot.
 
 Before a builtin performs an effect, invokes a callback, or takes an empty-input shortcut, it validates all explicit argument types/options and the callback's callable signature. “Accepts n” means that a call with n ordinary arguments and no callback is legal for that function. A supplied value that is not a function raises type; an incompatible signature raises arity. This also applies to retry.when and every serve handler. Return types are checked when results are obtained.
 
@@ -1258,14 +1377,14 @@ A complete Web1 implementation ships an executable named kiroha with these comma
 | Command | Behavior |
 | --- | --- |
 | `kiroha --version` | One compact JSON line with implementation, language, profile and protocol versions |
-| `kiroha check SOURCE --json` | Lex, parse and resolve only; no program evaluation or effect |
+| `kiroha check SOURCE --json` | Lex, parse, resolve and type-check; no program evaluation or effect |
 | `kiroha run SOURCE --json [--host HOST.json]` | Evaluate with explicit/default host; one result/error/abort envelope |
 | `kiroha spec --compact` | Print exactly the embedded generation-card payload, followed by its existing final LF |
 | `kiroha conformance spec.md --json` | Extract and run the embedded conformance manifest with the deterministic fixture host |
 
 The --json flag is mandatory for check/run/conformance in this version; a human-oriented mode is an optional separate extension and cannot change this protocol. `fmt`, a REPL, debugger, package manager and language server are optional future tools, not required or advertised as implemented by this specification.
 
---version has fields `{"implementation":"<name/version>","language":"0.5.0","profile":"Web1","cli":"kiroha-cli/1","conformance":"kiroha-conformance/1"}`. check success is `{"protocol":"kiroha-cli/1","ok":true,"phase":"check"}`.
+--version has fields `{"implementation":"<name/version>","language":"0.6.0","profile":"Web1","cli":"kiroha-cli/1","conformance":"kiroha-conformance/1"}`. check success is `{"protocol":"kiroha-cli/1","ok":true,"phase":"check"}`.
 
 run success is `{"protocol":"kiroha-cli/1","ok":true,"result":WireValue}`. An ordinary/runtime or frontend failure is `{"protocol":"kiroha-cli/1","ok":false,"phase":Phase,"error":Error,"span":SpanOrNull}`. Frontend phases are lex/parse/check; runtime is runtime. A source span has byte offsets `{start,end,line,column}` with end exclusive. Span can be null for host-originated runtime failures, not for frontend diagnostics. Static error records use the same outer code/message/data shape.
 
@@ -1333,7 +1452,7 @@ The corpus below is normative test input, with **no execution result asserted by
 
 The manifest is the single JSON fence between standalone lines `<!-- KIROHA_CONFORMANCE_BEGIN -->` and `<!-- KIROHA_CONFORMANCE_END -->`. Match marker **whole lines**, not occurrences inside prose or the embedded extraction script. The generation card, measurement corpus and measurement script use the same extraction rule with their respective marker names. Require exactly one begin and end, correct order, exactly one fence with the declared language and no extra content inside the markers. Preserve the payload's final LF.
 
-Manifest root keys are exactly `format`, `language`, `scheduler`, `cases`. Values are `kiroha-conformance/1`, `0.5.0/Web1`, `virtual-fifo/1`, and a nonempty case array. IDs must be unique.
+Manifest root keys are exactly `format`, `language`, `scheduler`, `cases`. Values are `kiroha-conformance/1`, `0.6.0/Web1`, `virtual-fifo/1`, and a nonempty case array. IDs must be unique.
 
 ### 16.2 Case and expectation schema
 
@@ -1424,7 +1543,7 @@ All following cases are independent. A reference runtime is not included. Extrac
 ```json
 {
   "format": "kiroha-conformance/1",
-  "language": "0.5.0/Web1",
+  "language": "0.6.0/Web1",
   "scheduler": "virtual-fifo/1",
   "cases": [
     {"id":"lex-leading-zero","source":"01","expect":{"phase":"lex","code":"lexical"}},
@@ -1456,29 +1575,29 @@ All following cases are independent. A reference runtime is not included. Extrac
     {"id":"check-slot-parameter-collision","source":"fun f(x){x} x end fun f 1","expect":{"phase":"check","code":"duplicate_binding"}},
     {"id":"check-lambda-rebind-parameter","source":"{x=>x=2;x}","expect":{"phase":"check","code":"duplicate_binding"}},
     {"id":"check-self-initializer","source":"x=x","expect":{"phase":"check","code":"name"}},
-    {"id":"call-slot-alias-and-reuse","source":"fun apply(x){f} f(x) end fun apply alias=apply;g={y=>y+2};[alias(10){v=>v+1},apply(10){v=>g(v)}]","expect":{"phase":"value","json":"[11,12]"}},
-    {"id":"call-required-callback","source":"fun apply(x){f} f(x) end fun apply apply(1)","expect":{"phase":"runtime","code":"arity","data":{"reason":"missing_callback"}}},
-    {"id":"call-unexpected-callback","source":"fun f(x) x end fun f f(1){v=>v}","expect":{"phase":"runtime","code":"arity","data":{"reason":"unexpected_callback"}}},
-    {"id":"call-positional-function-does-not-fill-slot","source":"fun apply(x){f} f(x) end fun apply g={x=>x};apply(1,g)","expect":{"phase":"runtime","code":"arity","data":{"reason":"positional"}}},
-    {"id":"call-empty-map-validates-callback","source":"[].map{(x,y)=>x}","expect":{"phase":"runtime","code":"arity","data":{"reason":"callback_signature"}}},
-    {"id":"call-empty-fold-validates-callback","source":"[].fold(0){x=>x}","expect":{"phase":"runtime","code":"arity","data":{"reason":"callback_signature"}}},
-    {"id":"call-argument-before-callee-type","source":"1(fail({code:\"from_argument\",message:\"\",data:{}}))","expect":{"phase":"runtime","code":"from_argument"}},
-    {"id":"call-function-valued-ordinary-data","source":"fun invoke(f,x) f(x) end fun invoke g={x=>x+1};[invoke(g,2),invoke([{x=>x+2}][0],3),invoke((if true then {x=>x+3} else {x=>x}),4)]","expect":{"phase":"value","json":"[3,5,7]"}},
-    {"id":"call-zero-multiple-and-returned-function","source":"z={() =>7};a={(x,y)=>x+y};fun factory(){f} f end fun factory [z(),a(2,3),factory(){x=>x+1}(4)]","expect":{"phase":"value","json":"[7,5,5]"}},
-    {"id":"call-callback-body-is-lazy","source":"fun ignore(x){f} x end fun ignore ignore(7){x=>fail({code:\"unused\",message:\"\",data:{}})}","expect":{"phase":"value","json":"7"}},
-    {"id":"value-function-kind","source":"{x=>x}","expect":{"phase":"value","kind":"function"}},
-    {"id":"scope-lexical-capture-shadow-and-prelude","source":"x=1;fun f() x end fun f [do{x=2;f()},do{y=x;x=9;y},do{fun text(x) x+2 end fun text text(3)},do{x=x+1;x}]","expect":{"phase":"value","json":"[1,1,5,2]"}},
+    {"id":"call-slot-alias-and-reuse","source":"fun apply(x:any){f:any}:any f(x) end fun apply alias=apply;g={y:any=>y+2};[alias(10){v=>v+1},apply(10){v=>g(v)}]","expect":{"phase":"value","json":"[11,12]"}},
+    {"id":"call-required-callback","source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value fun apply(x:any){f:any}:any f(x) end fun apply kiroha_runtime_value(apply)(1)","expect":{"phase":"runtime","code":"arity","data":{"reason":"missing_callback"}}},
+    {"id":"call-unexpected-callback","source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value fun f(x:any) x end fun f kiroha_runtime_value(f)(1){v=>v}","expect":{"phase":"runtime","code":"arity","data":{"reason":"unexpected_callback"}}},
+    {"id":"call-positional-function-does-not-fill-slot","source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value fun apply(x:any){f:any}:any f(x) end fun apply g={x:any=>x};kiroha_runtime_value(apply)(1,g)","expect":{"phase":"runtime","code":"arity","data":{"reason":"positional"}}},
+    {"id":"call-empty-map-validates-callback","source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value kiroha_runtime_value([].map)(){(x,y)=>x}","expect":{"phase":"runtime","code":"arity","data":{"reason":"callback_signature"}}},
+    {"id":"call-empty-fold-validates-callback","source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value kiroha_runtime_value([].fold)(0){x=>x}","expect":{"phase":"runtime","code":"arity","data":{"reason":"callback_signature"}}},
+    {"id":"call-argument-before-callee-type","source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value kiroha_runtime_value(1)(fail({code:\"from_argument\",message:\"\",data:{}}))","expect":{"phase":"runtime","code":"from_argument"}},
+    {"id":"call-function-valued-ordinary-data","source":"fun invoke(f:any,x:any) f(x) end fun invoke g={x:any=>x+1};[invoke(g,2),invoke([{x:any=>x+2}][0],3),invoke((if true then {x=>x+3} else {x=>x}),4)]","expect":{"phase":"value","json":"[3,5,7]"}},
+    {"id":"call-zero-multiple-and-returned-function","source":"z={() =>7};a={(x:any,y:any)=>x+y};fun factory(){f:any}:any f end fun factory [z(),a(2,3),factory(){x=>x+1}(4)]","expect":{"phase":"value","json":"[7,5,5]"}},
+    {"id":"call-callback-body-is-lazy","source":"fun ignore(x:any){f:any}:any x end fun ignore ignore(7){x=>fail({code:\"unused\",message:\"\",data:{}})}","expect":{"phase":"value","json":"7"}},
+    {"id":"value-function-kind","source":"{x:any=>x}","expect":{"phase":"value","kind":"function"}},
+    {"id":"scope-lexical-capture-shadow-and-prelude","source":"x=1;fun f() x end fun f [do{x=2;f()},do{y=x;x=9;y},do{fun text(x:any) x+2 end fun text text(3)},do{x=x+1;x}]","expect":{"phase":"value","json":"[1,1,5,2]"}},
     {"id":"sequence-empty-binding-definition-and-semicolon","source":"[do{},do{1;},do{x=1;},do{fun f() 1 end fun f }]","expect":{"phase":"value","json":"[null,1,null,null]"}},
     {"id":"operators-precedence-and-associativity","source":"[1+2*3,20/5/2,10-3-2,!false&&true||false,null??null??7,1-2,1e-2,(1<2)==true]","expect":{"phase":"value","json":"[7,2,5,true,7,-1,0.01,true]"}},
-    {"id":"pipe-dotted-path-and-callback","source":"fun map_items(xs){body} xs.map{x=>body(x)} end fun map_items ns={map:map_items};([1,2,3] | ns.map(){x=>x+1}).sum()","expect":{"phase":"value","json":"9"}},
-    {"id":"pipe-left-before-callee-access","source":"ns={};fail({code:\"left_first\",message:\"\",data:{}}) | ns.absent()","expect":{"phase":"runtime","code":"left_first"}},
-    {"id":"control-lazy-branches-and-no-truthiness","source":"fun bad() fail({code:\"unused\",message:\"\",data:{}}) end fun bad [if true then 1 else bad(),false&&bad(),true||bad(),false??7,0??7,\"\"??7,(try if 0 then 1 else 2 catch {e=>e.code}),(try 0||true catch {e=>e.code})]","expect":{"phase":"value","json":"[1,false,true,false,0,\"\",\"type\",\"type\"]"}},
+    {"id":"pipe-dotted-path-and-callback","source":"fun map_items(xs:any){body:any}:any xs.map{x=>body(x)} end fun map_items ns={map:map_items};([1,2,3] | ns.map(){x=>x+1}).sum()","expect":{"phase":"value","json":"9"}},
+    {"id":"pipe-left-before-callee-access","source":"ns:any={};fail({code:\"left_first\",message:\"\",data:{}}) | ns.absent()","expect":{"phase":"runtime","code":"left_first"}},
+    {"id":"control-lazy-branches-and-no-truthiness","source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value fun bad() fail({code:\"unused\",message:\"\",data:{}}) end fun bad [if true then 1 else bad(),false&&bad(),true||bad(),false??7,0??7,\"\"??7,(try if kiroha_runtime_value(0) then 1 else 2 catch {e=>e.code}),(try kiroha_runtime_value(0)||true catch {e=>e.code})]","expect":{"phase":"value","json":"[1,false,true,false,0,\"\",\"type\",\"type\"]"}},
     {"id":"catch-handler-does-not-catch-itself","source":"try fail({code:\"first\",message:\"\",data:{}}) catch {e=>fail({code:\"second\",message:\"\",data:{}})}","expect":{"phase":"runtime","code":"second"}},
     {"id":"fail-error-shape-preserved-and-rethrow","source":"try (try fail({code:\"custom\",message:\"detail\",data:{x:3}}) catch {e=>fail(e)}) catch {e=>e}","expect":{"phase":"value","json":"{\"code\":\"custom\",\"message\":\"detail\",\"data\":{\"x\":3}}"}},
-    {"id":"tail-recursive-loop","source":"fun go(n,a) if n==0 then a else go(n-1,a+1) end fun go go(100000,0)","expect":{"phase":"value","json":"100000"}},
-    {"id":"named-self-recursion","source":"fun fac(n) if n<=1 then 1 else n*fac(n-1) end fun fac fac(10)","expect":{"phase":"value","json":"3628800"}},
-    {"id":"evaluation-order-callee-arguments-and-containers","source":"fun bad(c) fail({code:c,message:\"\",data:{}}) end fun bad fun f(a,b) 0 end fun f [(try (bad(\"callee\"))(bad(\"arg\")) catch {e=>e.code}),(try f(bad(\"arg1\"),bad(\"arg2\")) catch {e=>e.code}),(try [bad(\"array1\"),bad(\"array2\")] catch {e=>e.code}),(try {a:bad(\"record1\"),b:bad(\"record2\")} catch {e=>e.code}),(try 1?[bad(\"key\")] catch {e=>e.code})]","expect":{"phase":"value","json":"[\"callee\",\"arg1\",\"array1\",\"record1\",\"key\"]"}},
-    {"id":"operators-reject-coercion-and-wrong-kinds","source":"[(try 1+\"x\" catch {e=>e.code}),(try [1]+2 catch {e=>e.code}),(try \"x\"*2 catch {e=>e.code}),(try -true catch {e=>e.code}),(try !0 catch {e=>e.code}),(try []<[] catch {e=>e.code}),(try str==num catch {e=>e.code})]","expect":{"phase":"value","json":"[\"type\",\"type\",\"type\",\"type\",\"type\",\"type\",\"type\"]"}},
+    {"id":"tail-recursive-loop","source":"fun go(n:any,a:any):any if n==0 then a else go(n-1,a+1) end fun go go(100000,0)","expect":{"phase":"value","json":"100000"}},
+    {"id":"named-self-recursion","source":"fun fac(n:any):any if n<=1 then 1 else n*fac(n-1) end fun fac fac(10)","expect":{"phase":"value","json":"3628800"}},
+    {"id":"evaluation-order-callee-arguments-and-containers","source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value fun bad(c:any) fail({code:c,message:\"\",data:{}}) end fun bad fun f(a:any,b:any) 0 end fun f [(try (bad(\"callee\"))(bad(\"arg\")) catch {e=>e.code}),(try f(bad(\"arg1\"),bad(\"arg2\")) catch {e=>e.code}),(try [bad(\"array1\"),bad(\"array2\")] catch {e=>e.code}),(try {a:bad(\"record1\"),b:bad(\"record2\")} catch {e=>e.code}),(try kiroha_runtime_value(1)?[bad(\"key\")] catch {e=>e.code})]","expect":{"phase":"value","json":"[\"callee\",\"arg1\",\"array1\",\"record1\",\"key\"]"}},
+    {"id":"operators-reject-coercion-and-wrong-kinds","source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value [(try kiroha_runtime_value(1)+\"x\" catch {e=>e.code}),(try kiroha_runtime_value([1])+2 catch {e=>e.code}),(try kiroha_runtime_value(\"x\")*2 catch {e=>e.code}),(try -kiroha_runtime_value(true) catch {e=>e.code}),(try !kiroha_runtime_value(0) catch {e=>e.code}),(try kiroha_runtime_value([])<[] catch {e=>e.code}),(try kiroha_runtime_value(str)==num catch {e=>e.code})]","expect":{"phase":"value","json":"[\"type\",\"type\",\"type\",\"type\",\"type\",\"type\",\"type\"]"}},
     {"id":"decimal-exact-add-multiply-and-zero","source":"[0.1+0.2,9007199254740993+1,1e100*1e-100,-0,1.2300]","expect":{"phase":"value","json":"[0.3,9007199254740994,1,0,1.23]"}},
     {"id":"decimal-canonical-exponent-boundaries","source":"[1e20,1e21,1e-6,1e-7,-1e21]","expect":{"phase":"value","json":"[100000000000000000000,1e21,0.000001,1e-7,-1e21]"}},
     {"id":"decimal-division-34-significant-digits","source":"[1/3,2/3,-1/3,1/8]","expect":{"phase":"value","json":"[0.3333333333333333333333333333333333,0.6666666666666666666666666666666667,-0.3333333333333333333333333333333333,0.125]"}},
@@ -1487,53 +1606,53 @@ All following cases are independent. A reference runtime is not included. Extrac
     {"id":"decimal-zero-divisors","source":"[(try 1/0 catch {e=>[e.code,e.data.reason]}),(try 1%0 catch {e=>[e.code,e.data.reason]})]","expect":{"phase":"value","json":"[[\"number\",\"division_by_zero\"],[\"number\",\"division_by_zero\"]]"}},
     {"id":"record-keys-keywords-shorthand-and-no-prototypes","source":"x=9;r={if:1,\"0\":2,\"__proto__\":3,constructor:4,x};[r.if,r[\"0\"],r.__proto__,r.constructor,r.x]","expect":{"phase":"value","json":"[1,2,3,4,9]"}},
     {"id":"optional-access-only-suppresses-absence","source":"[null?[fail({code:\"unused\",message:\"\",data:{}})]??7,{}?.missing,[1]?[4],{x:null}?.x,{x:null}.has(\"x\")]","expect":{"phase":"value","json":"[7,null,null,null,true]"}},
-    {"id":"access-missing-key","source":"{x:1}.y","expect":{"phase":"runtime","code":"missing","data":{"key":"y"}}},
+    {"id":"access-missing-key","source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value kiroha_runtime_value({x:1}).y","expect":{"phase":"runtime","code":"missing","data":{"key":"y"}}},
     {"id":"access-array-bounds","source":"[1][2]","expect":{"phase":"runtime","code":"bounds","data":{"index":2,"length":1}}},
-    {"id":"access-invalid-key-and-container-types","source":"[(try [1]?[-1] catch {e=>e.code}),(try [1][0.5] catch {e=>e.code}),(try [1][\"0\"] catch {e=>e.code}),(try {x:1}[0] catch {e=>e.code}),(try \"a\"[0] catch {e=>e.code}),(try encode(\"a\")[0] catch {e=>e.code})]","expect":{"phase":"value","json":"[\"argument\",\"argument\",\"type\",\"type\",\"type\",\"type\"]"}},
+    {"id":"access-invalid-key-and-container-types","source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value [(try [1]?[-1] catch {e=>e.code}),(try kiroha_runtime_value([1])[0.5] catch {e=>e.code}),(try kiroha_runtime_value([1])[\"0\"] catch {e=>e.code}),(try kiroha_runtime_value({x:1})[0] catch {e=>e.code}),(try kiroha_runtime_value(\"a\")[0] catch {e=>e.code}),(try kiroha_runtime_value(encode(\"a\"))[0] catch {e=>e.code})]","expect":{"phase":"value","json":"[\"argument\",\"argument\",\"type\",\"type\",\"type\",\"type\"]"}},
     {"id":"equality-structural-number-and-kind","source":"[{a:1,b:[2]}=={b:[2.0],a:1.0},1==\"1\",1==true,[1,2]==[2,1],null==null,[]!={},\"😀\">\"\",\"a\"<\"aa\"]","expect":{"phase":"value","json":"[true,false,false,false,true,true,true,true]"}},
-    {"id":"equality-scans-deep-opaque-after-length-mismatch","source":"[0,{f:{x=>x}}]==[1]","expect":{"phase":"runtime","code":"type"}},
-    {"id":"inequality-scans-deep-bytes-after-key-mismatch","source":"{a:encode(\"x\")}!={b:0}","expect":{"phase":"runtime","code":"type"}},
-    {"id":"equality-query-versus-number-is-error","source":"q`select 1`==0","expect":{"phase":"runtime","code":"type"}},
+    {"id":"equality-scans-deep-opaque-after-length-mismatch","source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value kiroha_runtime_value([0,{f:{x:any=>x}}])==[1]","expect":{"phase":"runtime","code":"type"}},
+    {"id":"inequality-scans-deep-bytes-after-key-mismatch","source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value kiroha_runtime_value({a:encode(\"x\")})!={b:0}","expect":{"phase":"runtime","code":"type"}},
+    {"id":"equality-query-versus-number-is-error","source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value kiroha_runtime_value(q`select 1`)==0","expect":{"phase":"runtime","code":"type"}},
     {"id":"query-construction-and-nested-hole-no-effect","source":"q=1;q`select ${do{x=2;{n:x}}}, ${q`nested`} \\${literal}`","expect":{"phase":"value","kind":"query"}},
     {"id":"len-arrays-records-scalars-and-bytes","source":"[[].size,{a:1,b:2}.size,\"😀\".size,\"é\".size,\"é\".size,encode(\"é😀\").size]","expect":{"phase":"value","json":"[0,2,1,2,1,6]"}},
-    {"id":"range-directions-exclusive-stop-and-default","source":"[range(0,5,2),range(5,0,-2),range(0,3,-1),range(2,2),range(1,4),(try range(0,3,0) catch {e=>e.code}),(try range(0,3,null) catch {e=>e.code})]","expect":{"phase":"value","json":"[[0,2,4],[5,3,1],[],[],[1,2,3],\"argument\",\"type\"]"}},
+    {"id":"range-directions-exclusive-stop-and-default","source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value [range(0,5,2),range(5,0,-2),range(0,3,-1),range(2,2),range(1,4),(try range(0,3,0) catch {e=>e.code}),(try kiroha_runtime_value(range)(0,3,null) catch {e=>e.code})]","expect":{"phase":"value","json":"[[0,2,4],[5,3,1],[],[],[1,2,3],\"argument\",\"type\"]"}},
     {"id":"map-filter-fold-and-array-concatenation","source":"xs=[1,2,3];[xs.map{x=>{v:x*2}},xs.filter{x=>x>1},xs.fold(10){(a,x)=>a-x},[].fold(7){(a,x)=>a+x},[1]+[2,3]]","expect":{"phase":"value","json":"[[{\"v\":2},{\"v\":4},{\"v\":6}],[2,3],4,7,[1,2,3]]"}},
-    {"id":"filter-requires-bool-result","source":"[1].filter{x=>x}","expect":{"phase":"runtime","code":"type"}},
+    {"id":"filter-requires-bool-result","source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value kiroha_runtime_value([1].filter)(){x=>x}","expect":{"phase":"runtime","code":"type"}},
     {"id":"each-empty-and-nonempty-return-null","source":"[[].each{x=>x},[1,2].each{x=>x*2}]","expect":{"phase":"value","json":"[null,null]"}},
     {"id":"each-propagates-first-callback-failure","source":"[1,2].each{x=>fail({code:text(x),message:\"\",data:{}})}","expect":{"phase":"runtime","code":"1"}},
     {"id":"flat-one-level-and-take-clamps","source":"[[[1],[2,[3]]].flat(),[1,2,3].take(2),[1,2].take(5),[1].take(0),(try [1].take(-1) catch {e=>e.code})]","expect":{"phase":"value","json":"[[1,2,[3]],[1,2],[1,2],[],\"argument\"]"}},
-    {"id":"flat-rejects-nonarray-member","source":"[[1],2].flat()","expect":{"phase":"runtime","code":"type"}},
+    {"id":"flat-rejects-nonarray-member","source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value kiroha_runtime_value([[1],2]).flat()","expect":{"phase":"runtime","code":"type"}},
     {"id":"sort-stable-callback-and-identity","source":"[[{n:2,id:\"a\"},{n:1,id:\"b\"},{n:2,id:\"c\"}].sort{x=>x.n},[3,1,2].sort(),[\"😀\",\"\",\"a\"].sort(),[].sort()]","expect":{"phase":"value","json":"[[{\"n\":1,\"id\":\"b\"},{\"n\":2,\"id\":\"a\"},{\"n\":2,\"id\":\"c\"}],[1,2,3],[\"a\",\"\",\"😀\"],[]]"}},
-    {"id":"sort-rejects-mixed-and-singleton-invalid-keys","source":"[(try [1,\"2\"].sort() catch {e=>e.code}),(try [1].sort{x=>true} catch {e=>e.code})]","expect":{"phase":"value","json":"[\"type\",\"type\"]"}},
+    {"id":"sort-rejects-mixed-and-singleton-invalid-keys","source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value [(try [1,\"2\"].sort() catch {e=>e.code}),(try kiroha_runtime_value([1].sort)(){x=>true} catch {e=>e.code})]","expect":{"phase":"value","json":"[\"type\",\"type\"]"}},
     {"id":"group-json-equality-and-first-key-order","source":"[{k:{a:1,b:2},v:\"a\"},{k:{b:2,a:1.0},v:\"b\"},{k:null,v:\"c\"}].group{x=>x.k}","expect":{"phase":"value","json":"[{\"key\":{\"a\":1,\"b\":2},\"items\":[{\"k\":{\"a\":1,\"b\":2},\"v\":\"a\"},{\"k\":{\"b\":2,\"a\":1},\"v\":\"b\"}]},{\"key\":null,\"items\":[{\"k\":null,\"v\":\"c\"}]}]"}},
     {"id":"unique-identity-and-callback-retain-first","source":"[[1,1.00,{a:1,b:2},{b:2,a:1},null,null].unique(),[{k:1,v:\"a\"},{k:1,v:\"b\"},{k:2,v:\"c\"}].unique{x=>x.k}]","expect":{"phase":"value","json":"[[1,{\"a\":1,\"b\":2},null],[{\"k\":1,\"v\":\"a\"},{\"k\":2,\"v\":\"c\"}]]"}},
-    {"id":"unique-rejects-nested-opaque-key","source":"[{x:encode(\"a\")}].unique()","expect":{"phase":"runtime","code":"type"}},
-    {"id":"collection-callback-failures-follow-input-order","source":"fun bad(x) fail({code:text(x),message:\"\",data:{}}) end fun bad [(try [2,1].map{x=>bad(x)} catch {e=>e.code}),(try [2,1].sort{x=>bad(x)} catch {e=>e.code}),(try [2,1].group{x=>bad(x)} catch {e=>e.code}),(try [2,1].unique{x=>bad(x)} catch {e=>e.code})]","expect":{"phase":"value","json":"[\"2\",\"2\",\"2\",\"2\"]"}},
-    {"id":"sum-empty-exact-and-type-validation","source":"[[].sum(),[0.1,0.2,9007199254740993].sum(),(try [1,\"2\"].sum() catch {e=>e.code})]","expect":{"phase":"value","json":"[0,9007199254740993.3,\"type\"]"}},
+    {"id":"unique-rejects-nested-opaque-key","source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value kiroha_runtime_value([{x:encode(\"a\")}].unique)()","expect":{"phase":"runtime","code":"type"}},
+    {"id":"collection-callback-failures-follow-input-order","source":"fun bad(x:any) fail({code:text(x),message:\"\",data:{}}) end fun bad [(try [2,1].map{x=>bad(x)} catch {e=>e.code}),(try [2,1].sort{x=>bad(x)} catch {e=>e.code}),(try [2,1].group{x=>bad(x)} catch {e=>e.code}),(try [2,1].unique{x=>bad(x)} catch {e=>e.code})]","expect":{"phase":"value","json":"[\"2\",\"2\",\"2\",\"2\"]"}},
+    {"id":"sum-empty-exact-and-type-validation","source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value [[].sum(),[0.1,0.2,9007199254740993].sum(),(try kiroha_runtime_value([1,\"2\"]).sum() catch {e=>e.code})]","expect":{"phase":"value","json":"[0,9007199254740993.3,\"type\"]"}},
     {"id":"keys-has-pick-and-shallow-merge-order","source":"r={a:{x:1},b:2}.merge({a:{y:3},c:null});[r.keys(),r.has(\"c\"),r.has(\"z\"),r.pick([\"c\",\"a\"]),r]","expect":{"phase":"value","json":"[[\"a\",\"b\",\"c\"],true,false,{\"c\":null,\"a\":{\"y\":3}},{\"a\":{\"y\":3},\"b\":2,\"c\":null}]"}},
     {"id":"pick-validates-duplicates-before-missing-copy","source":"{a:1}.pick([\"missing\",\"a\",\"a\"])","expect":{"phase":"runtime","code":"argument"}},
     {"id":"pick-missing-is-not-null","source":"{a:null}.pick([\"b\"])","expect":{"phase":"runtime","code":"missing","data":{"key":"b"}}},
     {"id":"one-exact-cardinality","source":"[[4].one(),(try [].one() catch {e=>[e.code,e.data.actual]}),(try [1,2].one() catch {e=>[e.code,e.data.actual]})]","expect":{"phase":"value","json":"[4,[\"cardinality\",0],[\"cardinality\",2]]"}},
     {"id":"split-join-replace-literal-and-empty-parts","source":"[\",a,,\".split(\",\"),\"\".split(\",\"),[\"a\",\"b\"].join(\"\"),[].join(\",\"),\"aaaa\".replace(\"aa\", \"b\"),\"a\".replace(\"a\", \"aa\"),\"$1.$1\".replace(\"$1\", \"x\")]","expect":{"phase":"value","json":"[[\"\",\"a\",\"\",\"\"],[\"\"],\"ab\",\"\",\"bb\",\"aa\",\"x.x\"]"}},
-    {"id":"text-operations-domain-and-element-types","source":"[(try \"a\".split(\"\") catch {e=>e.code}),(try \"a\".replace(\"\", \"b\") catch {e=>e.code}),(try [\"a\",1].join(\",\") catch {e=>e.code}),(try text([]) catch {e=>e.code})]","expect":{"phase":"value","json":"[\"argument\",\"argument\",\"type\",\"type\"]"}},
+    {"id":"text-operations-domain-and-element-types","source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value [(try \"a\".split(\"\") catch {e=>e.code}),(try \"a\".replace(\"\", \"b\") catch {e=>e.code}),(try kiroha_runtime_value([\"a\",1]).join(\",\") catch {e=>e.code}),(try kiroha_runtime_value(text)([]) catch {e=>e.code})]","expect":{"phase":"value","json":"[\"argument\",\"argument\",\"type\",\"type\"]"}},
     {"id":"text-scalars-and-string-concatenation","source":"[text(\"x\"),text(1.2300),text(1e21),text(false),text(null),\"a\"+\"b\"]","expect":{"phase":"value","json":"[\"x\",\"1.23\",\"1e21\",\"false\",\"null\",\"ab\"]"}},
-    {"id":"number-exact-complete-json-spelling","source":"[number(\"-0\"),number(\"9007199254740993\"),number(\"1.25e2\"),(try number(\" 1\") catch {e=>e.code}),(try number(\"+1\") catch {e=>e.code}),(try number(\"01\") catch {e=>e.code}),(try number(\"NaN\") catch {e=>e.code}),(try number(1) catch {e=>e.code})]","expect":{"phase":"value","json":"[0,9007199254740993,125,\"number\",\"number\",\"number\",\"number\",\"type\"]"}},
+    {"id":"number-exact-complete-json-spelling","source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value [number(\"-0\"),number(\"9007199254740993\"),number(\"1.25e2\"),(try number(\" 1\") catch {e=>e.code}),(try number(\"+1\") catch {e=>e.code}),(try number(\"01\") catch {e=>e.code}),(try number(\"NaN\") catch {e=>e.code}),(try kiroha_runtime_value(number)(1) catch {e=>e.code})]","expect":{"phase":"value","json":"[0,9007199254740993,125,\"number\",\"number\",\"number\",\"number\",\"type\"]"}},
     {"id":"parse-exact-json-order-and-supplementary-scalar","source":"parse(\" \\n{\\\"b\\\":9007199254740993,\\\"a\\\":\\\"\\uD83D\\uDE00\\\"}\\t\")","expect":{"phase":"value","json":"{\"b\":9007199254740993,\"a\":\"😀\"}"}},
     {"id":"parse-rejects-duplicates-trailing-bom-and-surrogate","source":"[(try parse(\"{\\\"a\\\":1,\\\"\\\\u0061\\\":2}\") catch {e=>e.data.reason}),(try parse(\"1 2\") catch {e=>e.data.reason}),(try parse(\"\\uFEFF1\") catch {e=>e.data.reason}),(try parse(\"\\\"\\\\uD800\\\"\") catch {e=>e.data.reason})]","expect":{"phase":"value","json":"[\"duplicate_key\",\"trailing\",\"bom\",\"surrogate\"]"}},
-    {"id":"parse-rejects-comments-nonfinite-trailing-comma-and-control","source":"[(try parse(\"/*x*/null\") catch {e=>e.code}),(try parse(\"NaN\") catch {e=>e.code}),(try parse(\"[1,]\") catch {e=>e.code}),(try parse(\"\\\"a\\nb\\\"\") catch {e=>e.code}),(try parse(1) catch {e=>e.code})]","expect":{"phase":"value","json":"[\"json\",\"json\",\"json\",\"json\",\"type\"]"}},
+    {"id":"parse-rejects-comments-nonfinite-trailing-comma-and-control","source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value [(try parse(\"/*x*/null\") catch {e=>e.code}),(try parse(\"NaN\") catch {e=>e.code}),(try parse(\"[1,]\") catch {e=>e.code}),(try parse(\"\\\"a\\nb\\\"\") catch {e=>e.code}),(try kiroha_runtime_value(parse)(1) catch {e=>e.code})]","expect":{"phase":"value","json":"[\"json\",\"json\",\"json\",\"json\",\"type\"]"}},
     {"id":"dump-canonical-escaping-and-roundtrip","source":"v={z:\"/é\\u2028\\u2029\\u0000\\b\\f\\n\\r\\t\\\"\\\\\",n:1.2300};[dump(v),parse(dump(v))==v]","expect":{"phase":"value","json":"[\"{\\\"z\\\":\\\"/é  \\\\u0000\\\\b\\\\f\\\\n\\\\r\\\\t\\\\\\\"\\\\\\\\\\\",\\\"n\\\":1.23}\",true]"}},
-    {"id":"dump-rejects-deep-function-value","source":"dump({a:[1,{f:{x=>x}}]})","expect":{"phase":"runtime","code":"type"}},
+    {"id":"dump-rejects-deep-function-value","source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value kiroha_runtime_value(dump)({a:[1,{f:{x:any=>x}}]})","expect":{"phase":"runtime","code":"type"}},
     {"id":"encode-exact-utf8-octets","source":"encode(\"é😀\")","expect":{"phase":"value","bytes_base64":"w6nwn5iA"}},
     {"id":"decode-roundtrip-preserves-bom","source":"decode(encode(\"﻿é😀\"))","expect":{"phase":"value","json":"\"﻿é😀\""}},
-    {"id":"decode-rejects-nonbytes","source":"decode([65])","expect":{"phase":"runtime","code":"type"}},
+    {"id":"decode-rejects-nonbytes","source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value kiroha_runtime_value(decode)([65])","expect":{"phase":"runtime","code":"type"}},
     {"id":"schema-all-five-atoms","source":"[check(\"s\",str),check(1.25,num),check(1.0,int),check(false,bool),check([null,{x:1}],json)]","expect":{"phase":"value","json":"[\"s\",1.25,1,false,[null,{\"x\":1}]]"}},
     {"id":"schema-optional-nullable-open-preserves-data-order","source":"S=open({id:int,label:optional(maybe(str))});[check({extra:2,id:1},S),check({id:2,label:null},S),check([], [str]),check({}, {})]","expect":{"phase":"value","json":"[{\"extra\":2,\"id\":1},{\"id\":2,\"label\":null},[],{}]"}},
     {"id":"schema-nested-validation-path","source":"check({users:[{id:1},{id:\"x\"}]},{users:[{id:int}]})","expect":{"phase":"runtime","code":"validation","data":{"path":["users",1,"id"],"expected":"int","actual":"string"}}},
     {"id":"schema-known-required-before-extra","source":"check({extra:1,b:\"bad\"},{a:int,b:int})","expect":{"phase":"runtime","code":"validation","data":{"path":["a"],"expected":"int","actual":"missing"}}},
     {"id":"schema-closed-extra-field","source":"check({a:1,b:2},{a:int})","expect":{"phase":"runtime","code":"validation","data":{"path":["b"],"expected":"absent","actual":"number"}}},
     {"id":"schema-optional-is-not-nullable","source":"check({x:null},{x:optional(str)})","expect":{"phase":"runtime","code":"validation","data":{"path":["x"],"expected":"str","actual":"null"}}},
-    {"id":"schema-invalid-description-before-data-mismatch","source":"check(null,{a:[]})","expect":{"phase":"runtime","code":"schema","data":{"path":["a"],"reason":"array_arity"}}},
-    {"id":"schema-malformed-descriptions-and-wrapper-placement","source":"[(try check(null,[]) catch {e=>e.code}),(try check(null,[str,num]) catch {e=>e.code}),(try check(null,true) catch {e=>e.code}),(try check(null,optional(str)) catch {e=>e.code}),(try check([], [optional(str)]) catch {e=>e.code}),(try maybe(optional(str)) catch {e=>e.code}),(try optional(optional(str)) catch {e=>e.code}),(try open(int) catch {e=>e.code})]","expect":{"phase":"value","json":"[\"schema\",\"schema\",\"schema\",\"schema\",\"schema\",\"schema\",\"schema\",\"schema\"]"}},
+    {"id":"schema-invalid-description-before-data-mismatch","source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value kiroha_runtime_value(check)(null,{a:[]})","expect":{"phase":"runtime","code":"schema","data":{"path":["a"],"reason":"array_arity"}}},
+    {"id":"schema-malformed-descriptions-and-wrapper-placement","source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value [(try kiroha_runtime_value(check)(null,[]) catch {e=>e.code}),(try check(null,[str,num]) catch {e=>e.code}),(try kiroha_runtime_value(check)(null,true) catch {e=>e.code}),(try check(null,kiroha_runtime_value(optional)(str)) catch {e=>e.code}),(try kiroha_runtime_value(check)([], [optional(str)]) catch {e=>e.code}),(try maybe(kiroha_runtime_value(optional)(str)) catch {e=>e.code}),(try optional(kiroha_runtime_value(optional)(str)) catch {e=>e.code}),(try kiroha_runtime_value(open)(int) catch {e=>e.code})]","expect":{"phase":"value","json":"[\"schema\",\"schema\",\"schema\",\"schema\",\"schema\",\"schema\",\"schema\",\"schema\"]"}},
     {"id":"schema-wrapper-idempotence-and-nullable-result","source":"[check(null,maybe(maybe(str))),check({x:1,y:2},open(open({x:int}))),(try check(1.5,int) catch {e=>[e.code,e.data.expected,e.data.actual]})]","expect":{"phase":"value","json":"[null,{\"x\":1,\"y\":2},[\"validation\",\"int\",\"number\"]]"}},
     {"id":"schema-open-extra-must-still-be-json","source":"check({a:1,extra:encode(\"x\")},open({a:int}))","expect":{"phase":"runtime","code":"validation"}},
     {"id":"value-schema-wrapper-kind","source":"optional(str)","expect":{"phase":"value","kind":"schema"}},
@@ -1541,8 +1660,8 @@ All following cases are independent. A reference runtime is not included. Extrac
     {"id":"host-parallel-failure-cancels-joins-no-third-start","source":"[1,2,3].parallel(2){i=>try get(url(\"https://fixture.invalid\",[text(i)])) catch {e=>if i==1 then fail({code:\"caught_abort\",message:\"\",data:{}}) else fail(e)}}","host":{"capabilities":{"http":["https://fixture.invalid"]}},"fixtures":[{"id":"p1","op":"http","match":{"method":"GET","url":"https://fixture.invalid/1"},"hold":true,"cancel_ack_ms":2},{"id":"p2","op":"http","match":{"method":"GET","url":"https://fixture.invalid/2"},"error":{"code":"network","message":"fixture diagnostic","data":{"operation":"http","reason":"second_failed","outcome":"unknown"}},"after_ms":10}],"expect":{"phase":"runtime","code":"network","trace":["p1:start","p2:start","p2:error","p1:cancel","p1:joined"],"starts":{"p1":0,"p2":0},"max_parallel_active":2,"data":{"reason":"second_failed","outcome":"unknown"}}},
     {"id":"host-retry-backoff-and-no-final-predicate","source":"retry({attempts:3,when:{e=>if e.data.attempt==3 then fail({code:\"predicate_after_final\",message:\"\",data:{}}) else true},delay:10}){()=>get(\"https://fixture.invalid/retry\")}","host":{"capabilities":{"http":["https://fixture.invalid"]}},"fixtures":[{"id":"a1","op":"http","match":{"method":"GET","url":"https://fixture.invalid/retry"},"error":{"code":"network","message":"fixture diagnostic","data":{"operation":"http","reason":"fixture","outcome":"unknown","attempt":1}}},{"id":"a2","op":"http","match":{"method":"GET","url":"https://fixture.invalid/retry"},"error":{"code":"network","message":"fixture diagnostic","data":{"operation":"http","reason":"fixture","outcome":"unknown","attempt":2}}},{"id":"a3","op":"http","match":{"method":"GET","url":"https://fixture.invalid/retry"},"error":{"code":"network","message":"fixture diagnostic","data":{"operation":"http","reason":"fixture","outcome":"unknown","attempt":3}}}],"expect":{"phase":"runtime","code":"network","trace":["a1:start","a1:error","sleep#1:start","sleep#1:ok","a2:start","a2:error","sleep#2:start","sleep#2:ok","a3:start","a3:error"],"starts":{"a1":0,"a2":10,"a3":30},"data":{"attempt":3,"outcome":"unknown"}}},
     {"id":"host-retry-success-zero-backoff","source":"retry({attempts:2,when:{e=>e.code==\"network\"},delay:0}){()=>get(\"https://fixture.invalid/retry\")}","host":{"capabilities":{"http":["https://fixture.invalid"]}},"fixtures":[{"id":"a1","op":"http","match":{"method":"GET","url":"https://fixture.invalid/retry"},"error":{"code":"network","message":"fixture diagnostic","data":{"operation":"http","reason":"retry_once","outcome":"unknown"}}},{"id":"a2","op":"http","match":{"method":"GET","url":"https://fixture.invalid/retry"},"ok":{"status":200,"headers":[],"body_base64":"eyJvayI6dHJ1ZX0="}}],"expect":{"phase":"value","json":"{\"ok\":true}","trace":["a1:start","a1:error","sleep#1:start","sleep#1:ok","a2:start","a2:ok"],"starts":{"a1":0,"a2":0}}},
-    {"id":"host-pages-false-zero-empty-and-terminal-exact-limits","source":"pages(null,{max_pages:3,max_items:2}){c=>if c==null then {items:[1],next:0} else if c==0 then {items:[],next:false} else {items:[2],next:null}}","expect":{"phase":"value","json":"[1,2]","trace":[]}},
-    {"id":"host-pages-cycle-and-limit-priority","source":"[(try pages({a:1,b:2},{max_pages:1}){c=>{items:[],next:{b:2,a:1}}} catch {e=>[e.code,e.data.reason,e.data.pages,e.data.items]}),(try pages(null,{max_pages:1}){c=>{items:[1],next:0}} catch {e=>[e.code,e.data.reason,e.data.pages,e.data.items]}),(try pages(\"x\",{max_pages:1,max_items:0}){c=>{items:[1],next:\"x\"}} catch {e=>[e.code,e.data.reason,e.data.pages,e.data.items]})]","expect":{"phase":"value","json":"[[\"pagination\",\"repeated_cursor\",1,0],[\"pagination\",\"max_pages\",1,1],[\"pagination\",\"max_items\",1,1]]","trace":[]}},
+    {"id":"host-pages-false-zero-empty-and-terminal-exact-limits","source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value kiroha_runtime_value(pages)(null,{max_pages:3,max_items:2}){c=>if c==null then {items:[1],next:0} else if c==0 then {items:[],next:false} else {items:[2],next:null}}","expect":{"phase":"value","json":"[1,2]","trace":[]}},
+    {"id":"host-pages-cycle-and-limit-priority","source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value [(try pages({a:1,b:2},{max_pages:1}){c=>{items:[],next:{b:2,a:1}}} catch {e=>[e.code,e.data.reason,e.data.pages,e.data.items]}),(try kiroha_runtime_value(pages)(null,{max_pages:1}){c=>{items:[1],next:0}} catch {e=>[e.code,e.data.reason,e.data.pages,e.data.items]}),(try pages(\"x\",{max_pages:1,max_items:0}){c=>{items:[1],next:\"x\"}} catch {e=>[e.code,e.data.reason,e.data.pages,e.data.items]})]","expect":{"phase":"value","json":"[[\"pagination\",\"repeated_cursor\",1,0],[\"pagination\",\"max_pages\",1,1],[\"pagination\",\"max_items\",1,1]]","trace":[]}},
     {"id":"host-http-status-before-json-and-empty-success","source":"r=http(\"GET\",\"https://fixture.invalid/raw\");[r.status,r.body.size,(try get(\"https://fixture.invalid/rejected\") catch {e=>[e.code,e.data.status]}),(try get(\"https://fixture.invalid/empty\") catch {e=>e.code}),post(\"https://fixture.invalid/create\",{x:1})]","host":{"capabilities":{"http":["https://fixture.invalid"]}},"fixtures":[{"id":"raw","op":"http","match":{"method":"GET","url":"https://fixture.invalid/raw"},"ok":{"status":404,"headers":[],"body_base64":"eA=="}},{"id":"rejected","op":"http","match":{"method":"GET","url":"https://fixture.invalid/rejected"},"ok":{"status":404,"headers":[],"body_base64":"bm90IGpzb24="}},{"id":"empty","op":"http","match":{"method":"GET","url":"https://fixture.invalid/empty"},"ok":{"status":204,"headers":[["Content-Encoding","gzip"]],"body_base64":""}},{"id":"created","op":"http","match":{"method":"POST","url":"https://fixture.invalid/create","body_base64":"eyJ4IjoxfQ=="},"ok":{"status":201,"headers":[],"body_base64":"eyJpZCI6Mn0="}}],"expect":{"phase":"value","json":"[404,1,[\"http\",404],\"json\",{\"id\":2}]","trace":["raw:start","raw:ok","rejected:start","rejected:ok","empty:start","empty:ok","created:start","created:ok"]}},
     {"id":"host-http-gzip-wire-headers-and-decoded-byte-limit","source":"r=http(\"GET\",\"https://fixture.invalid/gzip\",{max_bytes:7});[{status:r.status,headers:r.headers,value:parse(decode(r.body))},(try get(\"https://fixture.invalid/over\",{max_bytes:6}) catch {e=>e.code}),(try get(\"https://fixture.invalid/bad-gzip\") catch {e=>[e.code,e.data.reason]})]","host":{"capabilities":{"http":["https://fixture.invalid"]}},"fixtures":[{"id":"gzip","op":"http","match":{"method":"GET","url":"https://fixture.invalid/gzip"},"ok":{"status":200,"headers":[["Content-Encoding","GZip"],["X-V"," a "],["x-v","b"],["Content-Length","27"]],"body_base64":"H4sIAAAAAAACA6tWqlCyMqwFAFxZ6zsHAAAA"}},{"id":"over","op":"http","match":{"method":"GET","url":"https://fixture.invalid/over"},"ok":{"status":200,"headers":[["Content-Encoding","gzip"]],"body_base64":"H4sIAAAAAAACA6tWqlCyMqwFAFxZ6zsHAAAA"}},{"id":"badgzip","op":"http","match":{"method":"GET","url":"https://fixture.invalid/bad-gzip"},"ok":{"status":404,"headers":[["Content-Encoding","gzip"]],"body_base64":"bm90IGd6aXA="}}],"expect":{"phase":"value","json":"[{\"status\":200,\"headers\":{\"content-encoding\":[\"GZip\"],\"x-v\":[\"a\",\"b\"],\"content-length\":[\"27\"]},\"value\":{\"x\":1}},\"limit\",[\"network\",\"decode\"]]","trace":["gzip:start","gzip:ok","over:start","over:ok","badgzip:start","badgzip:ok"]}},
     {"id":"host-http-head-and-204-skip-content-coding","source":"a=http(\"HEAD\",\"https://fixture.invalid/head\",{max_bytes:0});b=http(\"GET\",\"https://fixture.invalid/bodyless\",{max_bytes:0});[a.status,a.body.size,b.status,b.body.size]","host":{"capabilities":{"http":["https://fixture.invalid"]}},"fixtures":[{"id":"head","op":"http","match":{"method":"HEAD","url":"https://fixture.invalid/head"},"ok":{"status":200,"headers":[["Content-Encoding","br"],["Content-Length","999999"]],"body_base64":""}},{"id":"empty","op":"http","match":{"method":"GET","url":"https://fixture.invalid/bodyless"},"ok":{"status":204,"headers":[["Content-Encoding","unsupported"]],"body_base64":""}}],"expect":{"phase":"value","json":"[200,0,204,0]","trace":["head:start","head:ok","empty:start","empty:ok"]}},
@@ -1552,8 +1671,8 @@ All following cases are independent. A reference runtime is not included. Extrac
     {"id":"host-environment-clock-random-and-atomic-log-line","source":"v={token:env(\"TOKEN\"),at:now(),id:uuid()};log(v);v.merge({missing:try env(\"MISSING\") catch {e=>e.code}})","host":{"capabilities":{"env":["TOKEN","MISSING"],"clock":true,"random":true,"log":true},"environment":{"TOKEN":"demo"}},"fixtures":[{"id":"env","op":"environment","match":{"name":"TOKEN"},"ok":"demo"},{"id":"clock","op":"utc_now","match":{},"ok":{"unix_ms":123}},{"id":"random","op":"random_bytes","match":{"count":16},"ok":{"bytes_base64":"AAAAAAAAAAAAAAAAAAAAAA=="}},{"id":"log","op":"log_line","match":{"line":"{\"token\":\"demo\",\"at\":\"1970-01-01T00:00:00.123Z\",\"id\":\"00000000-0000-4000-8000-000000000000\"}\n"},"ok":null},{"id":"missing","op":"environment","match":{"name":"MISSING"},"error":{"code":"env","message":"fixture diagnostic","data":{"name":"MISSING"}}}],"expect":{"phase":"value","json":"{\"token\":\"demo\",\"at\":\"1970-01-01T00:00:00.123Z\",\"id\":\"00000000-0000-4000-8000-000000000000\",\"missing\":\"env\"}","trace":["env:start","env:ok","clock:start","clock:ok","random:start","random:ok","log:start","log:ok","missing:start","missing:error"]}},
     {"id":"host-file-replacement-and-normalized-read-path","source":"write(\"/fixtures/./out\",encode(\"é\"));decode(read(\"/fixtures//out\"))","host":{"capabilities":{"write":["/fixtures"],"read":["/fixtures"]}},"fixtures":[{"id":"write","op":"replace_regular","match":{"path":"/fixtures/out","bytes_base64":"w6k="},"ok":null},{"id":"read","op":"read_regular","match":{"path":"/fixtures/out"},"ok":{"bytes_base64":"w6k="}}],"expect":{"phase":"value","json":"\"é\"","trace":["write:start","write:ok","read:start","read:ok"]}},
     {"id":"host-default-denies-every-external-capability","source":"[(try env(\"TOKEN\") catch {e=>e.code}),(try read(\"/fixtures/x\") catch {e=>e.code}),(try write(\"/fixtures/x\",encode(\"x\")) catch {e=>e.code}),(try now() catch {e=>e.code}),(try uuid() catch {e=>e.code}),(try log(null) catch {e=>e.code}),(try db(\"main\") catch {e=>e.code}),(try http(\"GET\",\"https://fixture.invalid/\") catch {e=>e.code}),(try serve({}) catch {e=>e.code})]","fixtures":[],"expect":{"phase":"value","json":"[\"permission\",\"permission\",\"permission\",\"permission\",\"permission\",\"permission\",\"permission\",\"permission\",\"permission\"]","trace":[]}},
-    {"id":"host-sql-all-parameter-kinds-and-exact-result-mapping","source":"d=db(\"main\");r=sql(d,q`select ${null}::text as z, ${true}::boolean as b, ${\"x'); drop table t; --\"}::text as s, ${9007199254740993.25}::numeric as n, ${encode(\"é\")}::bytea as raw, ${{a:1}}::jsonb as obj, ${[1,2]}::jsonb as arr`);x=r.rows.one();{count:r.count,row:{z:x.z,b:x.b,s:x.s,n:x.n,raw:decode(x.raw),obj:x.obj,arr:x.arr}}","host":{"capabilities":{"databases":["main"]}},"fixtures":[{"id":"pool","op":"pool","match":{"alias":"main"},"ok":"pool-main"},{"id":"acquire","op":"acquire","match":{"pool":"pool-main"},"ok":"conn-1"},{"id":"query","op":"execute","match":{"connection":"conn-1","sql":"select  $1 ::text as z,  $2 ::boolean as b,  $3 ::text as s,  $4 ::numeric as n,  $5 ::bytea as raw,  $6 ::jsonb as obj,  $7 ::jsonb as arr","parameters":[{"oid":0,"value":null},{"oid":16,"value":"true"},{"oid":25,"value":"x'); drop table t; --"},{"oid":1700,"value":"9007199254740993.25"},{"oid":17,"value":"w6k="},{"oid":3802,"value":"{\"a\":1}"},{"oid":3802,"value":"[1,2]"}]},"ok":{"columns":[{"name":"z","oid":25},{"name":"b","oid":16},{"name":"s","oid":25},{"name":"n","oid":1700},{"name":"raw","oid":17},{"name":"obj","oid":3802},{"name":"arr","oid":3802}],"rows":[[null,"t","x'); drop table t; --","9007199254740993.25","\\xc3a9","{\"a\":1}","[1,2]"]],"count":"1","outcome":"committed"}},{"id":"release","op":"release","match":{"connection":"conn-1","disposition":"reset"},"ok":null}],"expect":{"phase":"value","json":"{\"count\":1,\"row\":{\"z\":null,\"b\":true,\"s\":\"x'); drop table t; --\",\"n\":9007199254740993.25,\"raw\":\"é\",\"obj\":{\"a\":1},\"arr\":[1,2]}}","trace":["pool:start","pool:ok","acquire:start","acquire:ok","query:start","query:ok","release:start","release:ok"]}},
-    {"id":"host-sql-preflight-before-acquire","source":"d=db(\"main\");[(try sql(d,\"select 1\") catch {e=>e.code}),(try sql(d,q`select 1;select 2`) catch {e=>[e.code,e.data.phase,e.data.reason]}),(try sql(d,q`select $1`) catch {e=>[e.code,e.data.phase,e.data.reason]}),(try sql(d,q`select '${\"x\"}'`) catch {e=>[e.code,e.data.phase,e.data.reason]}),(try sql(d,q`select ${{f:{x=>x}}}`) catch {e=>[e.code,e.data.phase,e.data.outcome]})]","host":{"capabilities":{"databases":["main"]}},"fixtures":[{"id":"pool","op":"pool","match":{"alias":"main"},"ok":"pool-main"}],"expect":{"phase":"value","json":"[\"type\",[\"db\",\"prepare\",\"multiple_statements\"],[\"db\",\"prepare\",\"literal_parameter\"],[\"db\",\"prepare\",\"hole_context\"],[\"db\",\"bind\",\"not_sent\"]]","trace":["pool:start","pool:ok"]}},
+    {"id":"host-sql-all-parameter-kinds-and-exact-result-mapping","source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value d=db(\"main\");r=sql(d,q`select ${null}::text as z, ${true}::boolean as b, ${\"x'); drop table t; --\"}::text as s, ${9007199254740993.25}::numeric as n, ${encode(\"é\")}::bytea as raw, ${{a:1}}::jsonb as obj, ${[1,2]}::jsonb as arr`);x=r.rows.one();{count:r.count,row:{z:x.z,b:x.b,s:x.s,n:x.n,raw:decode(kiroha_runtime_value(x).raw),obj:x.obj,arr:x.arr}}","host":{"capabilities":{"databases":["main"]}},"fixtures":[{"id":"pool","op":"pool","match":{"alias":"main"},"ok":"pool-main"},{"id":"acquire","op":"acquire","match":{"pool":"pool-main"},"ok":"conn-1"},{"id":"query","op":"execute","match":{"connection":"conn-1","sql":"select  $1 ::text as z,  $2 ::boolean as b,  $3 ::text as s,  $4 ::numeric as n,  $5 ::bytea as raw,  $6 ::jsonb as obj,  $7 ::jsonb as arr","parameters":[{"oid":0,"value":null},{"oid":16,"value":"true"},{"oid":25,"value":"x'); drop table t; --"},{"oid":1700,"value":"9007199254740993.25"},{"oid":17,"value":"w6k="},{"oid":3802,"value":"{\"a\":1}"},{"oid":3802,"value":"[1,2]"}]},"ok":{"columns":[{"name":"z","oid":25},{"name":"b","oid":16},{"name":"s","oid":25},{"name":"n","oid":1700},{"name":"raw","oid":17},{"name":"obj","oid":3802},{"name":"arr","oid":3802}],"rows":[[null,"t","x'); drop table t; --","9007199254740993.25","\\xc3a9","{\"a\":1}","[1,2]"]],"count":"1","outcome":"committed"}},{"id":"release","op":"release","match":{"connection":"conn-1","disposition":"reset"},"ok":null}],"expect":{"phase":"value","json":"{\"count\":1,\"row\":{\"z\":null,\"b\":true,\"s\":\"x'); drop table t; --\",\"n\":9007199254740993.25,\"raw\":\"é\",\"obj\":{\"a\":1},\"arr\":[1,2]}}","trace":["pool:start","pool:ok","acquire:start","acquire:ok","query:start","query:ok","release:start","release:ok"]}},
+    {"id":"host-sql-preflight-before-acquire","source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value d=db(\"main\");[(try kiroha_runtime_value(sql)(d,\"select 1\") catch {e=>e.code}),(try sql(d,q`select 1;select 2`) catch {e=>[e.code,e.data.phase,e.data.reason]}),(try sql(d,q`select $1`) catch {e=>[e.code,e.data.phase,e.data.reason]}),(try sql(d,q`select '${\"x\"}'`) catch {e=>[e.code,e.data.phase,e.data.reason]}),(try sql(d,q`select ${{f:{x:any=>x}}}`) catch {e=>[e.code,e.data.phase,e.data.outcome]})]","host":{"capabilities":{"databases":["main"]}},"fixtures":[{"id":"pool","op":"pool","match":{"alias":"main"},"ok":"pool-main"}],"expect":{"phase":"value","json":"[\"type\",[\"db\",\"prepare\",\"multiple_statements\"],[\"db\",\"prepare\",\"literal_parameter\"],[\"db\",\"prepare\",\"hole_context\"],[\"db\",\"bind\",\"not_sent\"]]","trace":["pool:start","pool:ok"]}},
     {"id":"host-sql-zero-row-unsupported-metadata-still-fails","source":"sql(db(\"main\"),q`select current_date where false`)","host":{"capabilities":{"databases":["main"]}},"fixtures":[{"id":"pool","op":"pool","match":{"alias":"main"},"ok":"pool-main"},{"id":"acquire","op":"acquire","match":{"pool":"pool-main"},"ok":"conn-1"},{"id":"query","op":"execute","match":{"connection":"conn-1","sql":"select current_date where false","parameters":[]},"ok":{"columns":[{"name":"current_date","oid":1082}],"rows":[],"count":"0","outcome":"committed"}},{"id":"release","op":"release","match":{"connection":"conn-1","disposition":"reset"},"ok":null}],"expect":{"phase":"runtime","code":"db","trace":["pool:start","pool:ok","acquire:start","acquire:ok","query:start","query:ok","release:start","release:ok"],"data":{"phase":"decode","outcome":"committed"}}},
     {"id":"host-sql-row-limit-after-autocommit-is-not-rollback","source":"sql(db(\"main\"),q`insert into t(v) values (1) returning id`,{max_rows:0})","host":{"capabilities":{"databases":["main"]}},"fixtures":[{"id":"pool","op":"pool","match":{"alias":"main"},"ok":"pool-main"},{"id":"acquire","op":"acquire","match":{"pool":"pool-main"},"ok":"conn-1"},{"id":"query","op":"execute","match":{"connection":"conn-1","sql":"insert into t(v) values (1) returning id","parameters":[]},"ok":{"columns":[{"name":"id","oid":23}],"rows":[["7"]],"count":"1","outcome":"committed"}},{"id":"release","op":"release","match":{"connection":"conn-1","disposition":"reset"},"ok":null}],"expect":{"phase":"runtime","code":"limit","trace":["pool:start","pool:ok","acquire:start","acquire:ok","query:start","query:ok","release:start","release:ok"],"data":{"operation":"sql","limit":"max_rows","maximum":0,"outcome":"committed"}}},
     {"id":"host-tx-caught-poison-stays-primary-and-rolls-back","source":"d=db(\"main\");tx(d){t=>try sql(t,q`select 1`) catch {e=>null};try sql(t,q`select 2`) catch {e=>null};fail({code:\"later_callback\",message:\"\",data:{}})}","host":{"capabilities":{"databases":["main"]}},"fixtures":[{"id":"pool","op":"pool","match":{"alias":"main"},"ok":"pool-main"},{"id":"acquire","op":"acquire","match":{"pool":"pool-main"},"ok":"conn-1"},{"id":"begin","op":"begin","match":{"connection":"conn-1","isolation":"read_committed"},"ok":null},{"id":"query","op":"execute","match":{"connection":"conn-1","sql":"select 1","parameters":[]},"error":{"code":"db","message":"fixture diagnostic","data":{"phase":"execute","outcome":"unknown","sqlstate":"23505"}}},{"id":"rollback","op":"rollback","match":{"connection":"conn-1"},"ok":null},{"id":"release","op":"release","match":{"connection":"conn-1","disposition":"reset"},"ok":null}],"expect":{"phase":"runtime","code":"db","trace":["pool:start","pool:ok","acquire:start","acquire:ok","begin:start","begin:ok","query:start","query:error","rollback:start","rollback:ok","release:start","release:ok"],"data":{"phase":"execute","outcome":"unknown","sqlstate":"23505"}}},
@@ -1562,27 +1681,27 @@ All following cases are independent. A reference runtime is not included. Extrac
     {"id":"host-tx-returned-handle-has-expired","source":"t=tx(db(\"main\")){t=>t};sql(t,q`select 1`)","host":{"capabilities":{"databases":["main"]}},"fixtures":[{"id":"pool","op":"pool","match":{"alias":"main"},"ok":"pool-main"},{"id":"acquire","op":"acquire","match":{"pool":"pool-main"},"ok":"conn-1"},{"id":"begin","op":"begin","match":{"connection":"conn-1","isolation":"read_committed"},"ok":null},{"id":"commit","op":"commit","match":{"connection":"conn-1"},"ok":null},{"id":"release","op":"release","match":{"connection":"conn-1","disposition":"reset"},"ok":null}],"expect":{"phase":"runtime","code":"db","trace":["pool:start","pool:ok","acquire:start","acquire:ok","begin:start","begin:ok","commit:start","commit:ok","release:start","release:ok"],"data":{"phase":"ownership","outcome":"not_sent"}}},
     {"id":"host-tx-timeout-stops-callback-and-cleans-up","source":"try tx(db(\"main\"),{timeout:5}){t=>sleep(100);7} catch {e=>[e.code,e.data.operation,e.data.timeout]}","host":{"capabilities":{"databases":["main"]}},"fixtures":[{"id":"pool","op":"pool","match":{"alias":"main"},"ok":"pool-main"},{"id":"acquire","op":"acquire","match":{"pool":"pool-main"},"ok":"conn-1"},{"id":"begin","op":"begin","match":{"connection":"conn-1","isolation":"read_committed"},"ok":null},{"id":"rollback","op":"rollback","match":{"connection":"conn-1"},"ok":null},{"id":"release","op":"release","match":{"connection":"conn-1","disposition":"reset"},"ok":null}],"expect":{"phase":"value","json":"[\"timeout\",\"tx\",5]","trace":["pool:start","pool:ok","acquire:start","acquire:ok","begin:start","begin:ok","sleep#1:start","sleep#1:cancel","sleep#1:joined","rollback:start","rollback:ok","release:start","release:ok"],"starts":{"pool":0,"acquire":0,"begin":0,"rollback":5,"release":5}}},
     {"id":"host-serve-ambiguity-rejected-before-listen","source":"serve({\"GET /a/:x\":{r=>1},\"GET /:y/b\":{r=>2}})","host":{"capabilities":{"listen":[{"host":"127.0.0.1","port":8080}]}},"fixtures":[],"expect":{"phase":"runtime","code":"argument","trace":[],"data":{"operation":"serve"}}},
-    {"id":"host-input-constructed-record-and-error-precedence","source":"fun r(s,h) {method:\"POST\",path:\"/\",params:{},query:{},headers:h,body:encode(s)} end fun r [input(r(\"{\\\"id\\\":1}\",{\"content-type\":[\"Application/JSON; charset=\\\"utf-8\\\"\"]}),{id:int}),(try input(r(\"x\",{\"content-type\":[\"application/json\"]})) catch {e=>[e.code,e.data.reason]}),(try input(r(\"{\\\"id\\\":\\\"bad\\\"}\",{\"content-type\":[\"application/json\"]}),{id:int}) catch {e=>[e.code,e.data.reason,e.data.path]}),(try input(r(\"null\",{})) catch {e=>e.code}),(try input(r(\"null\",{\"content-type\":[\"application/json\",\"application/json\"]})) catch {e=>e.code}),(try input(r(\"null\",{\"content-type\":[\"application/json\"],\"content-encoding\":[\"gzip\"]})) catch {e=>e.code}),(try input({},[]) catch {e=>e.code})]","expect":{"phase":"value","json":"[{\"id\":1},[\"input\",\"json\"],[\"input\",\"validation\",[\"id\"]],\"media\",\"media\",\"media\",\"schema\"]","trace":[]}},
-    {"id":"host-reply-eager-validation-and-bodyless-rules","source":"[(try reply(199,null) catch {e=>e.code}),(try reply(204,{x:1}) catch {e=>e.code}),(try reply(205,null,{\"Content-Type\":\"application/json\"}) catch {e=>e.code}),(try reply(200,{f:{x=>x}}) catch {e=>e.code}),(try reply(200,null,{\"Content-Type\":\"text/plain\"}) catch {e=>e.code}),(try reply(200,null,{\"Content-Encoding\":\"gzip\"}) catch {e=>e.code}),(try reply(200,null,{Connection:\"close\"}) catch {e=>e.code})]","expect":{"phase":"value","json":"[\"argument\",\"argument\",\"argument\",\"type\",\"argument\",\"argument\",\"argument\"]","trace":[]}},
+    {"id":"host-input-constructed-record-and-error-precedence","source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value fun r(s:any,h:any) {method:\"POST\",path:\"/\",params:{},query:{},headers:h,body:encode(s)} end fun r [input(r(\"{\\\"id\\\":1}\",{\"content-type\":[\"Application/JSON; charset=\\\"utf-8\\\"\"]}),{id:int}),(try input(r(\"x\",{\"content-type\":[\"application/json\"]})) catch {e=>[e.code,e.data.reason]}),(try input(r(\"{\\\"id\\\":\\\"bad\\\"}\",{\"content-type\":[\"application/json\"]}),{id:int}) catch {e=>[e.code,e.data.reason,e.data.path]}),(try input(r(\"null\",{})) catch {e=>e.code}),(try input(r(\"null\",{\"content-type\":[\"application/json\",\"application/json\"]})) catch {e=>e.code}),(try input(r(\"null\",{\"content-type\":[\"application/json\"],\"content-encoding\":[\"gzip\"]})) catch {e=>e.code}),(try kiroha_runtime_value(input)({},[]) catch {e=>e.code})]","expect":{"phase":"value","json":"[{\"id\":1},[\"input\",\"json\"],[\"input\",\"validation\",[\"id\"]],\"media\",\"media\",\"media\",\"schema\"]","trace":[]}},
+    {"id":"host-reply-eager-validation-and-bodyless-rules","source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value [(try reply(199,null) catch {e=>e.code}),(try reply(204,{x:1}) catch {e=>e.code}),(try reply(205,null,{\"Content-Type\":\"application/json\"}) catch {e=>e.code}),(try kiroha_runtime_value(reply)(200,{f:{x:any=>x}}) catch {e=>e.code}),(try reply(200,null,{\"Content-Type\":\"text/plain\"}) catch {e=>e.code}),(try reply(200,null,{\"Content-Encoding\":\"gzip\"}) catch {e=>e.code}),(try reply(200,null,{Connection:\"close\"}) catch {e=>e.code})]","expect":{"phase":"value","json":"[\"argument\",\"argument\",\"argument\",\"type\",\"argument\",\"argument\",\"argument\"]","trace":[]}},
     {"id":"host-reply-is-nominal-opaque-value","source":"reply(205,null)","expect":{"phase":"value","kind":"reply","trace":[]}},
     {"id":"host-server-routing-query-headers-and-head","source":"serve({\"GET /a/fixed\":{r=>{kind:\"literal\"}},\"GET /a/:x\":{r=>{p:r.params.x,path:r.path,q:r.query,h:r.headers}},\"POST /a/:x\":{r=>null},\"HEAD /head\":{r=>reply(200,{body:\"suppressed\"})},\"GET /only\":{r=>fail({code:\"unexpected_get\",message:\"\",data:{}})}})","host":{"capabilities":{"listen":[{"host":"127.0.0.1","port":8080}]}},"fixtures":[],"server":{"requests":[{"id":"literal","at_ms":0,"method":"GET","target":"/a/fixed","headers":[],"body_base64":""},{"id":"encoded","at_ms":2,"method":"GET","target":"/a/x%2Fy?tag=a+b&tag=c%2Bd&&flag&=empty","headers":[["X-Test"," first "],["x-test","second"]],"body_base64":""},{"id":"wrong","at_ms":4,"method":"PUT","target":"/a/fixed","headers":[],"body_base64":""},{"id":"missing","at_ms":6,"method":"GET","target":"/missing","headers":[],"body_base64":""},{"id":"head","at_ms":8,"method":"HEAD","target":"/head","headers":[],"body_base64":""},{"id":"nohead","at_ms":10,"method":"HEAD","target":"/only","headers":[],"body_base64":""},{"id":"invalid","at_ms":12,"method":"GET","target":"/a/%ZZ","headers":[],"body_base64":""}],"cancel_at_ms":20},"expect":{"phase":"abort","reason":"cancelled","trace":["listener:start","literal:receive","literal:response:200","encoded:receive","encoded:response:200","wrong:receive","wrong:response:405","missing:receive","missing:response:404","head:receive","head:response:200","nohead:receive","nohead:response:405","invalid:receive","invalid:response:400","listener:close"],"responses":[{"id":"literal","status":200,"body_base64":"eyJraW5kIjoibGl0ZXJhbCJ9"},{"id":"encoded","status":200,"body_base64":"eyJwIjoieC95IiwicGF0aCI6Ii9hL3glMkZ5IiwicSI6eyJ0YWciOlsiYSBiIiwiYytkIl0sImZsYWciOlsiIl0sIiI6WyJlbXB0eSJdfSwiaCI6eyJ4LXRlc3QiOlsiZmlyc3QiLCJzZWNvbmQiXX19"},{"id":"wrong","status":405,"body_base64":"eyJlcnJvciI6Im1ldGhvZF9ub3RfYWxsb3dlZCJ9","headers":{"allow":["GET, POST"]}},{"id":"missing","status":404,"body_base64":"eyJlcnJvciI6Im5vdF9mb3VuZCJ9"},{"id":"head","status":200,"body_base64":""},{"id":"nohead","status":405,"body_base64":"","headers":{"allow":["GET"]}},{"id":"invalid","status":400,"body_base64":"eyJlcnJvciI6ImJhZF9yZXF1ZXN0In0="}]}},
     {"id":"host-server-admission-body-coding-and-timeout-order","source":"serve({\"GET /slow\":{r=>sleep(20);{ok:true}}},{timeout:5,max_body:2,max_inflight:1})","host":{"capabilities":{"listen":[{"host":"127.0.0.1","port":8080}]}},"fixtures":[],"server":{"requests":[{"id":"slow","at_ms":0,"method":"GET","target":"/slow","headers":[],"body_base64":""},{"id":"badtarget","at_ms":1,"method":"GET","target":"/%ZZ","headers":[],"body_base64":""},{"id":"busy","at_ms":2,"method":"GET","target":"/unknown","headers":[],"body_base64":"YWJj"},{"id":"large","at_ms":7,"method":"GET","target":"/unknown","headers":[],"body_base64":"YWJj"},{"id":"coding","at_ms":9,"method":"GET","target":"/unknown","headers":[["Content-Encoding","gzip"]],"body_base64":""},{"id":"expect","at_ms":11,"method":"GET","target":"/slow","headers":[["Expect","100-continue"]],"body_base64":"b3ZlcnNpemU="}],"cancel_at_ms":15},"expect":{"phase":"abort","reason":"cancelled","trace":["listener:start","slow:receive","sleep#1:start","badtarget:receive","badtarget:response:400","busy:receive","busy:response:503","sleep#1:cancel","sleep#1:joined","slow:response:504","large:receive","large:response:413","coding:receive","coding:response:415","expect:receive","expect:response:400","listener:close"],"responses":[{"id":"badtarget","status":400,"body_base64":"eyJlcnJvciI6ImJhZF9yZXF1ZXN0In0="},{"id":"busy","status":503,"body_base64":"eyJlcnJvciI6InVuYXZhaWxhYmxlIn0="},{"id":"slow","status":504,"body_base64":"eyJlcnJvciI6InRpbWVvdXQifQ=="},{"id":"large","status":413,"body_base64":"eyJlcnJvciI6InBheWxvYWRfdG9vX2xhcmdlIn0="},{"id":"coding","status":415,"body_base64":"eyJlcnJvciI6InVuc3VwcG9ydGVkX21lZGlhX3R5cGUifQ=="},{"id":"expect","status":400,"body_base64":"eyJlcnJvciI6ImJhZF9yZXF1ZXN0In0="}]}},
     {"id":"host-server-root-cancellation-joins-pending-handler","source":"serve({\"GET /\":{r=>get(\"https://fixture.invalid/held\")}})","host":{"capabilities":{"listen":[{"host":"127.0.0.1","port":8080}],"http":["https://fixture.invalid"]}},"fixtures":[{"id":"held","op":"http","match":{"method":"GET","url":"https://fixture.invalid/held"},"hold":true,"cancel_ack_ms":3}],"server":{"requests":[{"id":"pending","at_ms":0,"method":"GET","target":"/","headers":[],"body_base64":""}],"cancel_at_ms":2},"expect":{"phase":"abort","reason":"cancelled","trace":["listener:start","pending:receive","held:start","held:cancel","held:joined","listener:close"],"starts":{"held":0},"responses":[]}},
     {"id":"host-server-input-and-response-nominal-behavior","source":"serve({\"GET /plain\":{r=>{status:404}},\"POST /created\":{r=>reply(201,input(r,{x:int}))},\"GET /raw\":{r=>reply(200,encode(\"ok\"),{\"Content-Type\":\"text/plain\"})},\"GET /empty\":{r=>reply(205,null)}})","host":{"capabilities":{"listen":[{"host":"127.0.0.1","port":8080}]}},"fixtures":[],"server":{"requests":[{"id":"plain","at_ms":0,"method":"GET","target":"/plain","headers":[],"body_base64":""},{"id":"created","at_ms":2,"method":"POST","target":"/created","headers":[["Content-Type","application/json"]],"body_base64":"eyJ4IjoxfQ=="},{"id":"invalid","at_ms":4,"method":"POST","target":"/created","headers":[["Content-Type","application/json"]],"body_base64":"eyJ4IjoiYmFkIn0="},{"id":"media","at_ms":6,"method":"POST","target":"/created","headers":[["Content-Type","text/plain"]],"body_base64":"eyJ4IjoxfQ=="},{"id":"raw","at_ms":8,"method":"GET","target":"/raw","headers":[],"body_base64":""},{"id":"empty","at_ms":10,"method":"GET","target":"/empty","headers":[],"body_base64":""}],"cancel_at_ms":15},"expect":{"phase":"abort","reason":"cancelled","trace":["listener:start","plain:receive","plain:response:200","created:receive","created:response:201","invalid:receive","invalid:response:400","media:receive","media:response:415","raw:receive","raw:response:200","empty:receive","empty:response:205","listener:close"],"responses":[{"id":"plain","status":200,"body_base64":"eyJzdGF0dXMiOjQwNH0="},{"id":"created","status":201,"body_base64":"eyJ4IjoxfQ=="},{"id":"invalid","status":400,"body_base64":"eyJlcnJvciI6ImJhZF9yZXF1ZXN0In0="},{"id":"media","status":415,"body_base64":"eyJlcnJvciI6InVuc3VwcG9ydGVkX21lZGlhX3R5cGUifQ=="},{"id":"raw","status":200,"body_base64":"b2s=","headers":{"content-type":["text/plain"]}},{"id":"empty","status":205,"body_base64":"","headers":{"content-length":["0"]}}]}},
-    {"id":"host-cancellation-interrupts-pure-tail-loop","source":"fun go() go() end fun go try go() catch {e=>\"caught\"}","abort_after_steps":1000,"expect":{"phase":"abort","reason":"cancelled","trace":[]}},
+    {"id":"host-cancellation-interrupts-pure-tail-loop","source":"fun go():any go() end fun go try go() catch {e=>\"caught\"}","abort_after_steps":1000,"expect":{"phase":"abort","reason":"cancelled","trace":[]}},
     {"id":"host-root-deadline-bypasses-catch-and-joins","source":"try get(\"https://fixture.invalid/held\") catch {e=>\"caught\"}","host":{"capabilities":{"http":["https://fixture.invalid"]},"limits":{"deadline_ms":3}},"fixtures":[{"id":"held","op":"http","match":{"method":"GET","url":"https://fixture.invalid/held"},"hold":true,"cancel_ack_ms":2}],"expect":{"phase":"abort","reason":"deadline","trace":["held:start","held:cancel","held:joined"],"starts":{"held":0}}},
     {"id":"host-operation-timeout-remains-catchable-after-join","source":"try http(\"GET\",\"https://fixture.invalid/held\",{timeout:5}) catch {e=>[e.code,e.data.timeout,e.data.outcome]}","host":{"capabilities":{"http":["https://fixture.invalid"]}},"fixtures":[{"id":"held","op":"http","match":{"method":"GET","url":"https://fixture.invalid/held"},"hold":true,"cancel_ack_ms":2}],"expect":{"phase":"value","json":"[\"timeout\",5,\"unknown\"]","trace":["held:start","held:cancel","held:joined"],"starts":{"held":0}}},
-    {"id":"fun-factorial-named-end","source":"fun fac(n) if n<=1 then 1 else n*fac(n-1) end fun fac fac(5)","expect":{"phase":"value","json":"120"}},
-    {"id":"fun-body-sequence","source":"fun add(x,y) z=x+y;z*2 end fun add add(2,3)","expect":{"phase":"value","json":"10"}},
+    {"id":"fun-factorial-named-end","source":"fun fac(n:any):any if n<=1 then 1 else n*fac(n-1) end fun fac fac(5)","expect":{"phase":"value","json":"120"}},
+    {"id":"fun-body-sequence","source":"fun add(x:any,y:any) z=x+y;z*2 end fun add add(2,3)","expect":{"phase":"value","json":"10"}},
     {"id":"fun-empty-body","source":"fun empty() end fun empty empty()","expect":{"phase":"value","json":"null"}},
     {"id":"fun-trailing-semicolon","source":"fun f() 7;end fun f f()","expect":{"phase":"value","json":"7"}},
     {"id":"fun-body-ending-in-binding","source":"fun f() x=7 end fun f f()","expect":{"phase":"value","json":"null"}},
     {"id":"fun-body-ending-in-definition","source":"fun f() fun g() 1 end fun g end fun f f()","expect":{"phase":"value","json":"null"}},
-    {"id":"fun-nested-same-name","source":"fun f(x) fun f(y) x+y end fun f f(3) end fun f f(4)","expect":{"phase":"value","json":"7"}},
-    {"id":"fun-body-closure-capture","source":"fun make(x) y=x+1;fun add(z) y+z end fun add add end fun make f=make(3);f(5)","expect":{"phase":"value","json":"9"}},
-    {"id":"fun-callback-body-sequence","source":"fun twice(x){body} y=body(x);body(y) end fun twice twice(2){x=>x*3}","expect":{"phase":"value","json":"18"}},
+    {"id":"fun-nested-same-name","source":"fun f(x:any) fun f(y:any) x+y end fun f f(3) end fun f f(4)","expect":{"phase":"value","json":"7"}},
+    {"id":"fun-body-closure-capture","source":"fun make(x:any) y=x+1;fun add(z:any) y+z end fun add add end fun make f=make(3);f(5)","expect":{"phase":"value","json":"9"}},
+    {"id":"fun-callback-body-sequence","source":"fun twice(x:any){body:any}:any y=body(x);body(y) end fun twice twice(2){x=>x*3}","expect":{"phase":"value","json":"18"}},
     {"id":"fun-reserved-record-keys","source":"r={fun:3,end:4};[r.fun,r?.end]","expect":{"phase":"value","json":"[3,4]"}},
-    {"id":"fun-sequence-tail-recursion","source":"fun count(n,a) next=a+1;if n==0 then a else count(n-1,next) end fun count count(100000,0)","expect":{"phase":"value","json":"100000"}},
+    {"id":"fun-sequence-tail-recursion","source":"fun count(n:any,a:any):any next=a+1;if n==0 then a else count(n-1,next) end fun count count(100000,0)","expect":{"phase":"value","json":"100000"}},
     {"id":"fun-commented-end","source":"fun f() 1 end // marker\nfun // name\nf f()","expect":{"phase":"value","json":"1"}},
     {"id":"parse-fun-old-definition","source":"f(x)=x;f(1)","expect":{"phase":"parse","code":"syntax"}},
     {"id":"parse-fun-missing-prefix","source":"f(x) then x end fun f","expect":{"phase":"parse","code":"syntax"}},
@@ -1603,16 +1722,16 @@ All following cases are independent. A reference runtime is not included. Extrac
     {"id":"check-fun-body-no-hoisting","source":"fun f() g();fun g() 1 end fun g end fun f f()","expect":{"phase":"check","code":"name"}},
     {"id":"check-fun-body-local-no-leak","source":"fun f() x=2;x end fun f x","expect":{"phase":"check","code":"name"}},
     {"id":"compact-definitions-adjacent","source":"fun f() 1 end fun f fun g() f()+1 end fun g g()","expect":{"phase":"value","json":"2"}},
-    {"id":"compact-body-record-and-lambda","source":"fun r(x) {x:x} end fun r fun f() {x=>x+1} end fun f [r(2),f()(4)]","expect":{"phase":"value","json":"[{\"x\":2},5]"}},
-    {"id":"compact-callback-slot","source":"fun f(x){body} body(x) end fun f f(2){x=>x+3}","expect":{"phase":"value","json":"5"}},
+    {"id":"compact-body-record-and-lambda","source":"fun r(x:any) {x:x} end fun r fun f() {x:any=>x+1} end fun f [r(2),f()(4)]","expect":{"phase":"value","json":"[{\"x\":2},5]"}},
+    {"id":"compact-callback-slot","source":"fun f(x:any){body:any}:any body(x) end fun f f(2){x=>x+3}","expect":{"phase":"value","json":"5"}},
     {"id":"compact-nested-and-empty","source":"fun outer() fun inner() 7 end fun inner inner() end fun outer fun empty() end fun empty [outer(),empty()]","expect":{"phase":"value","json":"[7,null]"}},
     {"id":"member-size-kinds","source":"[[1,2].size,{a:1,b:2}.size,\"a😀é\".size,encode(\"é\").size]","expect":{"phase":"value","json":"[2,2,4,2]"}},
     {"id":"member-bound-alias","source":"m=[1,2].map;[m(){x=>x+1},m(){x=>x*2}]","expect":{"phase":"value","json":"[[2,3],[2,4]]"}},
-    {"id":"member-record-collision","source":"r={size:99,keys:42,map:{x=>x+1}};[r.size,r[\"size\"],r[\"keys\"],r.map(2)]","expect":{"phase":"value","json":"[3,99,42,3]"}},
+    {"id":"member-record-collision","source":"r={size:99,keys:42,map:{x:any=>x+1}};[r.size,r[\"size\"],r[\"keys\"],r.map(2)]","expect":{"phase":"value","json":"[3,99,42,3]"}},
     {"id":"member-independent-of-lexical-name","source":"map=99;[1].map{x=>x+map}","expect":{"phase":"value","json":"[100]"}},
-    {"id":"member-public-type-positions","source":"[(try (1).size catch {e=>e.data.position}),(try [1].take(\"x\") catch {e=>e.data.position})]","expect":{"phase":"value","json":"[0,1]"}},
-    {"id":"member-optional-call-is-ordinary","source":"[null?.size,(try null?.map{x=>x} catch {e=>e.code}),(try [1].size() catch {e=>e.code})]","expect":{"phase":"value","json":"[null,\"type\",\"type\"]"}},
-    {"id":"member-selection-before-arguments","source":"try (1).take(fail({code:\"argument_ran\",message:\"\",data:{}})) catch {e=>e.code}","expect":{"phase":"value","json":"\"type\""}},
+    {"id":"member-public-type-positions","source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value [(try kiroha_runtime_value((1)).size catch {e=>e.data.position}),(try kiroha_runtime_value([1].take)(\"x\") catch {e=>e.data.position})]","expect":{"phase":"value","json":"[0,1]"}},
+    {"id":"member-optional-call-is-ordinary","source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value [null?.size,(try kiroha_runtime_value(null?.map)(){x=>x} catch {e=>e.code}),(try kiroha_runtime_value([1].size)() catch {e=>e.code})]","expect":{"phase":"value","json":"[null,\"type\",\"type\"]"}},
+    {"id":"member-selection-before-arguments","source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value try kiroha_runtime_value((1)).take(fail({code:\"argument_ran\",message:\"\",data:{}})) catch {e=>e.code}","expect":{"phase":"value","json":"\"type\""}},
     {"id":"member-explicit-arguments-left-to-right","source":"try \"a\".replace(fail({code:\"first\",message:\"\",data:{}}),fail({code:\"second\",message:\"\",data:{}})) catch {e=>e.code}","expect":{"phase":"value","json":"\"first\""}},
     {"id":"member-chain","source":"range(1,6).filter{n=>n>2}.map{n=>n*10}.sum()","expect":{"phase":"value","json":"120"}},
     {"id":"parse-if-needs-then","source":"if true 1 else 2","expect":{"phase":"parse","code":"syntax"}},
@@ -1639,7 +1758,47 @@ All following cases are independent. A reference runtime is not included. Extrac
     {"id":"check-no-global-join","source":"join","expect":{"phase":"check","code":"name"}},
     {"id":"check-no-global-replace","source":"replace","expect":{"phase":"check","code":"name"}},
     {"id":"check-no-global-parallel","source":"parallel","expect":{"phase":"check","code":"name"}},
-    {"id":"member-receiver-once-and-evaluation-order","source":"fun source() log(\"receiver\");[1,2] end fun source fun initial() log(\"argument\");0 end fun initial source().fold(initial()){(a,x)=>log(text(x));a+x}","host":{"capabilities":{"log":true}},"fixtures":[{"id":"recv","op":"log_line","match":{"line":"\"receiver\"\n"},"ok":null},{"id":"arg","op":"log_line","match":{"line":"\"argument\"\n"},"ok":null},{"id":"one","op":"log_line","match":{"line":"\"1\"\n"},"ok":null},{"id":"two","op":"log_line","match":{"line":"\"2\"\n"},"ok":null}],"expect":{"phase":"value","json":"3","trace":["recv:start","recv:ok","arg:start","arg:ok","one:start","one:ok","two:start","two:ok"]}}
+    {"id":"member-receiver-once-and-evaluation-order","source":"fun source() log(\"receiver\");[1,2] end fun source fun initial() log(\"argument\");0 end fun initial source().fold(initial()){(a,x)=>log(text(x));a+x}","host":{"capabilities":{"log":true}},"fixtures":[{"id":"recv","op":"log_line","match":{"line":"\"receiver\"\n"},"ok":null},{"id":"arg","op":"log_line","match":{"line":"\"argument\"\n"},"ok":null},{"id":"one","op":"log_line","match":{"line":"\"1\"\n"},"ok":null},{"id":"two","op":"log_line","match":{"line":"\"2\"\n"},"ok":null}],"expect":{"phase":"value","json":"3","trace":["recv:start","recv:ok","arg:start","arg:ok","one:start","one:ok","two:start","two:ok"]}},
+    {"id":"type-record","source":"type Point={x:num,y:num};p:Point={x:1,y:2};p.x+p.y","expect":{"phase":"value","json":"3"}},
+    {"id":"type-width","source":"type Point={x:num};fun f(p:Point):num p.x end fun f f({x:1,label:\"extra\"})","expect":{"phase":"value","json":"1"}},
+    {"id":"type-generic-alias","source":"type Box<T>={value:T};x:Box<int>={value:2};x.value","expect":{"phase":"value","json":"2"}},
+    {"id":"type-nested-alias","source":"type Pair<A,B>={left:A,right:B};type Box<T>={value:T};p:Pair<str,Box<int>>={left:\"x\",right:{value:2}};p.right.value","expect":{"phase":"value","json":"2"}},
+    {"id":"type-generic-function","source":"fun id<T>(v:T):T v end fun id [id(1),id<str>(\"x\")]","expect":{"phase":"value","json":"[1,\"x\"]"}},
+    {"id":"type-generic-callback","source":"fun apply<T,U>(x:T){f:(T)=>U}:U f(x) end fun apply apply(2){x=>text(x)}","expect":{"phase":"value","json":"\"2\""}},
+    {"id":"type-explicit-method","source":"[0.1,0.2].fold<num>(0){(a,x)=>a+x}","expect":{"phase":"value","json":"0.3"}},
+    {"id":"type-context-lambda","source":"f:(num)=>num={x=>x+1};f(2)","expect":{"phase":"value","json":"3"}},
+    {"id":"type-annotated-lambda","source":"f={x:int=>x+1};f(2)","expect":{"phase":"value","json":"3"}},
+    {"id":"type-local-inference","source":"x=1;y={x:x+2};[x,y.x]","expect":{"phase":"value","json":"[1,3]"}},
+    {"id":"type-recursive-result","source":"fun fac(n:int):int if n<=1 then 1 else n*fac(n-1) end fun fac fac(5)","expect":{"phase":"value","json":"120"}},
+    {"id":"type-concrete-schema","source":"type Point={x:num};check({x:1},Point).x","expect":{"phase":"value","json":"1"}},
+    {"id":"type-generic-schema","source":"type Box<T>={value:T};check({value:2},Box<int>).value","expect":{"phase":"value","json":"2"}},
+    {"id":"type-schema-parameter","source":"type P={x:num};fun validate<T>(v:json,s:schema<T>):T check(v,s) end fun validate validate({x:2},P).x","expect":{"phase":"value","json":"2"}},
+    {"id":"type-closed-validation","source":"type P={x:num};try check({x:1,y:2},P) catch {e=>e.code}","expect":{"phase":"value","json":"\"validation\""}},
+    {"id":"type-open-validation","source":"type P={x:num};check({x:1,y:2},open(P)).x","expect":{"phase":"value","json":"1"}},
+    {"id":"type-optional-null","source":"type P={name:str,nick:optional(maybe(str))};p:P={name:\"Ada\"};p?.nick??p.name","expect":{"phase":"value","json":"\"Ada\""}},
+    {"id":"type-nullable-refinement","source":"x:maybe(int)=2;if x==null then 0 else x+1","expect":{"phase":"value","json":"3"}},
+    {"id":"type-explicit-any","source":"x:any=1;try x+\"s\" catch {e=>e.code}","expect":{"phase":"value","json":"\"type\""}},
+    {"id":"type-scope","source":"type P={x:num};do {type P=str;check(\"x\",P)}","expect":{"phase":"value","json":"\"x\""}},
+    {"id":"type-never-schema","source":"type Empty=never;try check(1,Empty) catch {e=>e.code}","expect":{"phase":"value","json":"\"validation\""}},
+    {"id":"type-known-mismatch","source":"type P={x:num};p:P={x:\"bad\"};p","expect":{"phase":"check","code":"type"}},
+    {"id":"type-unknown-field","source":"type P={x:num};fun f(p:P):num p.y end fun f","expect":{"phase":"check","code":"type"}},
+    {"id":"type-value-not-type","source":"P={x:num};p:P={x:1};p","expect":{"phase":"check","code":"type_name"}},
+    {"id":"type-missing-parameter","source":"fun f(x) x end fun f","expect":{"phase":"check","code":"type_annotation_required"}},
+    {"id":"type-missing-lambda-context","source":"f={x=>x};f(1)","expect":{"phase":"check","code":"type_annotation_required"}},
+    {"id":"type-missing-callback-type","source":"fun f(x:int){step} step(x) end fun f","expect":{"phase":"check","code":"type_annotation_required"}},
+    {"id":"type-missing-recursive-result","source":"fun f(n:int) f(n-1) end fun f","expect":{"phase":"check","code":"type_annotation_required"}},
+    {"id":"type-unsolved-generic","source":"fun empty<T>():[T] [] end fun empty empty()","expect":{"phase":"check","code":"type_annotation_required"}},
+    {"id":"type-generic-body","source":"fun bad<T>(v:T):num v+1 end fun bad","expect":{"phase":"check","code":"type"}},
+    {"id":"type-generic-argument","source":"fun id<T>(v:T):T v end fun id id<str>(1)","expect":{"phase":"check","code":"type"}},
+    {"id":"type-generic-arity","source":"type Box<T>={value:T};x:Box={value:1}","expect":{"phase":"check","code":"type_arity"}},
+    {"id":"type-duplicate-parameter","source":"type Box<T,T>={value:T};0","expect":{"phase":"check","code":"duplicate_type_parameter"}},
+    {"id":"type-recursive-alias","source":"type P={next:P};0","expect":{"phase":"check","code":"type_name"}},
+    {"id":"type-json-projection","source":"parse(\"{}\").x","expect":{"phase":"check","code":"type"}},
+    {"id":"type-any-not-global-disable","source":"x:any=1+\"x\";x","expect":{"phase":"check","code":"type"}},
+    {"id":"type-erased-parameter","source":"fun bad<T>(v:json):T check(v,T) end fun bad","expect":{"phase":"check","code":"name"}},
+    {"id":"type-function-reification","source":"type F=(num)=>num;check(1,F)","expect":{"phase":"check","code":"type_reification"}},
+    {"id":"type-known-arity","source":"fun f(x:int):int x end fun f f()","expect":{"phase":"check","code":"arity"}},
+    {"id":"type-callback-arity","source":"[1].map{()=>1}","expect":{"phase":"check","code":"arity"}}
   ]
 }
 ```
@@ -1703,33 +1862,33 @@ The next block is source data, not executed conformance evidence.
 ```json
 {
   "format": "kiroha-measurement-corpus/1",
-  "language": "0.5.0/Web1",
+  "language": "0.6.0/Web1",
   "status": "handwritten_sources_not_executed",
   "baseline": "TypeScript snippets using a proposed SDK with the same contracts; SDK/binding not implemented. Native array helpers are used only in the first case. An async expression harness supplies context. Imports and harness wrappers are excluded symmetrically. No executed-equivalence claim.",
   "cases": [
     {
       "id": "example-1",
       "task": "HTTP JSON validation, filtering and projection",
-      "kiroha": "User=open({id:int,name:str,active:bool});\n((get(\"https://api.example/users\") | check([User])).filter{u=>u.active}).map{u=>{id:u.id,name:u.name}}",
+      "kiroha": "type User=open({id:int,name:str,active:bool});\n((get(\"https://api.example/users\") | check([User])).filter{u=>u.active}).map{u=>{id:u.id,name:u.name}}",
       "typescript_same_sdk": "const User=open({id:int,name:str,active:bool});\ncheck(await get(\"https://api.example/users\"),[User]).filter(u=>u.active).map(u=>({id:u.id,name:u.name}))"
     },
     {
       "id": "example-2",
       "task": "Cursor pagination with page validation",
-      "kiroha": "Page=open({items:[json],next:maybe(str)});\npages(null){c=>\n  p=get(\"https://api.example/items\",{query:{cursor:c}}) | check(Page);\n  {items:p.items,next:p.next}\n}",
+      "kiroha": "type Page=open({items:[json],next:maybe(str)});\nseed:maybe(str)=null;\npages(seed){c=>\n  p=get(\"https://api.example/items\",{query:{cursor:c}}) | check(Page);\n  {items:p.items,next:p.next}\n}",
       "typescript_same_sdk": "const Page=open({items:[json],next:maybe(str)});\nawait pages(null,async c=>{\n  const p=check(await get(\"https://api.example/items\",{query:{cursor:c}}),Page);\n  return {items:p.items,next:p.next}\n})"
     },
     {
       "id": "example-3",
       "task": "JSON API with two-write transaction",
-      "kiroha": "d=db(\"main\");\nserve({\"POST /users\":{r=>\n  u=input(r,{name:str,email:str});\n  tx(d){t=>\n    row=sql(t,q`insert into users(name,email) values (${u.name},${u.email}) returning id`).rows.one();\n    sql(t,q`insert into audit(user_id) values (${row.id})`);\n    reply(201,row)\n  }\n}})",
+      "kiroha": "d=db(\"main\");\nserve({\"POST /users\":{r=>\n  u=input(r,{name:str,email:str});\n  tx(d){t=>\n    row=check(sql(t,q`insert into users(name,email) values (${u.name},${u.email}) returning id`).rows.one(),{id:int});\n    sql(t,q`insert into audit(user_id) values (${row.id})`);\n    reply(201,row)\n  }\n}})",
       "typescript_same_sdk": "const d=db(\"main\");\nserve({\"POST /users\":async r=>{\n  const u=input(r,{name:str,email:str});\n  return tx(d,async t=>{\n    const row=one((await sql(t,q`insert into users(name,email) values (${u.name},${u.email}) returning id`)).rows);\n    await sql(t,q`insert into audit(user_id) values (${row.id})`);\n    return reply(201,row)\n  })\n}})"
     }
   ],
   "canonical_callback_examples": [
     "urls.parallel(4){u=>get(u)}",
     "users.map{u=>u.name}",
-    "fun apply(x){f} f(x) end fun apply apply(10){v=>v+1}"
+    "fun apply<T,U>(x:T){f:(T)=>U}:U f(x) end fun apply apply(10){v=>v+1}"
   ]
 }
 ```
@@ -1755,7 +1914,7 @@ import tiktoken
 
 PIN = "0.14.0"
 ENCODINGS = ("o200k_base", "cl100k_base")
-LANGUAGE = "0.5.0/Web1"
+LANGUAGE = "0.6.0/Web1"
 
 def fail(message):
     raise SystemExit(message)

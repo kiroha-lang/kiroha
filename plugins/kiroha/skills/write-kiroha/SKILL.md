@@ -5,7 +5,7 @@ description: Write, review, migrate and debug Kiroha (.kiroha) programs when the
 
 # Write Kiroha
 
-Target **Kiroha 0.5.0 / Web1**. Help with the requested program, explanation or
+Target **Kiroha 0.6.0 / Web1**. Help with the requested program, explanation or
 source change; match the user's scope. Resolve paths below from this skill's
 directory, including when it is installed outside the user's project.
 
@@ -22,7 +22,7 @@ installing tools.
 
 The current surface has a few easy-to-miss rules:
 
-- A definition is `fun greet(name) ... end fun greet`. There is **no header
+- A definition is `fun greet(name:str) ... end fun greet`. There is **no header
   `then`** and no required `;` after the matching named end. Keep `then` in
   `if condition then a else b`. Bindings and expressions still need `;`
   between sequence items; newlines are whitespace.
@@ -33,12 +33,12 @@ The current surface has a few easy-to-miss rules:
   and `get` stay global. Pipes insert a first argument; methods use chains.
 - Callbacks are trailing **lambda literals**, not positional lambdas or
   `{existing_function}`. Wrap reuse as `xs.map{x=>existing_function(x)}`.
-  A user function declares its required slot as `fun apply(x){step} ...`.
+  A user function declares its required slot as `fun apply(x:num){step:(num)=>num}:num ...`.
   A full `{IDENT}` immediately after the parameter list is a slot, so a
   first-body shorthand record must be spelled `{x:x}` or `do{{x}}`.
 - `.size` and registered record methods take precedence over record data;
   use `r["size"]` or `r["keys"]` for colliding fields. Saved methods retain
-  their receiver. User extension declarations are not in 0.5.
+  their receiver. User extension declarations are not in 0.6.
 - Values are immutable; no imports, mutation, loops or host-language escape.
   Use recursion and collection operations. Numbers are exact decimals.
 
@@ -50,13 +50,24 @@ Read only the additional material needed for the task:
 | Concrete starting programs | [Recipes](references/recipes.md), linking to copyable source and host files |
 | CLI, installing a matching runtime, tagged JSON, validation | [Runtime workflow](references/runtime.md) |
 | HTTP/listen/DB/file capabilities, pools or budgets | [Host configuration](references/host-config.md) |
-| Updating older source | [0.5 migration](references/migration-0.5.md) |
+| Updating older source | [0.6 migration](references/migration-0.6.md) |
+
+## Types
+
+Use `type Name = ...;` for a structural type declaration and `type Box<T> = {value:T};`
+for a generic alias. Annotate named-function parameters and callback slots; recursive
+functions also need a result type. Infer only local bindings, contextual lambdas and
+call type arguments. No implicit `any`, whole-program inference or automatic
+polymorphic generalization. Use explicit `any` only for intentionally dynamic code.
+Validate `json` from HTTP/parse/input and SQL columns with `check` before assuming a
+shape. Read [types and generics](references/types.md) for annotation syntax,
+`schema<T>`, erased parameters, structural compatibility and boundary validation.
 
 ## Verify at the level the task needs
 
 When editing runnable source and a shell is available, use the runtime
 workflow to check its version and run `kiroha check FILE --json`. This parses
-and resolves without executing effects. For permitted local execution, run
+resolves and type-checks without executing effects. For permitted local execution, run
 `kiroha run FILE --json`, with `--host HOST.json` when required. Check both the
 exit status and JSON envelope, then compare the represented result with the
 task's expected value. A static check does not validate remote data or SQL.

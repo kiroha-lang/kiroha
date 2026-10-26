@@ -11,6 +11,11 @@ pub enum Norm {
     Int,
     Bool,
     Json,
+    Any,
+    Never,
+    Null,
+    Kind(Kind),
+    Ref(Rc<Norm>),
     Array(Box<Norm>),
     Record { fields: Vec<Field>, open: bool },
     Maybe(Box<Norm>),
@@ -27,6 +32,7 @@ pub struct Field {
 #[derive(Debug)]
 pub enum SchemaValue {
     Atom(Norm),
+    Type(Rc<Norm>),
     Maybe(Norm),
     /// Field-only wrapper; the inner schema is already normalized.
     Optional(Norm),
@@ -92,6 +98,7 @@ fn normalize_at(v: &Value, pos: Position, path: &mut Vec<PathItem>) -> Result<De
     }
     match v {
         Value::Schema(s) => match &**s {
+            SchemaValue::Type(n) => Ok(Desc { norm: Norm::Ref(n.clone()), optional: false }),
             SchemaValue::Atom(n) => Ok(Desc { norm: n.clone(), optional: false }),
             SchemaValue::Maybe(n) => Ok(Desc { norm: n.clone(), optional: false }),
             SchemaValue::Open(n) => Ok(Desc { norm: n.clone(), optional: false }),
@@ -137,9 +144,9 @@ pub fn normalize(v: &Value) -> Result<Norm, Value> {
 /// `maybe(S)`.
 pub fn make_maybe(v: &Value) -> Result<Value, Value> {
     let d = normalize_at(v, Position::MaybeOperand, &mut Vec::new())?;
-    let inner = match d.norm {
-        Norm::Maybe(i) => *i,
-        other => other,
+    let inner = match unshared(&d.norm) {
+        Norm::Maybe(i) => (**i).clone(),
+        _ => d.norm,
     };
     Ok(Value::Schema(Rc::new(SchemaValue::Maybe(Norm::Maybe(Box::new(inner))))))
 }
@@ -157,6 +164,10 @@ pub fn make_open(v: &Value) -> Result<Value, Value> {
         Value::Record(r) => normalize_fields(r, &mut path)?,
         Value::Schema(s) => match &**s {
             SchemaValue::Open(Norm::Record { fields, .. }) => fields.clone(),
+            SchemaValue::Type(n) => match unshared(n) {
+                Norm::Record { fields, .. } => fields.clone(),
+                _ => return Err(schema_error(&path, "record_required")),
+            },
             _ => return Err(schema_error(&path, "record_required")),
         },
         _ => return Err(schema_error(&path, "record_required")),
@@ -238,6 +249,11 @@ fn check_at(v: &Value, s: &Norm, path: &mut Vec<PathItem>) -> Option<Mismatch> {
         return None; // result is discarded by the runtime
     }
     match s {
+        Norm::Any => None,
+        Norm::Never => Some(mismatch(path, "never", v.kind())),
+        Norm::Null => (!matches!(v, Value::Null)).then(|| mismatch(path, "null", v.kind())),
+        Norm::Kind(kind) => (v.kind() != *kind).then(|| mismatch(path, kind.name(), v.kind())),
+        Norm::Ref(inner) => check_at(v, inner, path),
         Norm::Str => (!matches!(v, Value::Str(_))).then(|| mismatch(path, "str", v.kind())),
         Norm::Num => (!matches!(v, Value::Num(_))).then(|| mismatch(path, "num", v.kind())),
         Norm::Int => match v {
@@ -317,6 +333,11 @@ fn check_at(v: &Value, s: &Norm, path: &mut Vec<PathItem>) -> Option<Mismatch> {
 
 fn expected_name(s: &Norm) -> &'static str {
     match s {
+        Norm::Any => "any",
+        Norm::Never => "never",
+        Norm::Null => "null",
+        Norm::Kind(k) => k.name(),
+        Norm::Ref(inner) => expected_name(inner),
         Norm::Str => "str",
         Norm::Num => "num",
         Norm::Int => "int",
@@ -326,4 +347,9 @@ fn expected_name(s: &Norm) -> &'static str {
         Norm::Record { .. } => "record",
         Norm::Maybe(i) => expected_name(i),
     }
+}
+
+fn unshared(mut n: &Norm) -> &Norm {
+    while let Norm::Ref(inner) = n { n = inner; }
+    n
 }

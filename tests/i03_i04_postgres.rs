@@ -88,11 +88,11 @@ fn cancelled_connection_setup_returns_pool_slot() {
 #[test]
 fn i03_parameters_results_and_restrictions() {
     need_pg!();
-    let r = pg(r#"d=db("main");x=sql(d,q`select ${null}::text as z, ${true}::boolean as b, ${"x'); drop table t; --"}::text as s,
+    let r = pg(r#"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value d=db("main");x=sql(d,q`select ${null}::text as z, ${true}::boolean as b, ${"x'); drop table t; --"}::text as s,
         ${123456789012345678901234567890.123456789}::numeric as n, ${encode("é")}::bytea as raw, ${{a:1.50,b:[1e30]}}::jsonb as obj,
         ${[1,2]}::json as arr, 7::int2 as i2, 8::int4 as i4, 9007199254740993::int8 as i8, 'ab'::varchar as vc, 'ab'::char(4) as bp,
         '00000000-0000-4000-8000-000000000000'::uuid as u`).rows.one();
-        [x.z,x.b,x.s,x.n,decode(x.raw),x.obj,x.arr,x.i2,x.i4,x.i8,x.vc,x.bp,x.u]"#);
+        [x.z,x.b,x.s,x.n,decode(kiroha_runtime_value(x).raw),x.obj,x.arr,x.i2,x.i4,x.i8,x.vc,x.bp,x.u]"#);
     assert_eq!(
         result(&r),
         r#"[null,true,"x'); drop table t; --",1.23456789012345678901234567890123456789e29,"é",{"a":1.5,"b":[1e30]},[1,2],7,8,9007199254740993,"ab","ab  ","00000000-0000-4000-8000-000000000000"]"#
@@ -133,7 +133,7 @@ fn i04_transactions_and_pool_hygiene() {
     assert_eq!(result(&r), r#"["db","23505"]"#);
     assert_eq!(admin("select count(*) from kiroha_t where v=200"), vec![vec![Some("0".into())]]);
     // tx timeout aborts a pure loop and pending work, then rolls back
-    let r = pg(r#"d=db("main");fun spin() spin() end fun spin try tx(d,{timeout:200}){t=>sql(t,q`insert into kiroha_t(v) values (300)`);spin()} catch {e=>[e.code,e.data.operation]}"#);
+    let r = pg(r#"d=db("main");fun spin():any spin() end fun spin try tx(d,{timeout:200}){t=>sql(t,q`insert into kiroha_t(v) values (300)`);spin()} catch {e=>[e.code,e.data.operation]}"#);
     assert_eq!(result(&r), r#"["timeout","tx"]"#);
     assert_eq!(admin("select count(*) from kiroha_t where v=300"), vec![vec![Some("0".into())]]);
     // tx timeout during a running statement cancels it server-side, so the

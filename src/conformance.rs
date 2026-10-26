@@ -255,7 +255,7 @@ pub fn parse_manifest(payload: &str) -> H<Vec<Case>> {
     }
     closed(r, &["format", "language", "scheduler", "cases"], "manifest")?;
     if req_str(r, "format", "manifest")? != "kiroha-conformance/1"
-        || req_str(r, "language", "manifest")? != "0.5.0/Web1"
+        || req_str(r, "language", "manifest")? != "0.6.0/Web1"
         || req_str(r, "scheduler", "manifest")? != "virtual-fifo/1"
     {
         return Err("manifest format/language/scheduler mismatch".into());

@@ -195,6 +195,7 @@ impl<H: Host> Runtime<H> {
             },
             Var::SelfFn => Value::Func(env.func.clone().expect("self outside function")),
             Var::Prelude(i) => self.prelude[i as usize].clone(),
+            Var::TypeAlias(i) => self.prog.aliases[i as usize].runtime.clone().expect("type value checked before evaluation"),
             Var::Unresolved => unreachable!("unresolved name at runtime"),
         }
     }
@@ -242,6 +243,12 @@ impl<H: Host> Runtime<H> {
                 t.stack.push(Frame::SeqBind { owner, idx, slot: *slot, env: env.clone() });
                 Ctl::Eval(*e, env)
             }
+            Node::TypeDecl { .. } => {
+                t.cur_node = item;
+                self.charge(t);
+                if let Some(c) = self.checkpoint(t) { return c; }
+                Ctl::Seq(owner, idx + 1, env)
+            }
             Node::Define(info) => {
                 t.cur_node = item;
                 self.charge(t);
@@ -276,6 +283,9 @@ impl<H: Host> Runtime<H> {
         }
         match node {
             Node::Lit(v) => Ctl::Ret(v.clone()),
+            Node::Instantiate { callee, schema, .. } => match schema {
+                Some(value) => Ctl::Ret(value.clone()), None => Ctl::Eval(*callee, env),
+            },
             Node::NumOverflow => self.fail_ctl(t, Fail::Abort(AbortReason::Resource("number"))),
             Node::Name { var, .. } => Ctl::Ret(self.read_var(*var, &env)),
             Node::Array(elems) => {
@@ -341,7 +351,7 @@ impl<H: Host> Runtime<H> {
                 Ctl::Eval(first, env)
             }
             Node::Group(_) => unreachable!(),
-            Node::Bind { .. } | Node::Define(_) => unreachable!("items are evaluated by seq"),
+            Node::Bind { .. } | Node::Define(_) | Node::TypeDecl { .. } => unreachable!("items are evaluated by seq"),
         }
     }
 

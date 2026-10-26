@@ -1,6 +1,8 @@
 # Kiroha language guide
 
-This guide teaches Kiroha 0.5.0 / Web1 by example. The normative definition is
+This guide teaches Kiroha 0.6.0 / Web1 by example.
+See [Types and simple generics](types.md) for explicit annotations, local inference
+and the distinction between unknown JSON and an explicit `any`. The normative definition is
 [`spec.md`](../spec.md); the [built-in reference](reference/builtins.md) lists
 every function. Examples show the result after `//`.
 
@@ -90,7 +92,7 @@ lambda and catch-handler bodies.
 
 ```kiroha
 total = 1 + 2;              // binding
-fun double(n)         // function definition
+fun double(n:num)         // function definition
   n * 2
 end fun double
 double(total)               // 6
@@ -102,7 +104,7 @@ omitting it or closing a different function is a parse error. The body is a
 sequence: write local bindings and nested definitions directly. Bindings and
 expressions need semicolons between items; definitions delimit themselves.
 No `then` follows the function header. Conditional `if ... then` keeps its `then`. `fun` and `end` are reserved, but are still legal record keys.
-The old `double(n)=n*2` spelling is invalid in 0.5.0. See the
+The old `double(n)=n*2` spelling is invalid in 0.6.0. See the
 [0.4 → 0.5 migration guide](migration-0.5.md).
 
 Rules worth remembering:
@@ -110,7 +112,7 @@ Rules worth remembering:
 - **No hoisting.** A name is visible only after its binding. `fun f() g() end fun f fun g() 1 end fun g`
   is a check error.
 - **Named recursion only.** A definition can call itself:
-  `fun fac(n) if n<=1 then 1 else n*fac(n-1) end fun fac`.
+  `fun fac(n:int):int if n<=1 then 1 else n*fac(n-1) end fun fac`.
 - **No rebinding in one scope.** `x=1; x=2` is a `duplicate_binding` error, but
   inner scopes may shadow: `x=1; do { x=2; x }` is `2`, and the outer `x` is
   still `1`.
@@ -121,7 +123,7 @@ Rules worth remembering:
 - **Proper tail calls.** Tail-recursive loops run in constant space:
 
 ```kiroha
-fun count(n, acc)
+fun count(n:int, acc:int):int
   next = acc + 1;
   if n == 0 then acc else count(n - 1, next)
 end fun count
@@ -133,8 +135,8 @@ count(100000, 0)            // 100000
 Lambdas are written in braces with an arrow:
 
 ```kiroha
-inc = {x => x + 1};
-add = {(a, b) => a + b};
+inc = {x:num => x + 1};
+add = {(a:num, b:num) => a + b};
 seven = {() => 7};
 [inc(1), add(2, 3), seven()]    // [2,5,7]
 ```
@@ -155,7 +157,7 @@ Every call has two channels: ordinary arguments in parentheses and at most one
 A user function declares the callback slot after its parameters:
 
 ```kiroha
-fun apply(x){f} f(x) end fun apply
+fun apply<T,U>(x:T){f:(T)=>U}:U f(x) end fun apply
 apply(10){v => v + 1}           // 11
 ```
 
@@ -165,15 +167,15 @@ For a first-body shorthand record, use `{x:x}` or `do{{x}}`.
 The slot is a separate, **required** channel. These are all errors:
 
 ```text
-apply(10)                  runtime arity error: missing callback
+apply(10)                  check arity error: missing callback
 apply(10, {v => v + 1})    parse error: a lambda literal is never an ordinary argument
-g = {v => v + 1}; apply(10, g)   runtime arity error: g fills an ordinary position
+g = {v:num => v + 1}; apply(10, g)   check arity error: g fills an ordinary position
 apply(10){g}               parse error: the trailing callback must be a lambda literal
 ```
 
 To pass an existing function, wrap it: `apply(10){v => g(v)}`. Functions can
 still be ordinary data — stored in records, arrays, or passed to parameters
-that expect them: `fun invoke(f, x)   f(x) end fun invoke invoke(g, 2)`.
+that expect them: `fun invoke<T,U>(f:(T)=>U, x:T):U   f(x) end fun invoke invoke(g, 2)`.
 
 Ordinary calls require parentheses: `now()`, `f(){x=>x}`. For a direct
 member call with no ordinary arguments, the callback may follow the name:
@@ -225,7 +227,7 @@ Precedence, highest first:
 - `??` replaces only `null`: `0 ?? 7` is `0`, `null ?? 7` is `7`.
 
 ```kiroha
-fun grade(n)   if n >= 90 then "A" else if n >= 80 then "B" else "C" end fun grade
+fun grade(n:num)   if n >= 90 then "A" else if n >= 80 then "B" else "C" end fun grade
 grade(85)                       // "B"
 ```
 
@@ -256,14 +258,14 @@ Ordinary runtime failures are records `{code, message, data}` and can be
 caught:
 
 ```kiroha
-fun safe_div(a, b)   try a / b catch {e => e.code} end fun safe_div
+fun safe_div(a:num, b:num)   try a / b catch {e => e.code} end fun safe_div
 [safe_div(1, 4), safe_div(1, 0)]       // [0.25,"number"]
 ```
 
 Raise your own with `fail`:
 
 ```kiroha
-fun check_age(n)   if n < 0 then fail({code:"bad_age", message:"negative", data:{n}}) else n end fun check_age
+fun check_age(n:num)   if n < 0 then fail({code:"bad_age", message:"negative", data:{n}}) else n end fun check_age
 try check_age(-1) catch {e => e.data}  // {"n":-1}
 ```
 
@@ -278,7 +280,7 @@ Schemas validate data without coercion. The atoms are `str num int bool json`;
 `[S]` is an array of `S`; `{k: S}` is a closed record.
 
 ```kiroha
-User = {id:int, name:str, email:maybe(str), nick:optional(str)};
+type User = {id:int, name:str, email:maybe(str), nick:optional(str)};
 check({id:1, name:"ada", email:null}, User)
 // {"id":1,"name":"ada","email":null}
 ```
@@ -351,8 +353,10 @@ retry({attempts:3, when:{e => e.code == "timeout" || e.code == "network"}, delay
 `pages` follows cursors until `next` is `null`:
 
 ```kiroha
-pages(null){cursor =>
-  p = get("https://api.example/items", {query:{cursor}});
+type Page=open({items:[json],next:maybe(str)});
+seed:maybe(str)=null;
+pages(seed){cursor =>
+  p = check(get("https://api.example/items", {query:{cursor}}),Page);
   {items:p.items, next:p.next}
 }
 ```

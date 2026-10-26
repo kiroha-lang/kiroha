@@ -36,9 +36,9 @@ fn routing_framing_limits_and_shutdown() {
     let src = format!(
         r#"serve({{"GET /a/fixed":{{r=>"literal"}},"GET /a/:x":{{r=>{{p:r.params.x,q:r.query,path:r.path}}}},
         "HEAD /h":{{r=>{{a:1}}}},"OPTIONS /o":{{r=>reply(204,null)}},"POST /in":{{r=>input(r,{{n:int}})}},
-        "GET /slow":{{r=>sleep(2000);1}},"GET /block":{{r=>sleep(800);1}},"GET /bytes":{{r=>encode("x")}},
+        "GET /slow":{{r=>sleep(2000);1}},"GET /block":{{r=>sleep(800);1}},"GET /bytes":{{r=>v:any=encode("x");v}},
         "GET /cpu":{{r=>xs=range(0,1000000);[xs,xs,xs,xs,xs,xs,xs,xs,xs,xs,xs,xs,xs,xs,xs,xs].flat().size}},
-        "GET /big":{{r=>fun d(x,n) if n==0 then x else d([x,x],n-1) end fun d d(1,25)}}}},
+        "GET /big":{{r=>fun d(x:any,n:int):any if n==0 then x else d([x,x],n-1) end fun d d(1,25)}}}},
         {{port:{port},timeout:300,max_body:8,max_inflight:1}})"#
     );
     let sp = dir.join("s.kiroha");

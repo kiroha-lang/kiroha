@@ -2,7 +2,7 @@
 
 The **Kiroha** plugin gives an agent the language guidance it needs to write,
 review, migrate and debug `.kiroha` programs. Its `write-kiroha` skill targets
-Kiroha 0.5.0: compact named functions, collection methods and `.size`.
+Kiroha 0.6.0: explicit structural types, simple generics, compact named functions and collection methods.
 
 It includes the canonical generation card, API and host references, a migration
 guide and eight complete example programs. References travel with the plugin,
@@ -39,7 +39,7 @@ orders by customer and calculates exact totals. Check and run it locally.
 ```
 
 ```text
-Use $kiroha:write-kiroha to migrate this 0.4 program to 0.5, keeping its behavior.
+Use $kiroha:write-kiroha to migrate this 0.5 program to 0.6, keeping its behavior.
 ```
 
 ```text
@@ -50,7 +50,7 @@ Use a local test server to verify both valid and invalid requests.
 The agent reads the compact generation card first and loads the API, runtime,
 host or migration details only when needed. It checks runnable source with
 `kiroha check ... --json` and compares results when execution is part of the
-task. Static checking resolves the whole program without performing I/O.
+task. Static checking resolves and type-checks the whole program without performing I/O.
 It distinguishes syntax errors, missing permissions, dependency failures
 and runtime aborts.
 
@@ -61,7 +61,7 @@ codex plugin marketplace upgrade kiroha-lang
 codex plugin add kiroha@kiroha-lang
 ```
 
-The plugin version is **0.1.0**, independently of the language version **0.5.0**.
+The plugin version is **0.2.0**, independently of the language version **0.6.0**.
 Its examples and bundled card are checked against that language version.
 
 ## Develop the plugin
@@ -95,7 +95,7 @@ eight programs, and executes pure examples, HTTP/pagination fixtures, file I/O
 and a live HTTP service. The database example is statically checked and documents
 its expected table and write; it is not run against an arbitrary database.
 
-The package command writes and inspects `target/plugins/kiroha-0.1.0.zip`.
+The package command writes and inspects `target/plugins/kiroha-0.2.0.zip`.
 The ZIP contains only the self-contained plugin, including its license. It
 excludes the marketplace, repository, runtime binary and dependencies. Normal
 CI checks synchronization, executes the examples and builds the package.
