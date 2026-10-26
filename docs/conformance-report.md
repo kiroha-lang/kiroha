@@ -89,7 +89,7 @@ root/request scope with `resource`. See
 
 ## Independent audits
 
-Seventeen independent read-and-execute audits of sections 2–15 were run against the
+Eighteen independent read-and-execute audits of sections 2–15 were run against the
 code (each walked the normative rules section by section and confirmed every
 finding by running programs or custom fixture manifests).
 
@@ -128,6 +128,8 @@ finding by running programs or custom fixture manifests).
 
 | 17 (full, §2–§16) | 4: unsigned timeout/clock-report values narrowed to negative i64; u64::MAX header quota overflow on fragmented client/server heads; fixture clock/OID/status numeric narrowing; closed fixture argument/result records accepted unknown fields | Fixed: exact unsigned values; saturating head bounds with fragmented-wire regressions; checked fixture metadata and wide clock values; pre-execution validation of closed normalized fixture schemas. Regressions in I01/I05 and `tests/prose_regressions.rs` / `tests/fixtures/unsigned.json`. |
 
+| 18 (full, §2–§16) | 3: temporal values/absolute deadlines silently saturated and real sleep capped at 30 years; expected response status/header and virtual request octet metadata incompletely validated; file temporary-name RNG errors ignored | Fixed: checked duration/clock capacity with resource aborts and no shortened sleep; complete pre-execution expectation/request validation; RNG failure returns io/random_source/not_applied before file creation. Regressions: 13 virtual clock cases, simulated 31-year real-host sleep, malformed manifests and Linux fault-injected file entropy failure. |
+
 Audit 2 recorded "no new violations" for §2, §3, §4, §5, §6, §7, §8, §9,
 §10 (apart from the fixture header checks), §11 (apart from the two SQL
 items), §12, §13, §14.1 and §15, and confirmed 8 of the 9 audit-1 fixes
@@ -146,6 +148,7 @@ documentation snippets and claims as accurate.
 | Client half-close | Kiroha 0.3.0 does not define half-close; §12.2 requires that a "client disconnect aborts its task". TCP offers no way to tell a half-close from a full close before a response is written (both arrive as FIN/EOF), so honouring §12.2 requires treating EOF during handler execution as a disconnect — the same rule Go's net/http applies. A client that shuts down its sending side before the response therefore receives none. This is the conforming reading of §12.2, not a deviation. |
 | Number size | Coefficients (significant digits, excluding a spelling's leading/trailing zeros) are limited to 100,000 decimal digits (operands and results), and exponents to about ±2.3×10^18; exceeding it is a `resource` abort with `{resource:"number"}`. §3.2 allows coefficient limits only as host resource termination; the quota bounds the cost of a single uninterruptible arbitrary-precision operation to tens of milliseconds, so deadlines and other tasks are not starved. |
 | Memory quota | Process live-heap measurement at checkpoints (published strategy above); a single huge allocation may complete before it is observed, which §14.1 leaves implementation-dependent. |
+| Clock capacity | Durations and absolute monotonic timestamps must fit u64 milliseconds; inability to represent a time aborts with `resource` / `{resource:"clock"}` rather than shortening a wait or substituting a timeout. Cleanup may abandon unresponsive work within its bounded grace. |
 | Build requirement | `pg_query` needs a C compiler and libclang at build time. |
 
 None of these change a value, error code or ordering asserted by the

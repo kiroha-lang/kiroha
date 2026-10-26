@@ -118,3 +118,17 @@ code. Mechanised proofs (Coq/Lean) of the whole semantics would cost far more
 than the rest of the project and still leave the code–proof correspondence
 open. The combination above targets the two areas where independent audits
 found the most defects.
+
+## Deterministic boundary regressions
+
+`tests/fixtures/cleanup.json` checks one shared cleanup deadline across
+cancellation acknowledgments, rollback and release. All four cases reject
+the pre-fix implementation. `tests/fixtures/durations.json` exercises exact
+time representation and host clock-capacity aborts.
+
+A Tokio paused-clock test in `src/host/real/mod.rs` advances 30 then 31 years
+through the production sleep adapter. Restoring the former 30-year clamp
+makes the test fail; restoring the checked full sleep makes it pass. This
+is a deterministic regression test, not a real 31-year observation or a TLA+
+clock proof. The Linux I06 RNG-failure regression interposes the OS entropy
+call and verifies no predictable temporary file or replacement is created.

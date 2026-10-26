@@ -41,6 +41,7 @@ libc = "0.2"
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
 
 [dev-dependencies]
+tokio = { version = "1", features = ["test-util"] }
 rcgen = "0.13"
 num-bigint = "0.4"
 num-integer = "0.1"

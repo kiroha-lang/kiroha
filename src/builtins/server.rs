@@ -272,7 +272,7 @@ impl<H: Host> Runtime<H> {
                 None => 8080,
             };
             let timeout = match field(o, "timeout") {
-                Some(v) => opt_int(op, "timeout", v, 1)?,
+                Some(v) => opt_duration(op, "timeout", v, 1)?,
                 None => 30000,
             };
             let max_body = match field(o, "max_body") {
@@ -350,6 +350,10 @@ impl<H: Host> Runtime<H> {
             EffOutcome::Err(e) => {
                 self.servers.remove(&sid);
                 self.raise(t, e)
+            }
+            EffOutcome::Resource(r) => {
+                self.servers.remove(&sid);
+                self.fail_ctl(t, Fail::Abort(AbortReason::Resource(super::callbacks::leak(r))))
             }
             _ => {
                 self.servers.remove(&sid);
@@ -507,8 +511,10 @@ impl<H: Host> Runtime<H> {
         }
         // Stage 3: request deadline and task.
         let rscope = self.new_scope(Some(scope));
-        let at = self.now_ms().saturating_add(timeout);
-        self.add_scope_deadline(rscope, at, None);
+        match self.now_ms().checked_add(timeout) {
+            Some(at) => self.add_scope_deadline(rscope, at, None),
+            None => self.abort_scope(rscope, AbortReason::Resource("clock")),
+        }
         let budget = self.new_budget(rscope, None);
         let hdr_record = headers::incoming(&req.headers);
         let coding_ok = req

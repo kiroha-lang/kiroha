@@ -8,9 +8,9 @@ The checkout remains `/home/mizushima/dev/kiri`.
 
 ## Current state
 
-- Audits 1–17 are fixed. Audits 16 and 17 found six and four boundary violations; fixes
+- Audits 1–18 are fixed. The recent boundary findings and fixes
   are recorded in [the conformance report](docs/conformance-report.md).
-- A fresh full audit 18 and final verification of the renamed tree are next.
+- A fresh full audit 19 and final verification of the renamed tree are next.
   Do not claim completion until they pass.
 - The normative contract is [spec.md](spec.md), especially §15.3. Optional
   fuzzing, Miri/sanitizers and a mechanically linked proof are future work,
@@ -41,7 +41,9 @@ Long user-data loops must call `interrupt::poll()` / `poll_big(len)` and
 large allocations must reserve memory first. Aborts bypass `try`. HTTP raw
 field budgets include interim/final heads plus trailers. Pool slots are RAII
 protected during setup and reset, including unpolled reset cancellation.
-Final cleanup shares one enclosing deadline, including cancellation joins,
+Time values/absolute deadlines use checked capacity (resource/clock on overflow).
+File temp-name RNG failure is io/not_applied before creation. Final cleanup
+shares one enclosing deadline, including cancellation joins,
 rollback and release; it cannot renew its grace for each effect.
 
 ## Verify

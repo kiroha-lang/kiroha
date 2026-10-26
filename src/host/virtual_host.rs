@@ -189,10 +189,42 @@ impl VirtualHost {
         };
         let r = v.as_record().ok_or("fixture match must be a record")?;
         closed_fields(r, keys)?;
+        for (key, value) in r.iter() {
+            match key.as_ref() {
+                "headers" => {
+                    for h in value.as_array().ok_or("match headers must be pairs")?.iter() {
+                        let pair = h.as_array().ok_or("match header must be a pair")?;
+                        if pair.len() != 2 || pair.iter().any(|v| v.as_str().is_none()) {
+                            return Err("match header must be two strings".into());
+                        }
+                    }
+                }
+                "parameters" => {}
+                "count" => {
+                    value.as_num().and_then(|d| d.to_u64()).ok_or("match count must be a nonnegative integer")?;
+                }
+                "body_base64" if matches!(value, Value::Null) => {}
+                "body_base64" | "bytes_base64" => {
+                    b64().decode(value.as_str().ok_or("match bytes must be base64")?).map_err(|_| "invalid match base64")?;
+                }
+                "isolation" if value.as_str() == Some("read_committed") => {}
+                "isolation" => return Err("match isolation must be read_committed".into()),
+                "disposition" if matches!(value.as_str(), Some("reset" | "discard")) => {}
+                "disposition" => return Err("match disposition must be reset or discard".into()),
+                _ => { value.as_str().ok_or("match argument must be a string")?; }
+            }
+        }
         if op == "execute" {
             if let Some(parameters) = r.get("parameters") {
                 for p in parameters.as_array().ok_or("parameters must be an array")?.iter() {
-                    closed_fields(p.as_record().ok_or("parameter must be a record")?, &["oid", "value"])?;
+                    let p = p.as_record().ok_or("parameter must be a record")?;
+                    closed_fields(p, &["oid", "value"])?;
+                    if let Some(oid) = p.get("oid") {
+                        oid.as_num().and_then(|d| d.to_u64()).and_then(|n| u32::try_from(n).ok()).ok_or("match parameter oid out of range")?;
+                    }
+                    if p.get("value").is_some_and(|v| !matches!(v, Value::Null | Value::Str(_))) {
+                        return Err("match parameter value must be string or null".into());
+                    }
                 }
             }
         }
@@ -214,6 +246,7 @@ impl VirtualHost {
                 let r = rec(v, &["status", "headers", "body_base64"])?;
                 let status = r.get("status").and_then(|s| s.as_num()).and_then(|d| d.to_u64())
                     .and_then(|n| u16::try_from(n).ok()).ok_or("http status out of range")?;
+                if !(200..=599).contains(&status) { return Err("http fixture status must be 200..599".into()); }
                 let mut headers = Vec::new();
                 for h in r.get("headers").and_then(|h| h.as_array()).ok_or("http headers")?.iter() {
                     let pair = h.as_array().ok_or("header pair")?;
@@ -297,11 +330,19 @@ impl VirtualHost {
         let f = self.fixtures[idx].clone();
         self.trace.push(format!("{}:start", f.id));
         self.starts.insert(f.id.clone(), self.now);
+        let at = match self.now.checked_add(f.after_ms) {
+            Some(at) => at,
+            None if !matches!(f.result, FixtureResult::Hold) => {
+                self.complete_now(id, EffOutcome::Resource("clock".into()));
+                return;
+            }
+            None => self.now,
+        };
         let key = match &f.result {
             FixtureResult::Hold => None,
             FixtureResult::Ok(v) => match Self::convert_ok(op, v) {
                 Ok(ev) => Some(self.push(
-                    self.now.saturating_add(f.after_ms),
+                    at,
                     1,
                     Ev::Complete { eff: id, outcome: EffOutcome::Ok(ev), label: Some(f.id.clone()), kind: "ok" },
                 )),
@@ -311,7 +352,7 @@ impl VirtualHost {
                 }
             },
             FixtureResult::Error(e) => Some(self.push(
-                self.now.saturating_add(f.after_ms),
+                at,
                 1,
                 Ev::Complete { eff: id, outcome: EffOutcome::Err(e.clone()), label: Some(f.id.clone()), kind: "error" },
             )),
@@ -342,8 +383,12 @@ impl Host for VirtualHost {
                 self.sleep_counter += 1;
                 let label = format!("sleep#{}", self.sleep_counter);
                 self.trace.push(format!("{label}:start"));
+                let Some(at) = self.now.checked_add(*ms) else {
+                    self.complete_now(id, EffOutcome::Resource("clock".into()));
+                    return;
+                };
                 let key = self.push(
-                    self.now.saturating_add(*ms),
+                    at,
                     1,
                     Ev::Complete { eff: id, outcome: EffOutcome::Ok(EffValue::Null), label: Some(label.clone()), kind: "ok" },
                 );
@@ -357,13 +402,18 @@ impl Host for VirtualHost {
                         return;
                     }
                 };
+                if self.now.checked_add(srv.cancel_at_ms).is_none()
+                    || srv.requests.iter().any(|r| self.now.checked_add(r.at_ms).is_none()) {
+                    self.complete_now(id, EffOutcome::Resource("clock".into()));
+                    return;
+                }
                 self.trace.push("listener:start".into());
                 self.listener_started = Some(self.now);
                 self.complete_now(id, EffOutcome::Ok(EffValue::Str("listener-1".into())));
                 for (i, r) in srv.requests.iter().enumerate() {
-                    self.push(self.now.saturating_add(r.at_ms), 1, Ev::Arrive(i));
+                    self.push(self.now.checked_add(r.at_ms).unwrap(), 1, Ev::Arrive(i));
                 }
-                self.push(self.now.saturating_add(srv.cancel_at_ms), 0, Ev::CancelRoot);
+                self.push(self.now.checked_add(srv.cancel_at_ms).unwrap(), 0, Ev::CancelRoot);
             }
             Effect::ReadBody { request, max_body } => {
                 let body = self.bodies.get(request).cloned().unwrap_or_default();

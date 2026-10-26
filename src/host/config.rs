@@ -11,7 +11,7 @@ pub struct Limits {
     pub max_tasks: u64,
     pub max_file_bytes: u64,
     pub header_bytes: u64,
-    pub deadline_ms: Option<u64>,
+    pub deadline_ms: Option<crate::decimal::Decimal>,
     pub cleanup_ms: u64,
 }
 
@@ -242,7 +242,10 @@ fn parse_common(cfg: &mut HostConfig, r: &Record) -> CResult<()> {
         if let Some(v) = l.get("deadline_ms") {
             lim.deadline_ms = match v {
                 Value::Null => None,
-                other => Some(int_in(other, "deadline_ms", 1, big)?),
+                other => {
+                    int_in(other, "deadline_ms", 1, big)?;
+                    Some(other.as_num().unwrap().clone())
+                }
             };
         }
         if let Some(v) = l.get("cleanup_ms") {

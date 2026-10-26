@@ -68,7 +68,7 @@ impl<H: Host> Runtime<H> {
         let plain = DispatchOpts::default();
         match b {
             Builtin::Sleep => {
-                let ms = nonneg_u64(op, 1, &a[0])?;
+                let ms = duration(op, 1, &a[0])?;
                 Ok(Prepared::Dispatch(OpFrame::Sleep, Effect::Sleep(ms), plain))
             }
             Builtin::Env => {
@@ -219,7 +219,7 @@ impl<H: Host> Runtime<H> {
             return Err(arg_err(op, "GET and HEAD requests cannot carry a body"));
         }
         let timeout = match field(o, "timeout") {
-            Some(v) => opt_int(op, "timeout", v, 1)?,
+            Some(v) => opt_duration(op, "timeout", v, 1)?,
             None => 10000,
         };
         let max_bytes = match field(o, "max_bytes") {

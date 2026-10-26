@@ -94,7 +94,9 @@ fn validate_expect(e: &Record) -> H<()> {
                 return Err("value expectation needs exactly one of json, kind, bytes_base64".into());
             }
             if let Some(v) = e.get("json") {
-                v.as_str().ok_or("json must be a string")?;
+                let text = v.as_str().ok_or("json must be a string")?;
+                let parsed = crate::json::parse(text).map_err(|_| "expect.json must contain canonical JSON")?;
+                if crate::json::dump(&parsed) != text { return Err("expect.json must be canonical JSON".into()); }
             }
             if let Some(v) = e.get("kind") {
                 Kind::from_name(v.as_str().ok_or("kind must be a string")?).ok_or("unknown kind")?;
@@ -139,10 +141,17 @@ fn validate_expect(e: &Record) -> H<()> {
             let rr = r.as_record().ok_or("response must be a record")?;
             closed(rr, &["id", "status", "body_base64", "headers"], "response")?;
             req_str(rr, "id", "response")?;
-            nonneg(rr.get("status").ok_or("response.status required")?, "response.status")?;
+            let status = nonneg(rr.get("status").ok_or("response.status required")?, "response.status")?;
+            if !(200..=599).contains(&status) { return Err("response.status must be 200..599".into()); }
             b64().decode(req_str(rr, "body_base64", "response")?).map_err(|_| "invalid base64")?;
             if let Some(h) = rr.get("headers") {
-                h.as_record().ok_or("response.headers must be a record")?;
+                for (name, values) in h.as_record().ok_or("response.headers must be a record")?.iter() {
+                    if name.is_empty() || name.bytes().any(|b| !crate::builtins::headers::is_token_char(b) || b.is_ascii_uppercase()) {
+                        return Err("response header keys must be lowercase field names".into());
+                    }
+                    let values = values.as_array().ok_or("response header values must be string arrays")?;
+                    if values.iter().any(|v| v.as_str().is_none()) { return Err("response header values must be strings".into()); }
+                }
             }
         }
     }
@@ -216,6 +225,9 @@ fn parse_server(v: &Value) -> H<VServer> {
             let p = h.as_array().ok_or("header pair")?;
             if p.len() != 2 {
                 return Err("header pair must have two strings".into());
+            }
+            if p[1].as_str().is_some_and(|v| v.chars().any(|c| c as u32 > 255)) {
+                return Err("request header value must represent octets".into());
             }
             headers.push((
                 p[0].as_str().ok_or("header name")?.to_string(),
@@ -477,7 +489,7 @@ pub fn compare(case: &Case, obs: &Observed) -> Option<String> {
         for (want, got) in rs.iter().zip(&obs.responses) {
             let w = want.as_record().unwrap();
             let id = w.get("id").and_then(|x| x.as_str()).unwrap();
-            let status = w.get("status").and_then(|x| x.as_num()).and_then(|d| d.to_u64()).unwrap() as u16;
+            let status = u16::try_from(w.get("status").and_then(|x| x.as_num()).and_then(|d| d.to_u64()).unwrap()).unwrap();
             let body = w.get("body_base64").and_then(|x| x.as_str()).unwrap();
             if got.id != id || got.status != status || b64().encode(&got.body) != body {
                 return Some(format!(

@@ -448,6 +448,7 @@ pub fn leak(s: String) -> &'static str {
         "max_file_bytes" => "max_file_bytes",
         "header_bytes" => "header_bytes",
         "transport" => "transport",
+        "clock" => "clock",
         _ => "host",
     }
 }

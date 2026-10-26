@@ -98,6 +98,11 @@ Exceeding a runtime limit is a `resource` (or `deadline`) **abort**, never a
 catchable error. `source_bytes` is checked by the CLI before evaluation and
 fails with `phase:"cli"`, code `source_limit` (exit 2).
 
+Durations and absolute monotonic deadlines beyond the implementation's u64
+millisecond capacity abort evaluation with `resource` / `clock`; even a very
+large root deadline is retained exactly until that check. Waits are never
+shortened to fit the clock.
+
 ## TLS trust store
 
 HTTPS verification uses the system trust store. Setting the process

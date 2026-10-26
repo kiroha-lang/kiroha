@@ -1,0 +1,302 @@
+{
+  "format": "kiroha-conformance/1",
+  "language": "0.3.0/Web1",
+  "scheduler": "virtual-fifo/1",
+  "cases": [
+    {
+      "id": "large-sleep",
+      "source": "try sleep(1e21) catch {e=>\"caught\"}",
+      "expect": {
+        "phase": "abort",
+        "reason": "resource",
+        "data": {
+          "resource": "clock"
+        }
+      }
+    },
+    {
+      "id": "large-http",
+      "source": "try get(\"https://f.invalid/\",{timeout:1e21}) catch {e=>\"caught\"}",
+      "expect": {
+        "phase": "abort",
+        "reason": "resource",
+        "data": {
+          "resource": "clock"
+        }
+      },
+      "host": {
+        "capabilities": {
+          "http": [
+            "https://f.invalid"
+          ]
+        }
+      }
+    },
+    {
+      "id": "large-sql",
+      "source": "try sql(db(\"main\"),q`select 1`,{timeout:1e21}) catch {e=>\"caught\"}",
+      "expect": {
+        "phase": "abort",
+        "reason": "resource",
+        "data": {
+          "resource": "clock"
+        }
+      },
+      "fixtures": [
+        {
+          "id": "pool",
+          "op": "pool",
+          "match": {
+            "alias": "main"
+          },
+          "ok": "p"
+        }
+      ],
+      "host": {
+        "capabilities": {
+          "databases": [
+            "main"
+          ]
+        }
+      }
+    },
+    {
+      "id": "large-tx",
+      "source": "try tx(db(\"main\"),{timeout:1e21}){t=>1} catch {e=>\"caught\"}",
+      "expect": {
+        "phase": "abort",
+        "reason": "resource",
+        "data": {
+          "resource": "clock"
+        }
+      },
+      "fixtures": [
+        {
+          "id": "pool",
+          "op": "pool",
+          "match": {
+            "alias": "main"
+          },
+          "ok": "p"
+        }
+      ],
+      "host": {
+        "capabilities": {
+          "databases": [
+            "main"
+          ]
+        }
+      }
+    },
+    {
+      "id": "large-serve",
+      "source": "serve({\"GET /\":{r=>1}},{timeout:1e21})",
+      "expect": {
+        "phase": "abort",
+        "reason": "resource",
+        "data": {
+          "resource": "clock"
+        }
+      },
+      "host": {
+        "capabilities": {
+          "listen": [
+            {
+              "host": "127.0.0.1",
+              "port": 8080
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "large-root-deadline",
+      "source": "1",
+      "expect": {
+        "phase": "abort",
+        "reason": "resource",
+        "data": {
+          "resource": "clock"
+        }
+      },
+      "host": {
+        "limits": {
+          "deadline_ms": 1e+21
+        }
+      }
+    },
+    {
+      "id": "absolute-sleep",
+      "source": "sleep(1);sleep(18446744073709551615)",
+      "expect": {
+        "phase": "abort",
+        "reason": "resource",
+        "data": {
+          "resource": "clock"
+        }
+      }
+    },
+    {
+      "id": "absolute-http",
+      "source": "sleep(1);get(\"https://f.invalid/\",{timeout:18446744073709551615})",
+      "expect": {
+        "phase": "abort",
+        "reason": "resource",
+        "data": {
+          "resource": "clock"
+        }
+      },
+      "host": {
+        "capabilities": {
+          "http": [
+            "https://f.invalid"
+          ]
+        }
+      }
+    },
+    {
+      "id": "absolute-sql",
+      "source": "d=db(\"main\");sleep(1);sql(d,q`select 1`,{timeout:18446744073709551615})",
+      "expect": {
+        "phase": "abort",
+        "reason": "resource",
+        "data": {
+          "resource": "clock"
+        }
+      },
+      "fixtures": [
+        {
+          "id": "pool",
+          "op": "pool",
+          "match": {
+            "alias": "main"
+          },
+          "ok": "p"
+        }
+      ],
+      "host": {
+        "capabilities": {
+          "databases": [
+            "main"
+          ]
+        }
+      }
+    },
+    {
+      "id": "absolute-tx",
+      "source": "d=db(\"main\");sleep(1);tx(d,{timeout:18446744073709551615}){t=>1}",
+      "expect": {
+        "phase": "abort",
+        "reason": "resource",
+        "data": {
+          "resource": "clock"
+        }
+      },
+      "fixtures": [
+        {
+          "id": "pool",
+          "op": "pool",
+          "match": {
+            "alias": "main"
+          },
+          "ok": "p"
+        }
+      ],
+      "host": {
+        "capabilities": {
+          "databases": [
+            "main"
+          ]
+        }
+      }
+    },
+    {
+      "id": "absolute-fixture",
+      "source": "sleep(1);log(1)",
+      "expect": {
+        "phase": "abort",
+        "reason": "resource",
+        "data": {
+          "resource": "clock"
+        }
+      },
+      "fixtures": [
+        {
+          "id": "log",
+          "op": "log_line",
+          "match": {},
+          "ok": null,
+          "after_ms": 18446744073709551615
+        }
+      ],
+      "host": {
+        "capabilities": {
+          "log": true
+        }
+      }
+    },
+    {
+      "id": "absolute-server",
+      "source": "sleep(1);serve({\"GET /\":{r=>1}})",
+      "expect": {
+        "phase": "abort",
+        "reason": "resource",
+        "data": {
+          "resource": "clock"
+        }
+      },
+      "host": {
+        "capabilities": {
+          "listen": [
+            {
+              "host": "127.0.0.1",
+              "port": 8080
+            }
+          ]
+        }
+      },
+      "server": {
+        "requests": [],
+        "cancel_at_ms": 18446744073709551615
+      }
+    },
+    {
+      "id": "absolute-request",
+      "source": "sleep(1);serve({\"GET /\":{r=>1}},{timeout:18446744073709551615})",
+      "host": {
+        "capabilities": {
+          "listen": [
+            {
+              "host": "127.0.0.1",
+              "port": 8080
+            }
+          ]
+        }
+      },
+      "server": {
+        "requests": [
+          {
+            "id": "r",
+            "at_ms": 0,
+            "method": "GET",
+            "target": "/",
+            "headers": [],
+            "body_base64": ""
+          }
+        ],
+        "cancel_at_ms": 2
+      },
+      "expect": {
+        "phase": "abort",
+        "reason": "cancelled",
+        "responses": [
+          {
+            "id": "r",
+            "status": 503,
+            "body_base64": "eyJlcnJvciI6InVuYXZhaWxhYmxlIn0="
+          }
+        ]
+      }
+    }
+  ]
+}

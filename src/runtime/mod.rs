@@ -525,9 +525,11 @@ impl<H: Host> Runtime<H> {
         self.root_scope = scope;
         let budget = self.new_budget(scope, abort_after_steps);
         let env = Rc::new(Env { locals: RefCell::new(vec![Value::Null; self.prog.nlocals as usize]), func: None });
-        if let Some(ms) = self.config.limits.deadline_ms {
-            let at = self.host.now_ms().saturating_add(ms);
-            self.add_scope_deadline(scope, at, None);
+        if let Some(ms) = &self.config.limits.deadline_ms {
+            match ms.to_u64().and_then(|ms| self.host.now_ms().checked_add(ms)) {
+                Some(at) => self.add_scope_deadline(scope, at, None),
+                None => self.abort_scope(scope, AbortReason::Resource("clock")),
+            }
         }
         self.spawn(scope, budget, Ctl::Seq(SeqOwner::Program, 0, env), DoneTo::Root);
     }
@@ -659,7 +661,15 @@ impl<H: Host> Runtime<H> {
     }
 
     /// Dispatch an effect for a task.
-    pub fn dispatch(&mut self, t: &mut Task, eff: Effect, opts: DispatchOpts) {
+    pub fn dispatch(&mut self, t: &mut Task, eff: Effect, opts: DispatchOpts) -> Option<Ctl> {
+        let now = self.host.now_ms();
+        let duration = opts.timeout.map(|(_, ms)| ms).or(match &eff {
+            Effect::Sleep(ms) => Some(*ms),
+            _ => None,
+        });
+        if !opts.cleanup && duration.is_some_and(|ms| now.checked_add(ms).is_none()) {
+            return Some(self.fail_ctl(t, Fail::Abort(AbortReason::Resource("clock"))));
+        }
         let id = self.next_eff;
         self.next_eff += 1;
         let op = eff.op_name();
@@ -669,9 +679,8 @@ impl<H: Host> Runtime<H> {
         );
         t.waiting_eff = Some(id);
         t.in_cleanup = opts.cleanup;
-        let now = self.host.now_ms();
         if let Some((_, ms)) = opts.timeout {
-            self.add_timer(now.saturating_add(ms), TimerKind::EffectTimeout(id));
+            self.add_timer(now.checked_add(ms).unwrap(), TimerKind::EffectTimeout(id));
         }
         if opts.cleanup {
             let grace = self.config.limits.cleanup_ms;
@@ -681,6 +690,7 @@ impl<H: Host> Runtime<H> {
             self.add_timer(deadline, TimerKind::CleanupGrace(id));
         }
         self.host.dispatch(id, eff);
+        None
     }
 
     fn task_done(&mut self, t: Task, outcome: TaskOutcome) {

@@ -170,7 +170,10 @@ impl<H: Host> Runtime<H> {
                         return StepResult::Continue;
                     }
                 }
-                self.dispatch(t, eff, opts);
+                if let Some(ctl) = self.dispatch(t, eff, opts) {
+                    t.ctl = ctl;
+                    return StepResult::Continue;
+                }
                 t.ctl = Ctl::Waiting;
                 return StepResult::Suspended;
             }

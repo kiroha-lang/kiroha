@@ -276,7 +276,7 @@ pub fn run_source(bytes: &[u8], config: HostConfig) -> Output {
     let started = std::time::Instant::now();
     let baseline = crate::alloc::live_bytes();
     let memory_limit = config.limits.memory_bytes;
-    let deadline = config.limits.deadline_ms;
+    let deadline = config.limits.deadline_ms.as_ref().and_then(|d| d.to_u64());
     let (src, prog) = match frontend(bytes) {
         Ok(x) => x,
         Err(o) => return o,

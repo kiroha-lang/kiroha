@@ -221,7 +221,17 @@ final value or error is delivered — so work that cannot poll (a single large
 string concatenation, `join`, `encode`) overruns a deadline by at most one
 operation, and its result is never reported after the deadline. Arbitrary-precision arithmetic
 inside one `num-bigint` call is not interruptible; its size is bounded by the
-memory quota and the 20,000,000-digit scaling cap.
+memory quota and the 100,000-digit coefficient/scaling quota.
+
+## Clock capacity
+
+User durations and absolute monotonic deadlines use checked u64 milliseconds.
+A larger duration or overflowing deadline aborts with `resource` / `clock`;
+it is never saturated into an earlier successful completion. Root deadline
+configuration retains its exact decimal until this runtime capacity check.
+Real sleeps preserve their requested duration; only scheduler wake intervals
+are bounded and re-checked. A paused-clock regression advances 30 then 31
+years to verify the production sleep path without a long wall-clock wait.
 
 ## Number quota
 

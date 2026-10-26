@@ -126,11 +126,11 @@ pub async fn replace_regular(path: String, bytes: Vec<u8>, cancel: Cancel) -> Ef
     )
 }
 
-fn temp_name(name: &str) -> String {
+fn temp_name(name: &str) -> Result<String, getrandom::Error> {
     let mut r = [0u8; 8];
-    let _ = getrandom::getrandom(&mut r);
+    getrandom::getrandom(&mut r)?;
     let hex: String = r.iter().map(|b| format!("{b:02x}")).collect();
-    format!(".{name}.kiroha-{hex}.tmp")
+    Ok(format!(".{name}.kiroha-{hex}.tmp"))
 }
 
 fn replace_blocking(path: &str, bytes: &[u8], cancel: &Cancel) -> FileRes {
@@ -154,7 +154,10 @@ fn replace_blocking(path: &str, bytes: &[u8], cancel: &Cancel) -> FileRes {
         return FileRes::Cancelled;
     }
     // 2. exclusive unpredictable temporary file
-    let tmp = temp_name(&name);
+    let tmp = match temp_name(&name) {
+        Ok(tmp) => tmp,
+        Err(_) => return io("write", "random_source", "not_applied"),
+    };
     let fd = match openat(
         &dir,
         tmp.as_str(),

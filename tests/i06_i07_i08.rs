@@ -10,6 +10,24 @@ fn fs_host(root: &std::path::Path) -> String {
     format!(r#"{{"format":"kiroha-host/1","filesystem_root":"{r}","capabilities":{{"read":["{r}"],"write":["{r}"]}}}}"#)
 }
 
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[test]
+fn i06_failed_random_source_never_creates_predictable_temp_file() {
+    let tools = tempdir("rng-fault");
+    let c = tools.join("deny.c");
+    let so = tools.join("deny.so");
+    std::fs::write(&c, include_str!("fixtures/deny_file_random.c")).unwrap();
+    assert!(std::process::Command::new("cc").args(["-shared", "-fPIC"]).arg(&c).arg("-ldl").arg("-o").arg(&so).status().unwrap().success());
+    let root = tempdir("rng-file");
+    std::fs::write(root.join("out"), "old").unwrap();
+    let r = run_env(r#"try write("out",encode("new")) catch {e=>[e.code,e.data.reason,e.data.outcome]}"#,
+        Some(&fs_host(&root)), &[("LD_PRELOAD", so.to_str().unwrap())]);
+    assert!(r.stderr.contains("audit-denied-getrandom8"), "fault injection was not reached: {}", r.stderr);
+    assert_eq!(result(&r), r#"["io","random_source","not_applied"]"#);
+    assert_eq!(std::fs::read_to_string(root.join("out")).unwrap(), "old");
+    assert_eq!(std::fs::read_dir(&root).unwrap().count(), 1, "no temporary file was created");
+}
+
 #[test]
 fn i06_modes_symlinks_parents_and_atomic_replace() {
     let root = tempdir("fs");

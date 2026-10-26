@@ -114,10 +114,11 @@ where
     }
 }
 
-/// Durations beyond ~30 years are clamped so timer arithmetic cannot overflow.
+/// Bound a scheduler wake interval; callers re-check the absolute deadline.
 fn clamp_ms(ms: u64) -> std::time::Duration {
     std::time::Duration::from_millis(ms.min(30 * 365 * 24 * 3_600_000))
 }
+
 
 fn io_err(op: &str, reason: &str, outcome: &str) -> Value {
     err::make(
@@ -135,7 +136,10 @@ impl Host for RealHost {
     fn dispatch(&mut self, id: u64, eff: Effect) {
         match eff {
             Effect::Sleep(ms) => self.spawn(id, async move {
-                tokio::time::sleep(clamp_ms(ms)).await;
+                let Some(at) = tokio::time::Instant::now().checked_add(std::time::Duration::from_millis(ms)) else {
+                    return EffOutcome::Resource("clock".into());
+                };
+                tokio::time::sleep_until(at).await;
                 EffOutcome::Ok(EffValue::Null)
             }),
             Effect::Environment(name) => {
@@ -311,5 +315,26 @@ impl Host for RealHost {
     fn diagnostic(&mut self, line: &str) {
         let mut e = std::io::stderr().lock();
         let _ = writeln!(e, "{line}");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test(start_paused = true)]
+    async fn long_sleep_is_not_shortened_to_the_scheduler_wake_interval() {
+        tokio::task::LocalSet::new().run_until(async {
+            let mut host = RealHost::new(Rc::new(HostConfig::default_with_root("/".into())));
+            let year_ms = 365 * 24 * 3_600_000u64;
+            host.dispatch(1, Effect::Sleep(31 * year_ms));
+            tokio::task::yield_now().await;
+            tokio::time::advance(std::time::Duration::from_millis(30 * year_ms)).await;
+            tokio::task::yield_now().await;
+            assert!(matches!(host.rx.try_recv(), Err(mpsc::error::TryRecvError::Empty)));
+            tokio::time::advance(std::time::Duration::from_millis(year_ms)).await;
+            tokio::task::yield_now().await;
+            assert!(matches!(host.rx.try_recv(), Ok(HostEvent::Done(1, EffOutcome::Ok(EffValue::Null)))));
+        }).await;
     }
 }

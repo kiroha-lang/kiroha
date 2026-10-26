@@ -1,7 +1,7 @@
 //! Shared argument validation helpers (spec §7.2).
 
 use crate::decimal::Decimal;
-use crate::runtime::Fail;
+use crate::runtime::{AbortReason, Fail};
 use crate::value::{err, Record, Value};
 use num_bigint::BigInt;
 use std::rc::Rc;
@@ -101,6 +101,18 @@ pub fn opt_int(op: &str, field: &str, v: &Value, min: u64) -> VResult<u64> {
         return Err(arg_err(op, &format!("{field} out of range")));
     }
     Ok(i)
+}
+
+/// Counts can saturate when no collection can reach the bound. Durations
+/// cannot: shortening a wait changes its meaning (§8.3).
+pub fn opt_duration(op: &str, field: &str, v: &Value, min: u64) -> VResult<u64> {
+    opt_int(op, field, v, min)?;
+    v.as_num().and_then(|d| d.to_u64()).ok_or(Fail::Abort(AbortReason::Resource("clock")))
+}
+
+pub fn duration(op: &str, pos: usize, v: &Value) -> VResult<u64> {
+    nonneg_u64(op, pos, v)?;
+    v.as_num().and_then(|d| d.to_u64()).ok_or(Fail::Abort(AbortReason::Resource("clock")))
 }
 
 /// Validate an options record against known fields in table order.

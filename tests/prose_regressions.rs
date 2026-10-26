@@ -169,6 +169,29 @@ fn fixture_argument_and_result_records_are_closed() {
     assert!(parse_manifest(&manifest("execute", args, rows)).is_err());
 }
 
+#[test]
+fn durations_do_not_saturate_or_complete_early() {
+    let cases = parse_manifest(include_str!("fixtures/durations.json")).unwrap();
+    let (report, all) = run_all(&cases);
+    assert!(all, "{}", kiroha::json::dump(&report));
+}
+
+#[test]
+fn malformed_expectations_and_virtual_headers_fail_before_execution() {
+    for expect in [
+        r#"{"phase":"value","json":"0.0"}"#,
+        r#"{"phase":"value","json":"not json"}"#,
+        r#"{"phase":"abort","reason":"cancelled","responses":[{"id":"r","status":65736,"body_base64":""}]}"#,
+        r#"{"phase":"abort","reason":"cancelled","responses":[{"id":"r","status":200,"body_base64":"","headers":{"content-type":5}}]}"#,
+        r#"{"phase":"abort","reason":"cancelled","responses":[{"id":"r","status":200,"body_base64":"","headers":{"Content-Type":["x"]}}]}"#,
+    ] {
+        let m = format!(r#"{{"format":"kiroha-conformance/1","language":"0.3.0/Web1","scheduler":"virtual-fifo/1","cases":[{{"id":"invalid","source":"log(1)","expect":{expect}}}]}}"#);
+        assert!(parse_manifest(&m).is_err(), "{expect}");
+    }
+    let m = r#"{"format":"kiroha-conformance/1","language":"0.3.0/Web1","scheduler":"virtual-fifo/1","cases":[{"id":"header","source":"null","server":{"requests":[{"id":"r","at_ms":0,"method":"GET","target":"/","headers":[["x","Ġ"]],"body_base64":""}],"cancel_at_ms":1},"expect":{"phase":"value","json":"null"}}]}"#;
+    assert!(parse_manifest(m).is_err());
+}
+
 
 #[test]
 fn unmatched_effect_with_pending_timer_is_a_prompt_harness_failure() {

@@ -227,7 +227,7 @@ impl<H: Host> Runtime<H> {
             };
             let o = options(op, 3, a.get(2), &["timeout", "max_rows"])?;
             let timeout = match field(o, "timeout") {
-                Some(v) => opt_int(op, "timeout", v, 1)?,
+                Some(v) => opt_duration(op, "timeout", v, 1)?,
                 None => 10000,
             };
             let max_rows = match field(o, "max_rows") {
@@ -253,6 +253,9 @@ impl<H: Host> Runtime<H> {
             Err(f) => return self.fail_ctl(t, f),
         };
         let now = self.now_ms();
+        let Some(deadline) = now.checked_add(timeout) else {
+            return self.fail_ctl(t, Fail::Abort(AbortReason::Resource("clock")));
+        };
         let mut frame = SqlFrame {
             phase: SqlPhase::Acquiring,
             tx,
@@ -260,7 +263,7 @@ impl<H: Host> Runtime<H> {
             sql,
             params,
             max_rows,
-            deadline: now.saturating_add(timeout),
+            deadline,
             timeout,
             primary: None,
         };
@@ -414,7 +417,7 @@ impl<H: Host> Runtime<H> {
             };
             let o = options(op, 2, a.get(1), &["timeout"])?;
             let timeout = match field(o, "timeout") {
-                Some(v) => opt_int(op, "timeout", v, 1)?,
+                Some(v) => opt_duration(op, "timeout", v, 1)?,
                 None => 10000,
             };
             reject_unknown(op, o, &["timeout"])?;
@@ -429,8 +432,10 @@ impl<H: Host> Runtime<H> {
             let e = db_error("ownership", "not_sent", vec![]);
             return self.raise(t, e);
         }
+        let Some(at) = self.now_ms().checked_add(timeout) else {
+            return self.fail_ctl(t, Fail::Abort(AbortReason::Resource("clock")));
+        };
         let scope = self.new_scope(Some(t.scope));
-        let at = self.now_ms().saturating_add(timeout);
         self.add_scope_deadline(scope, at, Some(timeout));
         let frame = TxFrame {
             phase: TxPhase::Acquiring,
