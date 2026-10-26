@@ -1,5 +1,6 @@
+type Page = {items:[{id:int}],next:maybe(str)};
 items=pages("http://127.0.0.1:8765/page/1",{max_pages:10,max_items:100}){cursor=>
-  retry({attempts:3,when:{e=>e.code=="network"||e.code=="timeout"},delay:20}){()=>get(cursor)}
+  retry({attempts:3,when:{e=>e.code=="network"||e.code=="timeout"},delay:20}){()=>check(get(cursor),Page)}
 };
 items.parallel(2){item=>get(url("http://127.0.0.1:8765",["detail",text(item.id)]))}
 // => [{"id":1,"name":"Tea"},{"id":2,"name":"Cake"}]

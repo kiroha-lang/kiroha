@@ -1,5 +1,31 @@
 # Web1 acceptance record
 
+## 0.6.0 lightweight types and simple generics (2026-10-26)
+
+`type Point={x:num,y:num};` declares a structural type. Named function
+parameters/callbacks are annotated, recursive results are explicit, and inference
+stays local to bindings, contextual lambdas, nonrecursive results and call type
+arguments. Missing information never becomes `any`. Generic aliases/functions
+use `<T>`; concrete aliases bridge to runtime validation, and generic validators
+receive `schema<T>` explicitly. See [types](types.md) and [migration](migration-0.6.md).
+
+The frontend runs type checking before effects. Existing runtime-failure probes
+use explicit dynamic annotations so runtime checks remain covered. Seven new
+regression suites cover structural compatibility, generic calls, inference
+limits, explicit dynamic typing, validation/scopes/variance, shared alias DAGs,
+and every public native signature's arity/callback policy. The embedded corpus
+adds 40 typed acceptance cases.
+
+Local verification passes **93 tests with PostgreSQL enabled**, **253/253
+conformance cases**, warning-free release Clippy, 8 installer tests and both TLC
+models. The compact card is **3095/3072 tokens** (o200k_base/cl100k_base).
+Documentation and plugin examples are migrated. Plugin **0.2.0** packages 22
+inspected files; Codex 0.163.0 installs the exact bundle and discovers the skill
+in temporary state. DB plugin execution is not claimed; real PostgreSQL behavior
+is covered by the runtime integration suite. The dated records below remain
+historical evidence for their respective revisions.
+
+
 ## 0.5.0 compact functions and collection members (2026-10-26)
 
 Function headers no longer use `then`; `end fun name` delimits the definition,

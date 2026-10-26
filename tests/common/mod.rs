@@ -32,7 +32,12 @@ pub fn finish(out: Output) -> Run {
     let stdout = String::from_utf8(out.stdout).unwrap();
     let stderr = String::from_utf8(out.stderr).unwrap();
     let json = kiroha::json::parse(stdout.trim_end()).unwrap_or(Value::Null);
-    Run { json, stdout, stderr, code: out.status.code().unwrap_or(-1) }
+    Run {
+        json,
+        stdout,
+        stderr,
+        code: out.status.code().unwrap_or(-1),
+    }
 }
 
 /// Run a Kiroha program with a host configuration JSON text.
@@ -68,7 +73,17 @@ pub fn plain(w: &Value) -> String {
             "number" => r.get("v").unwrap().as_str().unwrap().to_string(),
             "string" => kiroha::json::dump(r.get("v").unwrap()),
             "bytes" => format!("b64:{}", r.get("base64").unwrap().as_str().unwrap()),
-            "array" => format!("[{}]", r.get("v").unwrap().as_array().unwrap().iter().map(go).collect::<Vec<_>>().join(",")),
+            "array" => format!(
+                "[{}]",
+                r.get("v")
+                    .unwrap()
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(go)
+                    .collect::<Vec<_>>()
+                    .join(",")
+            ),
             "record" => format!(
                 "{{{}}}",
                 r.get("v")
@@ -97,7 +112,13 @@ pub fn result(r: &Run) -> String {
 
 pub fn error_code(r: &Run) -> String {
     let e = r.json.as_record().unwrap().get("error").unwrap();
-    e.as_record().unwrap().get("code").unwrap().as_str().unwrap().to_string()
+    e.as_record()
+        .unwrap()
+        .get("code")
+        .unwrap()
+        .as_str()
+        .unwrap()
+        .to_string()
 }
 
 /// A raw HTTP fixture server: `respond(path, head) -> raw response bytes`.

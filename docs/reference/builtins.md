@@ -1,6 +1,6 @@
 # Built-in reference
 
-Kiroha 0.5.0 / Web1 has **31 global functions, 19 collection methods, one `.size` property and 5 schema
+Kiroha 0.6.0 / Web1 has **31 global functions, 19 collection methods, one `.size` property and 5 schema
 atoms**. Globals are ordinary bindings and may be shadowed. Members are selected
 by receiver kind; they are not global names. Normative text:
 [`spec.md`](../../spec.md) §7–§13.

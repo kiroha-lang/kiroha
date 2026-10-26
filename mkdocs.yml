@@ -66,6 +66,7 @@ nav:
       - Your first program: getting-started.md
   - Learn:
       - Functions, step by step: learn/functions.md
+      - Types and simple generics: types.md
       - Work with data: learn/data.md
       - Read JSON over HTTP: guides/http.md
       - When something goes wrong: guides/troubleshooting.md
@@ -76,6 +77,7 @@ nav:
       - Errors and aborts: reference/errors.md
       - Command line: cli.md
       - Host configuration: host-config.md
+      - Move from 0.5 to 0.6: migration-0.6.md
       - Move from 0.4 to 0.5: migration-0.5.md
       - Move from 0.3 to 0.4: migration-0.4.md
   - Go deeper:

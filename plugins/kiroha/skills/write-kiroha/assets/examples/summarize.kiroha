@@ -1,4 +1,4 @@
-fun total(items)
+fun total(items:[{price:num,quantity:num}])
   items.map{item=>item.price*item.quantity}.sum()
 end fun total
 orders=[

@@ -1,11 +1,11 @@
 # Architecture
 
-This document describes how this implementation realizes the Kiroha 0.5.0 /
+This document describes how this implementation realizes the Kiroha 0.6.0 /
 Web1 contract. Language-visible behavior is fixed by [`spec.md`](../spec.md);
 everything here is an engineering choice.
 
 ```text
-source bytes ─▶ lexer ─▶ parser ─▶ resolver ─▶ Program (arena, resolved)
+source bytes ─▶ lexer ─▶ parser ─▶ resolver ─▶ type checker ─▶ Program
                                                   │
                                          runtime::Runtime<H: Host>
                                   ┌───────────────┴────────────────┐
@@ -22,6 +22,7 @@ source bytes ─▶ lexer ─▶ parser ─▶ resolver ─▶ Program (arena, r
 | `src/lexer.rs` | Strict UTF-8, tokens, numbers, JSON-escape strings, nested query literals |
 | `src/parser.rs` | Recursive descent for the §2.2 grammar and its 12 constraints |
 | `src/resolve.rs` | Static scopes, `name`/`duplicate_binding`, closure conversion |
+| `src/types.rs`, `src/typecheck/` | Structural type DAGs, local checking, generic instantiation and typed builtin signatures |
 | `src/ast.rs` | Arena AST with resolved variable references |
 | `src/decimal.rs` | Exact decimals (BigInt coefficient, i64 exponent) |
 | `src/json.rs` | Strict JSON parser and canonical serializer |
@@ -65,6 +66,14 @@ becomes a capture index, and the creating environment copies exactly those
 values into the closure. A definition's own name resolves to `SelfFn` (the
 running function), so recursion needs no mutable cell and creates no
 reference cycle.
+
+The type checker makes one source-order pass over each body. Named parameters
+and recursive results are annotated; lambdas and local bindings use nearby
+context. Explicit generic parameters are rigid in definitions and instantiated
+locally at calls. No unknown becomes `any`. Types and reified schemas share DAG
+nodes; alias instantiations and structural comparisons are memoized. Generic
+specialization is erased from evaluation; a concrete alias schema carries a
+shared validator. This is separate from value-level runtime validation.
 
 ## Evaluator: an explicit-continuation (CEK) machine
 

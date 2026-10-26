@@ -1,4 +1,4 @@
-Item={id:int,price:num};
+type Item={id:int,price:num};
 check(get("http://127.0.0.1:8765/items"),[Item])
   .filter{item=>item.price>2}
   .map{item=>item.id}

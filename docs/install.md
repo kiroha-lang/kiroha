@@ -34,8 +34,8 @@ source build where the POSIX host adapters are supported.
 Pin both the installer and executable to a release:
 
 ```sh
-curl -fsSL https://github.com/kiroha-lang/kiroha/releases/download/v0.5.0/install.sh \
-  | bash -s -- --version 0.5.0
+curl -fsSL https://github.com/kiroha-lang/kiroha/releases/download/v0.6.0/install.sh \
+  | bash -s -- --version 0.6.0
 ```
 
 Choose a different directory:
@@ -98,6 +98,6 @@ Public latest and pinned installers both installed 0.4.0 successfully, and
 the installed binaries passed 175/175 cases and the named-end factorial example.
 
 For current compact definitions and collection members, see the
-[0.5 migration guide](migration-0.5.md) before running older source.
+[0.6 migration guide](migration-0.6.md) before running older source.
 
 To remove a default installation, delete `~/.local/bin/kiroha`.

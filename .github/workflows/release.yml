@@ -116,21 +116,24 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cat > release-notes.md <<'EOF'
-          Kiroha 0.5.0 / Web1 reference implementation.
+          Kiroha 0.6.0 / Web1 reference implementation.
 
-          Compact function definitions omit header `then` and the separator after the named end.
-          Collection operations use receiver methods (`xs.map{f}`, `xs.fold(0){f}`),
-          and length is the `.size` property. Conditional `if ... then` is unchanged:
+          Explicit structural types and simple generics now use lightweight local type checking.
+          Named function parameters and callback slots are annotated; recursive results are explicit.
+          Bindings and contextual lambdas infer nearby types. Missing information never becomes `any`.
 
           ```text
-          fun fac(n)
-            if n <= 1 then 1 else n * fac(n - 1)
-          end fun fac
-          fac(5)
+          type Box<T> = {value:T};
+          fun box<T>(value:T):Box<T>
+            {value:value}
+          end fun box
+          box(3).value
           ```
 
-          This is a syntax and API change from 0.4.0. See
-          https://github.com/kiroha-lang/kiroha/blob/main/docs/migration-0.5.md.
+          This adds a static type phase to 0.5 programs. See
+          https://kiroha-lang.github.io/kiroha/types/ and
+          https://kiroha-lang.github.io/kiroha/migration-0.6/.
+          The Kiroha Codex plugin 0.2 includes the same rules and checked examples.
 
           Install the latest verified binary (Linux/WSL or macOS, x86_64/ARM64):
 
@@ -139,7 +142,7 @@ jobs:
           ```
 
           The installer verifies SHA-256 and defaults to `~/.local/bin`.
-          Pin a version with `bash -s -- --version 0.5.0`, or set `KIROHA_INSTALL_DIR`.
+          Pin a version with `bash -s -- --version 0.6.0`, or set `KIROHA_INSTALL_DIR`.
           Linux binaries require glibc 2.35+; macOS binaries target macOS 13+.
           See the repository's installation and language documentation for details.
           EOF

@@ -13,6 +13,14 @@ Normative text: spec §8.
 Lex/parse/check diagnostics happen before evaluation and are never values.
 Messages are diagnostic text and may change; branch on `code` and `data`.
 
+## Static type errors
+
+`check` validates annotations, local inference, generic arguments and known call
+signatures before any effect. Its codes include `type`, `type_name`, `type_arity`,
+`type_annotation_required`, `type_reification` and `arity`. See
+[Types and simple generics](../types.md). Explicit `any` permits dynamic operations;
+runtime failures still follow the contracts below.
+
 ## Runtime error codes
 
 | code | Required `data` | Raised by |

@@ -9,7 +9,7 @@ and run `kiroha run functions.kiroha --json` when you'd like to try it.
 ## Start with a name
 
 ```kiroha
-fun greet(name)
+fun greet(name:str)
   "Hello, " + name + "!"
 end fun greet
 
@@ -21,7 +21,7 @@ The parts are:
 
 | Part | What it means |
 | --- | --- |
-| `fun greet(name)` | Define `greet`, with one input called `name`. |
+| `fun greet(name:str)` | Define `greet`, with one string input called `name`. |
 | `"Hello, " + name + "!"` | Calculate the result. |
 | `end fun greet` | Finish the definition, repeating its name. |
 | `greet("Ada")` | Call the function with a value. |
@@ -38,7 +38,7 @@ in the same order as the definition.
 A body can contain several steps, separated by semicolons:
 
 ```kiroha
-fun total(price, quantity)
+fun total(price:num, quantity:num)
   subtotal = price * quantity;
   tax = subtotal * 0.1;
   subtotal + tax
@@ -61,10 +61,11 @@ value.
 
 ## Call the function from itself
 
-A named function can call itself. Here is a small factorial:
+A named function can call itself. Give a recursive function its result type
+explicitly; `:int` below means an integer result. Here is a small factorial:
 
 ```kiroha
-fun fac(n)
+fun fac(n:int):int
   if n <= 1 then 1 else n * fac(n - 1)
 end fun fac
 
@@ -95,7 +96,7 @@ method name directly. With ordinary arguments, write `xs.fold(0){...}`.
 You can declare a callback slot on your own function too:
 
 ```kiroha
-fun twice(value){step}
+fun twice(value:num){step:(num)=>num}:num
   first = step(value);
   step(first)
 end fun twice
@@ -104,8 +105,8 @@ twice(2){n => n * 3}
 // 18
 ```
 
-`value` is an ordinary input. `{step}` declares a separate, required callback
-slot. At the call, `{n => n * 3}` fills that slot. The function applies it twice.
+`value:num` declares a numeric input. `{step:(num)=>num}` declares a
+separate, required callback that accepts and returns a number. At the call, `{n => n * 3}` fills that slot. The function applies it twice.
 A complete `{name}` immediately after the parameter list declares the slot.
 To start a body with a shorthand record, write `{name:name}` or `do{{name}}`.
 A callback with two inputs uses `{(a, b) => ...}`; a callback with no inputs
@@ -118,8 +119,8 @@ name defined later in the same scope. Put a helper before the function that
 uses it, or define it inside that function.
 
 ```kiroha
-fun welcome(name)
-  fun decorate(text)
+fun welcome(name:str)
+  fun decorate(text:str)
     "[" + text + "]"
   end fun decorate
   decorate("Welcome, " + name)
@@ -132,6 +133,11 @@ welcome("Lin")
 The inner definition has its own matching end. If a name is missing or
 mismatched, Kiroha points to the syntax error before running the program.
 
+Parameter types are explicit. Local values such as `subtotal` and callback
+parameters such as `n` get their types from their nearby context. See
+[Types and simple generics](../types.md) when you need reusable data shapes
+or generic functions. Missing information never silently becomes `any`.
+
 Next, try these ideas on a list in [Work with data](data.md).
-If you're updating an older program, the [0.5 migration guide](../migration-0.5.md)
-shows the compact definitions and collection methods.
+If you're updating an older program, the [0.6 migration guide](../migration-0.6.md)
+shows the new annotations and validation boundaries.

@@ -84,7 +84,7 @@ A schema describes the shape you expect. `check` validates a value and returns
 it unchanged when it matches:
 
 ```kiroha
-Order = {item:str, price:num, quantity:int};
+type Order = {item:str, price:num, quantity:int};
 orders = [{item:"Tea", price:2.5, quantity:2}];
 check(orders, [Order]).map{order => order.item}
 // ["Tea"]

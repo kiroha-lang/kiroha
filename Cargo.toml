@@ -1,9 +1,9 @@
 [package]
 name = "kiroha"
-version = "0.5.0"
+version = "0.6.0"
 edition = "2021"
 rust-version = "1.88"
-description = "Reference implementation of the Kiroha 0.5.0 / Web1 language and runtime"
+description = "Reference implementation of the Kiroha 0.6.0 / Web1 language and runtime"
 license = "MIT"
 repository = "https://github.com/kiroha-lang/kiroha"
 homepage = "https://kiroha-lang.github.io/kiroha/"

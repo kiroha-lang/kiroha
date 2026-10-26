@@ -17,6 +17,7 @@ pub enum Kw {
     Catch,
     Fun,
     End,
+    Type,
 }
 
 impl Kw {
@@ -33,6 +34,7 @@ impl Kw {
             "catch" => Kw::Catch,
             "fun" => Kw::Fun,
             "end" => Kw::End,
+            "type" => Kw::Type,
             _ => return None,
         })
     }
@@ -50,6 +52,7 @@ impl Kw {
             Kw::Catch => "catch",
             Kw::Fun => "fun",
             Kw::End => "end",
+            Kw::Type => "type",
         }
     }
 }

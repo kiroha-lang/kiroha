@@ -1,6 +1,6 @@
 {
   "format": "kiroha-measurement/2",
-  "language": "0.5.0/Web1",
+  "language": "0.6.0/Web1",
   "status": "tokenization_only",
   "runtime_execution_evidence": null,
   "generation_evaluation_evidence": null,
@@ -26,21 +26,21 @@
   "documents": {
     "full_markdown": {
       "file": "spec.md",
-      "sha256": "0ea1793fda41be318eea1371bbeb609db1aad539b6c64936f4a1d58330458f3d",
-      "unicode_code_points": 221515,
-      "utf8_bytes": 221625,
+      "sha256": "d2fa1408023141200703f9d8e6728e2612bd7b559b41e4a5c2c6b536a3087a66",
+      "unicode_code_points": 240551,
+      "utf8_bytes": 240661,
       "tokens": {
-        "o200k_base": 54484,
-        "cl100k_base": 54029
+        "o200k_base": 59277,
+        "cl100k_base": 58783
       }
     },
     "generation_card": {
-      "sha256": "9feee0742a060f5e68f615adc1f57bf335bda5bc921ae537603bed5cb1fbdd5b",
-      "unicode_code_points": 12008,
-      "utf8_bytes": 12008,
+      "sha256": "f9411829d1ff3d781e86b9611a7b6763965f3a1da0384587d699ad3131b016d5",
+      "unicode_code_points": 13238,
+      "utf8_bytes": 13238,
       "tokens": {
-        "o200k_base": 2797,
-        "cl100k_base": 2778
+        "o200k_base": 3095,
+        "cl100k_base": 3072
       },
       "target_tokens_each_encoding": 4096,
       "within_target": true
@@ -48,34 +48,34 @@
   },
   "embedded_blocks": {
     "generation_card": {
-      "sha256": "9feee0742a060f5e68f615adc1f57bf335bda5bc921ae537603bed5cb1fbdd5b",
-      "unicode_code_points": 12008,
-      "utf8_bytes": 12008,
+      "sha256": "f9411829d1ff3d781e86b9611a7b6763965f3a1da0384587d699ad3131b016d5",
+      "unicode_code_points": 13238,
+      "utf8_bytes": 13238,
       "tokens": {
-        "o200k_base": 2797,
-        "cl100k_base": 2778
+        "o200k_base": 3095,
+        "cl100k_base": 3072
       }
     },
     "conformance": {
-      "sha256": "ffdd6de3fa4959f0b5f9a41202cc0a2f96ab5c25d2a4d1cc3bf33ca881ca93f4",
-      "unicode_code_points": 61754,
-      "utf8_bytes": 61815,
+      "sha256": "a89991cc4151e7200458d6fb38557d3d1efbcf792817f2663d3555224c378988",
+      "unicode_code_points": 71284,
+      "utf8_bytes": 71345,
       "tokens": {
-        "o200k_base": 19283,
-        "cl100k_base": 19023
+        "o200k_base": 21962,
+        "cl100k_base": 21680
       }
     },
     "measurement_corpus": {
-      "sha256": "af28ade2d8ad0c710a4eb43eb5eb2914fee7a78941e8e7bb3850ceeb94200e97",
-      "unicode_code_points": 2352,
-      "utf8_bytes": 2352,
+      "sha256": "b259b19cd34d571043f63fde235ff9410c79263c3c58aca344e838feed895508",
+      "unicode_code_points": 2417,
+      "utf8_bytes": 2417,
       "tokens": {
-        "o200k_base": 703,
-        "cl100k_base": 701
+        "o200k_base": 727,
+        "cl100k_base": 725
       }
     },
     "measurement_script": {
-      "sha256": "05a86b8a0eb033e90d2bd714737e22da963a5996c09254bf846a1474eba0e4c3",
+      "sha256": "14daa3e5df7f35618025c8b8efa48c41c2318e070efa19e80ca2f02a4b17f649",
       "unicode_code_points": 9379,
       "utf8_bytes": 9379,
       "tokens": {
@@ -205,14 +205,14 @@
       "bool",
       "json"
     ],
-    "conformance_case_count": 213,
+    "conformance_case_count": 253,
     "expected_case_phases": {
       "abort": 6,
-      "check": 31,
+      "check": 50,
       "lex": 8,
       "parse": 32,
       "runtime": 35,
-      "value": 101
+      "value": 122
     },
     "conformance_execution": "not run by this script"
   },
@@ -224,17 +224,17 @@
         "id": "example-1",
         "task": "HTTP JSON validation, filtering and projection",
         "sources": {
-          "kiroha": "User=open({id:int,name:str,active:bool});\n((get(\"https://api.example/users\") | check([User])).filter{u=>u.active}).map{u=>{id:u.id,name:u.name}}",
+          "kiroha": "type User=open({id:int,name:str,active:bool});\n((get(\"https://api.example/users\") | check([User])).filter{u=>u.active}).map{u=>{id:u.id,name:u.name}}",
           "typescript_same_sdk": "const User=open({id:int,name:str,active:bool});\ncheck(await get(\"https://api.example/users\"),[User]).filter(u=>u.active).map(u=>({id:u.id,name:u.name}))"
         },
         "measurements": {
           "kiroha": {
-            "sha256": "4813ea1a4fd114e5e9f6d346a331e8a8a99c52380f7d57613a0239d73e26b9d6",
-            "unicode_code_points": 144,
-            "utf8_bytes": 144,
+            "sha256": "0cb6e6ad1e140d23077c1ff7c67bdb7f07f987a8b2bcc22f08a87241cf6b7376",
+            "unicode_code_points": 149,
+            "utf8_bytes": 149,
             "tokens": {
-              "o200k_base": 45,
-              "cl100k_base": 47
+              "o200k_base": 46,
+              "cl100k_base": 48
             }
           },
           "typescript_same_sdk": {
@@ -249,12 +249,12 @@
         },
         "comparison": {
           "o200k_base": {
-            "kiroha_minus_baseline_tokens": 2,
-            "savings_percent": -4.65
+            "kiroha_minus_baseline_tokens": 3,
+            "savings_percent": -6.98
           },
           "cl100k_base": {
-            "kiroha_minus_baseline_tokens": 2,
-            "savings_percent": -4.44
+            "kiroha_minus_baseline_tokens": 3,
+            "savings_percent": -6.67
           }
         }
       },
@@ -262,17 +262,17 @@
         "id": "example-2",
         "task": "Cursor pagination with page validation",
         "sources": {
-          "kiroha": "Page=open({items:[json],next:maybe(str)});\npages(null){c=>\n  p=get(\"https://api.example/items\",{query:{cursor:c}}) | check(Page);\n  {items:p.items,next:p.next}\n}",
+          "kiroha": "type Page=open({items:[json],next:maybe(str)});\nseed:maybe(str)=null;\npages(seed){c=>\n  p=get(\"https://api.example/items\",{query:{cursor:c}}) | check(Page);\n  {items:p.items,next:p.next}\n}",
           "typescript_same_sdk": "const Page=open({items:[json],next:maybe(str)});\nawait pages(null,async c=>{\n  const p=check(await get(\"https://api.example/items\",{query:{cursor:c}}),Page);\n  return {items:p.items,next:p.next}\n})"
         },
         "measurements": {
           "kiroha": {
-            "sha256": "d73302baa7dd17d4018dfee78721c137008c90ea070574e3bd4107872e31c836",
-            "unicode_code_points": 161,
-            "utf8_bytes": 161,
+            "sha256": "e00b4486e197887d8ba05188b8f4dff7f61b61109193172171786d3a5a6a867b",
+            "unicode_code_points": 188,
+            "utf8_bytes": 188,
             "tokens": {
-              "o200k_base": 48,
-              "cl100k_base": 48
+              "o200k_base": 56,
+              "cl100k_base": 56
             }
           },
           "typescript_same_sdk": {
@@ -287,12 +287,12 @@
         },
         "comparison": {
           "o200k_base": {
-            "kiroha_minus_baseline_tokens": -5,
-            "savings_percent": 9.43
+            "kiroha_minus_baseline_tokens": 3,
+            "savings_percent": -5.66
           },
           "cl100k_base": {
-            "kiroha_minus_baseline_tokens": -5,
-            "savings_percent": 9.43
+            "kiroha_minus_baseline_tokens": 3,
+            "savings_percent": -5.66
           }
         }
       },
@@ -300,17 +300,17 @@
         "id": "example-3",
         "task": "JSON API with two-write transaction",
         "sources": {
-          "kiroha": "d=db(\"main\");\nserve({\"POST /users\":{r=>\n  u=input(r,{name:str,email:str});\n  tx(d){t=>\n    row=sql(t,q`insert into users(name,email) values (${u.name},${u.email}) returning id`).rows.one();\n    sql(t,q`insert into audit(user_id) values (${row.id})`);\n    reply(201,row)\n  }\n}})",
+          "kiroha": "d=db(\"main\");\nserve({\"POST /users\":{r=>\n  u=input(r,{name:str,email:str});\n  tx(d){t=>\n    row=check(sql(t,q`insert into users(name,email) values (${u.name},${u.email}) returning id`).rows.one(),{id:int});\n    sql(t,q`insert into audit(user_id) values (${row.id})`);\n    reply(201,row)\n  }\n}})",
           "typescript_same_sdk": "const d=db(\"main\");\nserve({\"POST /users\":async r=>{\n  const u=input(r,{name:str,email:str});\n  return tx(d,async t=>{\n    const row=one((await sql(t,q`insert into users(name,email) values (${u.name},${u.email}) returning id`)).rows);\n    await sql(t,q`insert into audit(user_id) values (${row.id})`);\n    return reply(201,row)\n  })\n}})"
         },
         "measurements": {
           "kiroha": {
-            "sha256": "67ded710cb77b77a071db6c68ce747d7730ddf822a75774eeacc9a4d1e7d95cb",
-            "unicode_code_points": 277,
-            "utf8_bytes": 277,
+            "sha256": "dfdb37a14418848333614b60c433ed59b698129005899c5b24ae5a6c1031e4bd",
+            "unicode_code_points": 293,
+            "utf8_bytes": 293,
             "tokens": {
-              "o200k_base": 87,
-              "cl100k_base": 86
+              "o200k_base": 92,
+              "cl100k_base": 91
             }
           },
           "typescript_same_sdk": {
@@ -325,28 +325,28 @@
         },
         "comparison": {
           "o200k_base": {
-            "kiroha_minus_baseline_tokens": -8,
-            "savings_percent": 8.42
+            "kiroha_minus_baseline_tokens": -3,
+            "savings_percent": 3.16
           },
           "cl100k_base": {
-            "kiroha_minus_baseline_tokens": -8,
-            "savings_percent": 8.51
+            "kiroha_minus_baseline_tokens": -3,
+            "savings_percent": 3.19
           }
         }
       }
     ],
     "aggregate": {
       "o200k_base": {
-        "kiroha_tokens": 180,
+        "kiroha_tokens": 194,
         "baseline_tokens": 191,
-        "kiroha_minus_baseline_tokens": -11,
-        "weighted_savings_percent": 5.76
+        "kiroha_minus_baseline_tokens": 3,
+        "weighted_savings_percent": -1.57
       },
       "cl100k_base": {
-        "kiroha_tokens": 181,
+        "kiroha_tokens": 195,
         "baseline_tokens": 192,
-        "kiroha_minus_baseline_tokens": -11,
-        "weighted_savings_percent": 5.73
+        "kiroha_minus_baseline_tokens": 3,
+        "weighted_savings_percent": -1.56
       }
     }
   },
@@ -372,13 +372,13 @@
       }
     },
     {
-      "source": "fun apply(x){f} f(x) end fun apply apply(10){v=>v+1}",
-      "sha256": "2e13562089e0797a03c793547ec13c7bbe385f38a352f6973993ddb259de22eb",
-      "unicode_code_points": 52,
-      "utf8_bytes": 52,
+      "source": "fun apply<T,U>(x:T){f:(T)=>U}:U f(x) end fun apply apply(10){v=>v+1}",
+      "sha256": "a53e9531e91a74a4895ed64649d834f7275cc2784e94e05f77eaa9cdae214539",
+      "unicode_code_points": 68,
+      "utf8_bytes": 68,
       "tokens": {
-        "o200k_base": 22,
-        "cl100k_base": 22
+        "o200k_base": 31,
+        "cl100k_base": 31
       }
     }
   ],

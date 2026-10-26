@@ -1,4 +1,4 @@
-User=open({id:int,name:str,nickname:optional(maybe(str))});
+type User=open({id:int,name:str,nickname:optional(maybe(str))});
 users=check(parse("[{\"id\":1,\"name\":\"Ada\"},{\"id\":2,\"name\":\"Lin\",\"nickname\":null}]"),[User]);
 {
   names:users.map{u=>u?.nickname??u.name},

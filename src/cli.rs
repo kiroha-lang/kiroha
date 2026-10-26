@@ -151,7 +151,7 @@ pub fn main_with(args: &[String], stdin: &mut dyn Read) -> Output {
             }
             let v = Value::rec(vec![
                 ("implementation", Value::str(crate::IMPLEMENTATION)),
-                ("language", Value::str("0.5.0")),
+                ("language", Value::str("0.6.0")),
                 ("profile", Value::str("Web1")),
                 ("cli", Value::str("kiroha-cli/1")),
                 ("conformance", Value::str("kiroha-conformance/1")),

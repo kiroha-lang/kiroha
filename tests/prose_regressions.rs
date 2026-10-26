@@ -4,7 +4,7 @@
 use kiroha::conformance::{parse_manifest, run_all};
 
 const MANIFEST: &str = r#"{
- "format":"kiroha-conformance/1","language":"0.5.0/Web1","scheduler":"virtual-fifo/1",
+ "format":"kiroha-conformance/1","language":"0.6.0/Web1","scheduler":"virtual-fifo/1",
  "cases":[
   {"id":"sql-holes-must-be-paramrefs",
    "source":"d=db(\"main\");[(try sql(d,q`select * from ${\"t\"}`) catch {e=>[e.data.phase,e.data.reason,e.data.outcome]}),(try sql(d,q`select ${1}${2}`) catch {e=>e.data.reason}),(try sql(d,q`select t.${1} from t`) catch {e=>e.data.reason}),(try sql(d,q`select 1 ${\"+\"} 2`) catch {e=>e.data.reason}),(try sql(d,q`select (1;2)`) catch {e=>e.data.reason}),(try sql(d,q`(delete from t)`) catch {e=>e.data.reason}),(try sql(d,q`table t`) catch {e=>e.data.reason})]",
@@ -37,7 +37,7 @@ const MANIFEST: &str = r#"{
    "source":"try fail({data:{},message:\"m\",code:\"x\"}) catch {e=>dump(e)}",
    "expect":{"phase":"value","json":"\"{\\\"data\\\":{},\\\"message\\\":\\\"m\\\",\\\"code\\\":\\\"x\\\"}\""}},
   {"id":"arguments-validate-left-to-right",
-   "source":"[(try \"a\".replace(\"\", 1) catch {e=>e.code}),(try url(\"https://a\",[],{q:{}}) catch {e=>e.data.position})]",
+   "source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value [(try kiroha_runtime_value(\"a\".replace)(\"\", 1) catch {e=>e.code}),(try kiroha_runtime_value(url)(\"https://a\",[],{q:{}}) catch {e=>e.data.position})]",
    "expect":{"phase":"value","json":"[\"argument\",3]"}},
   {"id":"sql-holes-in-values-limit-returning-are-valid",
    "source":"d=db(\"main\");[sql(d,q`insert into t values (${1}) returning ${2}`).count,(try sql(d,q`with a as (select 1) table a`) catch {e=>e.data.reason})]",
@@ -79,7 +79,7 @@ const MANIFEST: &str = r#"{
    "fixtures":[{"id":"pool","op":"pool","match":{"alias":"main"},"ok":"p"}],
    "expect":{"phase":"value","json":"[\"prepare\",\"hole_context\"]"}},
   {"id":"serve-handler-type-position",
-   "source":"try serve({\"GET /a\":1}) catch {e=>[e.code,e.data.position]}",
+   "source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value try kiroha_runtime_value(serve)({\"GET /a\":1}) catch {e=>[e.code,e.data.position]}",
    "expect":{"phase":"value","json":"[\"type\",1]"}},
   {"id":"huge-integers-are-integers",
    "source":"[[1,2].take(1e100001),range(0,1,1e100001),[1].parallel(1e100001){x=>x},retry({attempts:1,when:{e=>true},delay:1e100001}){()=>1},pages(null,{max_pages:1e999999999999,max_items:1e999999999999}){c=>{items:[1],next:null}}]",
@@ -88,7 +88,7 @@ const MANIFEST: &str = r#"{
    "source":"[(try url(\"https://x.example/a<b>\",[]) catch {e=>e.code}),(try url(\"https://x.example/a?q={x}\",[]) catch {e=>e.code}),(try url(\"https://x.example/[1]\",[]) catch {e=>e.code})]",
    "expect":{"phase":"value","json":"[\"argument\",\"argument\",\"argument\"]"}},
   {"id":"positional-type-error-positions",
-   "source":"[(try reply(200,1,{\"X-A\":1}) catch {e=>e.data.position}),(try fail({code:1,message:\"\",data:{}}) catch {e=>e.data.position})]",
+   "source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value [(try kiroha_runtime_value(reply)(200,1,{\"X-A\":1}) catch {e=>e.data.position}),(try kiroha_runtime_value(fail)({code:1,message:\"\",data:{}}) catch {e=>e.data.position})]",
    "expect":{"phase":"value","json":"[3,1]"}},
   {"id":"retry-zero-delay-many-attempts",
    "source":"try retry({attempts:402,when:{e=>true},delay:0}){()=>fail({code:\"x\",message:\"\",data:{}})} catch {e=>e.code}",
@@ -100,10 +100,10 @@ const MANIFEST: &str = r#"{
    "source":"[(try do {reply(200,encode(\"x\"),{\"Content-Type\":\"text/plain; q\"}); \"ok\"} catch {e=>e.code}),(try do {reply(200,encode(\"x\"),{\"Content-Type\":\"text/plain; charset=utf-8\"}); \"ok\"} catch {e=>e.code})]",
    "expect":{"phase":"value","json":"[\"argument\",\"ok\"]"}},
   {"id":"empty-media-type-parameters-are-legal",
-   "source":"fun r(h) {method:\"POST\",path:\"/\",params:{},query:{},headers:{\"content-type\":[h]},body:encode(\"1\")} end fun r [do {reply(200,encode(\"x\"),{\"Content-Type\":\"text/plain;\"}); \"ok\"},do {reply(200,{a:1},{\"Content-Type\":\"application/json;\"}); \"ok\"},input(r(\"application/json;\")),input(r(\"application/json; charset=utf-8;\"))]",
+   "source":"fun r(h:any) {method:\"POST\",path:\"/\",params:{},query:{},headers:{\"content-type\":[h]},body:encode(\"1\")} end fun r [do {reply(200,encode(\"x\"),{\"Content-Type\":\"text/plain;\"}); \"ok\"},do {reply(200,{a:1},{\"Content-Type\":\"application/json;\"}); \"ok\"},input(r(\"application/json;\")),input(r(\"application/json; charset=utf-8;\"))]",
    "expect":{"phase":"value","json":"[\"ok\",\"ok\",1,1]"}},
   {"id":"http-options-validated-in-table-order",
-   "source":"u=\"https://f.invalid/\";[(try get(u,{headers:{\"accept-encoding\":\"br\"},timeout:null}) catch {e=>e.code}),(try post(u,{a:1},{headers:{\"content-type\":\"text/plain\"},timeout:\"x\"}) catch {e=>e.code}),(try http(\"GET\",u,{body:encode(\"x\"),timeout:\"x\"}) catch {e=>e.code}),(try http(\"HEAD\",u,{body:encode(\"\"),max_bytes:\"big\"}) catch {e=>e.code})]",
+   "source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value u=\"https://f.invalid/\";[(try kiroha_runtime_value(get)(u,{headers:{\"accept-encoding\":\"br\"},timeout:null}) catch {e=>e.code}),(try kiroha_runtime_value(post)(u,{a:1},{headers:{\"content-type\":\"text/plain\"},timeout:\"x\"}) catch {e=>e.code}),(try kiroha_runtime_value(http)(\"GET\",u,{body:encode(\"x\"),timeout:\"x\"}) catch {e=>e.code}),(try kiroha_runtime_value(http)(\"HEAD\",u,{body:encode(\"\"),max_bytes:\"big\"}) catch {e=>e.code})]",
    "host":{"capabilities":{"http":["https://f.invalid"]}},
    "expect":{"phase":"value","json":"[\"argument\",\"argument\",\"argument\",\"argument\"]"}},
   {"id":"media-type-quoting-and-accept-encoding-empties",
@@ -142,14 +142,14 @@ fn unsigned_durations_and_observation_times_are_exact() {
         ("http", r#"{"status":65736,"headers":[],"body_base64":""}"#),
         ("execute", r#"{"columns":[{"name":"x","oid":4294967319}],"rows":[["1"]],"count":"1","outcome":"committed"}"#),
     ] {
-        let manifest = format!(r#"{{"format":"kiroha-conformance/1","language":"0.5.0/Web1","scheduler":"virtual-fifo/1","cases":[{{"id":"narrow","source":"null","fixtures":[{{"id":"f","op":"{op}","match":{{}},"ok":{ok}}}],"expect":{{"phase":"value","json":"null"}}}}]}}"#);
+        let manifest = format!(r#"{{"format":"kiroha-conformance/1","language":"0.6.0/Web1","scheduler":"virtual-fifo/1","cases":[{{"id":"narrow","source":"null","fixtures":[{{"id":"f","op":"{op}","match":{{}},"ok":{ok}}}],"expect":{{"phase":"value","json":"null"}}}}]}}"#);
         assert!(parse_manifest(&manifest).is_err(), "out-of-domain {op} metadata must fail before execution");
     }
 }
 
 #[test]
 fn fixture_argument_and_result_records_are_closed() {
-    let manifest = |op: &str, matcher: &str, ok: &str| format!(r#"{{"format":"kiroha-conformance/1","language":"0.5.0/Web1","scheduler":"virtual-fifo/1","cases":[{{"id":"shape","source":"null","fixtures":[{{"id":"f","op":"{op}","match":{matcher},"ok":{ok}}}],"expect":{{"phase":"value","json":"null"}}}}]}}"#);
+    let manifest = |op: &str, matcher: &str, ok: &str| format!(r#"{{"format":"kiroha-conformance/1","language":"0.6.0/Web1","scheduler":"virtual-fifo/1","cases":[{{"id":"shape","source":"null","fixtures":[{{"id":"f","op":"{op}","match":{matcher},"ok":{ok}}}],"expect":{{"phase":"value","json":"null"}}}}]}}"#);
     for (op, ok) in [
         ("http", r#"{"status":200,"headers":[],"body_base64":""}"#),
         ("read_regular", r#"{"bytes_base64":""}"#),
@@ -185,16 +185,16 @@ fn malformed_expectations_and_virtual_headers_fail_before_execution() {
         r#"{"phase":"abort","reason":"cancelled","responses":[{"id":"r","status":200,"body_base64":"","headers":{"content-type":5}}]}"#,
         r#"{"phase":"abort","reason":"cancelled","responses":[{"id":"r","status":200,"body_base64":"","headers":{"Content-Type":["x"]}}]}"#,
     ] {
-        let m = format!(r#"{{"format":"kiroha-conformance/1","language":"0.5.0/Web1","scheduler":"virtual-fifo/1","cases":[{{"id":"invalid","source":"log(1)","expect":{expect}}}]}}"#);
+        let m = format!(r#"{{"format":"kiroha-conformance/1","language":"0.6.0/Web1","scheduler":"virtual-fifo/1","cases":[{{"id":"invalid","source":"log(1)","expect":{expect}}}]}}"#);
         assert!(parse_manifest(&m).is_err(), "{expect}");
     }
-    let m = r#"{"format":"kiroha-conformance/1","language":"0.5.0/Web1","scheduler":"virtual-fifo/1","cases":[{"id":"header","source":"null","server":{"requests":[{"id":"r","at_ms":0,"method":"GET","target":"/","headers":[["x","Ġ"]],"body_base64":""}],"cancel_at_ms":1},"expect":{"phase":"value","json":"null"}}]}"#;
+    let m = r#"{"format":"kiroha-conformance/1","language":"0.6.0/Web1","scheduler":"virtual-fifo/1","cases":[{"id":"header","source":"null","server":{"requests":[{"id":"r","at_ms":0,"method":"GET","target":"/","headers":[["x","Ġ"]],"body_base64":""}],"cancel_at_ms":1},"expect":{"phase":"value","json":"null"}}]}"#;
     assert!(parse_manifest(m).is_err());
 }
 
 #[test]
 fn zero_step_abort_precedes_every_expression_and_effect() {
-    let m = r#"{"format":"kiroha-conformance/1","language":"0.5.0/Web1","scheduler":"virtual-fifo/1","cases":[{"id":"zero","source":"log(7)","abort_after_steps":0,"host":{"capabilities":{"log":true}},"expect":{"phase":"abort","reason":"cancelled","trace":[]}}]}"#;
+    let m = r#"{"format":"kiroha-conformance/1","language":"0.6.0/Web1","scheduler":"virtual-fifo/1","cases":[{"id":"zero","source":"log(7)","abort_after_steps":0,"host":{"capabilities":{"log":true}},"expect":{"phase":"abort","reason":"cancelled","trace":[]}}]}"#;
     let cases = parse_manifest(m).unwrap();
     let (report, all) = run_all(&cases);
     assert!(all, "{}", kiroha::json::dump(&report));
@@ -202,7 +202,7 @@ fn zero_step_abort_precedes_every_expression_and_effect() {
 
 #[test]
 fn command_counts_never_turn_numeric_quota_failure_into_zero() {
-    let template = r#"{"format":"kiroha-conformance/1","language":"0.5.0/Web1","scheduler":"virtual-fifo/1","cases":[{"id":"count","source":"sql(db(\"main\"),q`select 1`).count","host":{"capabilities":{"databases":["main"]}},"fixtures":[{"id":"pool","op":"pool","match":{},"ok":"p"},{"id":"acq","op":"acquire","match":{},"ok":"c"},{"id":"q","op":"execute","match":{},"ok":{"columns":[],"rows":[],"count":"COUNT","outcome":"committed"}},{"id":"rel","op":"release","match":{},"ok":null}],"expect":EXPECT}]}"#;
+    let template = r#"{"format":"kiroha-conformance/1","language":"0.6.0/Web1","scheduler":"virtual-fifo/1","cases":[{"id":"count","source":"sql(db(\"main\"),q`select 1`).count","host":{"capabilities":{"databases":["main"]}},"fixtures":[{"id":"pool","op":"pool","match":{},"ok":"p"},{"id":"acq","op":"acquire","match":{},"ok":"c"},{"id":"q","op":"execute","match":{},"ok":{"columns":[],"rows":[],"count":"COUNT","outcome":"committed"}},{"id":"rel","op":"release","match":{},"ok":null}],"expect":EXPECT}]}"#;
     for (count, expected) in [
         ("1".repeat(100001), r#"{"phase":"abort","reason":"resource","data":{"resource":"number"}}"#.to_string()),
         ("0".repeat(100001), r#"{"phase":"value","json":"0"}"#.to_string()),
@@ -219,7 +219,7 @@ fn command_counts_never_turn_numeric_quota_failure_into_zero() {
 
 #[test]
 fn unmatched_effect_with_pending_timer_is_a_prompt_harness_failure() {
-    let m = r#"{"format":"kiroha-conformance/1","language":"0.5.0/Web1","scheduler":"virtual-fifo/1","cases":[
+    let m = r#"{"format":"kiroha-conformance/1","language":"0.6.0/Web1","scheduler":"virtual-fifo/1","cases":[
       {"id":"x","source":"log(1)","host":{"capabilities":{"log":true},"limits":{"deadline_ms":1000}},"fixtures":[],"expect":{"phase":"value","json":"null"}}]}"#;
     let cases = parse_manifest(m).unwrap();
     let t = std::time::Instant::now();

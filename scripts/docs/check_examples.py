@@ -12,7 +12,7 @@ import tempfile
 import threading
 
 ROOT = Path(__file__).resolve().parents[2]
-PURE = ('index.md', 'getting-started.md', 'learn/functions.md', 'learn/data.md', 'guides/troubleshooting.md')
+PURE = ('index.md', 'getting-started.md', 'learn/functions.md', 'learn/data.md', 'guides/troubleshooting.md', 'types.md')
 EXPECTED = {('getting-started.md', 0): '"Hello, Kiroha!"', ('getting-started.md', 1): '0.3'}
 
 
