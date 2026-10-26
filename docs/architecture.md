@@ -1,6 +1,6 @@
 # Architecture
 
-This document describes how this implementation realizes the Kiroha 0.6.0 /
+This document describes how this implementation realizes the Kiroha 0.7.0 /
 Web1 contract. Language-visible behavior is fixed by [`spec.md`](../spec.md);
 everything here is an engineering choice.
 
@@ -11,7 +11,7 @@ source bytes ─▶ lexer ─▶ parser ─▶ resolver ─▶ type checker ─�
                                   ┌───────────────┴────────────────┐
                            VirtualHost (conformance)        RealHost (CLI run)
                            virtual clock, fixtures,         tokio LocalSet, httparse+rustls,
-                           traces, virtual server           tokio-postgres, httparse server,
+                           traces, virtual server           PG/MySQL adapters, httparse server,
                                                             openat/renameat files
 ```
 

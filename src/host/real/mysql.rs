@@ -248,11 +248,23 @@ impl Connection for MySqlConnection {
                 Ok(r) => r,
                 Err(e) => return map_err(e, "execute", in_tx),
             };
-            let columns: Vec<_> = result
+            let columns: Result<Vec<_>, _> = result
                 .columns_ref()
                 .iter()
-                .map(|c| (c.name_str().into_owned(), column_kind(c)))
+                .map(|c| {
+                    std::str::from_utf8(c.name_ref()).map(|name| (name.to_owned(), column_kind(c)))
+                })
                 .collect();
+            let columns = match columns {
+                Ok(columns) => columns,
+                Err(_) => {
+                    // No command-completion acknowledgment has been read yet.
+                    drop(result);
+                    broken.set(true);
+                    let _ = kill(opts, id).await;
+                    return error("decode", "unknown");
+                }
+            };
             let mut rows = Vec::new();
             let mut truncated = false;
             loop {
@@ -267,7 +279,10 @@ impl Connection for MySqlConnection {
                     match cell(value, *kind) {
                         Ok(v) => cells.push(v),
                         Err(()) => {
-                            return error("decode", if in_tx { "unknown" } else { "committed" })
+                            drop(result);
+                            broken.set(true);
+                            let _ = kill(opts, id).await;
+                            return error("decode", "unknown");
                         }
                     }
                 }
