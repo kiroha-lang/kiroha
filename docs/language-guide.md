@@ -53,7 +53,7 @@ that never executes is still an error.
 - Strings use double quotes and JSON escapes (`\n`, `\"`, `\u00e9`, surrogate
   pairs). There is no interpolation.
 - `q` immediately followed by a backtick starts a SQL query literal
-  (see [§14](#14-postgresql)).
+  (see [§14](#14-databases)).
 
 ## 3. Values
 

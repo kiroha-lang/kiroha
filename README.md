@@ -55,7 +55,7 @@ for version pinning, alternate directories and source builds.
 
 ## Build from source
 
-Requires Rust 1.88+ (tested with 1.96), a C compiler and libclang (for the
+Requires Rust 1.89+ (tested with 1.96), a C compiler and libclang (for the
 embedded PostgreSQL parser, `pg_query`; set `LIBCLANG_PATH` if it is not
 found automatically).
 

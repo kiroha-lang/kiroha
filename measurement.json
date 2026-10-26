@@ -26,21 +26,21 @@
   "documents": {
     "full_markdown": {
       "file": "spec.md",
-      "sha256": "893abe7858695e2bead60b39801fd1c48438c14717dd88209dc2646ed2539ad6",
-      "unicode_code_points": 245954,
-      "utf8_bytes": 246068,
+      "sha256": "b18d406aa11edd1c6bbe1c2c116d22bc9af1f0fc5758021fdd7da7635115df3f",
+      "unicode_code_points": 246091,
+      "utf8_bytes": 246205,
       "tokens": {
-        "o200k_base": 60513,
-        "cl100k_base": 60008
+        "o200k_base": 60550,
+        "cl100k_base": 60042
       }
     },
     "generation_card": {
-      "sha256": "d26b6f8351d25bcc1f301bfaf6428d729691c55568c8d331c82bd0ba080fefac",
-      "unicode_code_points": 13323,
-      "utf8_bytes": 13323,
+      "sha256": "c9dfc31155fca7cae4c17b482d79724a234aac104f723dbc5275fc8d339be4a2",
+      "unicode_code_points": 13460,
+      "utf8_bytes": 13460,
       "tokens": {
-        "o200k_base": 3119,
-        "cl100k_base": 3098
+        "o200k_base": 3156,
+        "cl100k_base": 3132
       },
       "target_tokens_each_encoding": 4096,
       "within_target": true
@@ -48,12 +48,12 @@
   },
   "embedded_blocks": {
     "generation_card": {
-      "sha256": "d26b6f8351d25bcc1f301bfaf6428d729691c55568c8d331c82bd0ba080fefac",
-      "unicode_code_points": 13323,
-      "utf8_bytes": 13323,
+      "sha256": "c9dfc31155fca7cae4c17b482d79724a234aac104f723dbc5275fc8d339be4a2",
+      "unicode_code_points": 13460,
+      "utf8_bytes": 13460,
       "tokens": {
-        "o200k_base": 3119,
-        "cl100k_base": 3098
+        "o200k_base": 3156,
+        "cl100k_base": 3132
       }
     },
     "conformance": {

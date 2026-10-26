@@ -218,11 +218,15 @@ task; `Q` must be a query literal (a string is `type`).
 | `timeout` | 10000 | positive ms |
 | `max_rows` | 10000 | nonnegative; exceeding → `limit` (never truncates) |
 
+The following type mapping describes PostgreSQL; the database guide lists
+MySQL/MariaDB mappings (BOOL → integer, binary → Bytes, MariaDB JSON → string,
+large/fractional numeric parameters → exact text requiring a DECIMAL cast).
+
 Statement validation (before any connection is used) rejects with
 `db {phase:"prepare", outcome:"not_sent", reason}`: `statement` (not a single
-SELECT/INSERT/UPDATE/DELETE/MERGE, optionally with WITH; includes DDL, SELECT
+SELECT/INSERT/UPDATE/DELETE (PostgreSQL also MERGE), optionally with WITH; includes DDL, SELECT
 INTO, transaction control), `multiple_statements`, `hole_context` (hole inside
-quotes, comments or dollar-quoted text), `literal_parameter` (a written `$1`).
+quotes, comments or dollar-quoted text), `literal_parameter` (a written `$1` on PostgreSQL or `?` on MySQL/MariaDB).
 
 Parameters bind as: null → untyped NULL, bool → boolean, string → text (no
 U+0000), number → numeric (exact), bytes → bytea, JSON record/array → jsonb.

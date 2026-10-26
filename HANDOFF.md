@@ -169,7 +169,7 @@ rollback and release; it cannot renew its grace for each effect.
 
 ## Verify
 
-Requires Rust 1.88+ (tested 1.96), C/compiler libclang, Java 25 for TLC,
+Requires Rust 1.89+ (tested 1.96), C/compiler libclang, Java 25 for TLC,
 PostgreSQL 16 and Python with exactly `tiktoken==0.14.0` for measurement.
 
 ```sh

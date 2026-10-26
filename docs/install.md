@@ -54,7 +54,7 @@ files. `KIROHA_RELEASE_BASE_URL` can point to a release mirror with the same
 
 ## Build from source
 
-Requires Rust 1.88+ (tested with 1.96), a C compiler and libclang for
+Requires Rust 1.89+ (tested with 1.96), a C compiler and libclang for
 `pg_query`. On Debian/Ubuntu, `sudo apt-get install build-essential libclang-dev`
 provides the native build requirements. On macOS, use the Xcode command-line
 tools and `brew install llvm protobuf`, then export
