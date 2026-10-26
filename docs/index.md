@@ -68,3 +68,5 @@ that you choose in a [host file](host-config.md).
 
 You don't need to learn all of that at once. Start with the first program;
 the [reference](reference/builtins.md) will be here when you need it.
+
+You can also [view and download the Kiroha icon and favicons](branding.md).
