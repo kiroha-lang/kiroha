@@ -1,17 +1,23 @@
 # Handoff: Kiroha 0.3.0 / Web1
 
-The active objective is to complete the implementation of `spec.md`, its
-comprehensive documentation, and choose a new language name because
+The requested implementation of `spec.md`, comprehensive documentation and
+new language name are complete as of 2026-10-26. The working name changed because
 `kiri-lang` was taken. The name is now **Kiroha (きろは)**; see
 [docs/naming.md](docs/naming.md) for the migration and dated account lookup.
 The checkout remains `/home/mizushima/dev/kiri`.
 
 ## Current state
 
-- Audits 1–20 are fixed. The recent boundary findings and fixes
+- Audits 1–22 are fixed. The recent boundary findings and fixes
   are recorded in [the conformance report](docs/conformance-report.md).
-- A fresh full audit 21 and final verification of the renamed tree are next.
-  Do not claim completion until they pass.
+- Final full audit 23 reports **0 confirmed violations** across §2–§16, with
+  360 independently passing cases/controls. [Full report](docs/audits/audit-23.txt).
+- Final gates pass: **82 tests** with PostgreSQL enabled (no skips), **145/145**
+  conformance cases, warning-free Clippy, TLC models (1212/90 states), exact
+  measurement checks and six checked/executed examples.
+- [Acceptance record](docs/completion.md) maps every §15.3 completion requirement
+  to its evidence. No required implementation work remains; future changes
+  should rerun the affected checks and keep the report current.
 - The normative contract is [spec.md](spec.md), especially §15.3. Optional
   fuzzing, Miri/sanitizers and a mechanically linked proof are future work,
   not acceptance requirements.

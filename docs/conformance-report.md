@@ -14,6 +14,11 @@ Implementation report required by spec §15.3. Token measurements
 | PostgreSQL server | PostgreSQL 16.15 (Homebrew build), local, C locale, UTF8 |
 | Key dependencies | tokio 1.54.1, httparse 1.10.1, rustls 0.23.46 (ring), tokio-postgres 0.7.18, tokio-postgres-rustls 0.13.0, pg_query 5.1.1 (libpg_query, PostgreSQL 16 grammar), num-bigint 0.4.8, flate2 1.1.10 |
 
+Final §15.3 acceptance is recorded requirement by requirement in
+[the completion record](completion.md): 82 tests pass with PostgreSQL enabled,
+145 corpus cases pass, and the final independent audit reports no confirmed
+violation. Clippy, TLC and measurement checks pass.
+
 ## Embedded conformance corpus (§16)
 
 Command: `kiroha conformance spec.md --json`
@@ -89,7 +94,7 @@ root/request scope with `resource`. See
 
 ## Independent audits
 
-Twenty independent read-and-execute audits of sections 2–15 were run against the
+Twenty-three independent read-and-execute audits of sections 2–15 were run against the
 code (each walked the normative rules section by section and confirmed every
 finding by running programs or custom fixture manifests).
 
@@ -134,6 +139,12 @@ finding by running programs or custom fixture manifests).
 
 | 20 (full source walk, executed corpus/semantic/HTTP/TLS/server checks) | 2: external body declarations above u64::MAX became indistinguishable from the maximum configured body limit; failed temporary-file unlink was not diagnosed | Fixed: retain an overflow sentinel for framing comparisons, preserve whether a configured byte bound exceeds native capacity, return 413/limit or explicit transport resource termination without waiting for impossible bodies; failed unlink emits a best-effort sanitized cleanup diagnostic without replacing the primary outcome. Added exact/overflow/wide-bound wire controls and a deterministic OS unlink-failure regression. |
 
+| 21 (full, §2–§16) | 2: max_connections imposed an undocumented u32 configuration bound; oversized command-count coefficients silently became zero | Fixed: widened positive pool counts without eager allocation; explicit resource/number for command-count quota exhaustion. CLI large-count and numeric quota/exactness controls added. |
+
+| 22 (full, §2–§16, independent overlapping review) | 1: independently confirmed the same command-count zero substitution against its pre-fix snapshot | Fixed by the command-count correction recorded in audit 21; the fresh post-fix review is audit 23. |
+
+| 23 (final full, §2–§16) | **0 confirmed violations** | Completed independent review of the fixed implementation (`7b79e8e`), with 360 passing cases/control records: corpus 145, fresh semantics 65, prior semantics 53, HTTP 19, PG16 13, CLI 17, real server 14, virtual server 4, TLS/files/server 26, latest count controls 4. [Full coverage and evidence](audits/audit-23.txt). |
+
 Audit 2 recorded "no new violations" for §2, §3, §4, §5, §6, §7, §8, §9,
 §10 (apart from the fixture header checks), §11 (apart from the two SQL
 items), §12, §13, §14.1 and §15, and confirmed 8 of the 9 audit-1 fixes
@@ -149,7 +160,7 @@ documentation snippets and claims as accurate.
 | --- | --- |
 | HTTP client connections | One connection per request; no pooling, so no hidden session state (§10.1 permits reuse but does not require it). |
 | Server connections | One request per connection with `connection: close`, a valid HTTP/1.1 behavior; HTTP/2 is not offered (optional in §10.1). |
-| Client half-close | Kiroha 0.3.0 does not define half-close; §12.2 requires that a "client disconnect aborts its task". TCP offers no way to tell a half-close from a full close before a response is written (both arrive as FIN/EOF), so honouring §12.2 requires treating EOF during handler execution as a disconnect — the same rule Go's net/http applies. A client that shuts down its sending side before the response therefore receives none. This is the conforming reading of §12.2, not a deviation. |
+| Client half-close | Kiroha 0.3.0 does not define half-close; §12.2 requires that a "client disconnect aborts its task". TCP offers no way to tell a half-close from a full close before a response is written (both arrive as FIN/EOF), so honouring §12.2 requires treating EOF during handler execution as a disconnect. A client that shuts down its sending side before the response therefore receives none. This is the conforming reading of §12.2, not a deviation. |
 | Number size | Coefficients (significant digits, excluding a spelling's leading/trailing zeros) are limited to 100,000 decimal digits (operands and results), and exponents to about ±2.3×10^18; exceeding it is a `resource` abort with `{resource:"number"}`. §3.2 allows coefficient limits only as host resource termination; the quota bounds the cost of a single uninterruptible arbitrary-precision operation to tens of milliseconds, so deadlines and other tasks are not starved. |
 | Memory quota | Process live-heap measurement at checkpoints (published strategy above); a single huge allocation may complete before it is observed, which §14.1 leaves implementation-dependent. |
 | Native body capacity | Decoded body counters/buffers use native u64 capacity. A wider configured limit still accepts ordinary bodies; a declared body outside that capacity terminates with `resource` / `transport`, without substituting a smaller successful body. Wire numerals retain an overflow sentinel for comparisons with representable limits. |

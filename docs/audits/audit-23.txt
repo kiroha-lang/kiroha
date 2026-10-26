@@ -1,0 +1,107 @@
+Audit 23 — independent read-and-execute review of Kiroha 0.3.0 / Web1
+Date: 2026-10-26 JST
+Repository: /home/mizushima/dev/kiri (READ ONLY throughout this audit)
+Implementation commit at completion: 7b79e8e5316f2825af4629f182dc4b815d83ffbb
+Immutable release under test: /tmp/kiroha-audit23
+SHA256: b21b3a8ae325fbcba95ac3d7744c1b9dc55e31998976281f2a3f3b1543e59047
+
+Outcome: ZERO confirmed normative violations in this independent audit.
+This records a finite source/spec review and ordinary local executions; it is not a universal proof of correctness.
+
+Scope and method
+- Read spec.md §§2–16 completely, including every normative subsection, the 12 grammar restrictions, builtin inventory, fixture schemas, and embedded acceptance corpus.
+- Read HANDOFF.md and docs/architecture.md, including quota, clock, native-body capacity, checkpoint/heap-accounting, cancellation, cleanup, SQL/pool, filesystem and protocol implementation choices.
+- Walked each normative subsection against source and/or directly executed appropriate ordinary probes. Selected implementation walks included resolver, schema normalization, pure and callback builtins, CEK/error handling, scheduler/scope cleanup, database count/result conversion and transaction frames, adapter cancellation/pool guards, path normalization and conformance validators.
+- Independently executed the current binary; did not infer a clean result from parent tests. Prior durable local probe scripts were read and copied to audit23-owned paths before rerunning. Added an independently authored 65-case semantic/frontend suite and four explicit latest count controls.
+- Ordinary local TCP/HTTP/TLS, files, PG16, CLI, deterministic virtual fixtures only. No OS fault injection, permissions manipulation, unbounded stress, repo mutation, or subagents.
+- Commands/scripts used timeout 60; started server/client processes were joined/terminated by their script cleanup. Final process inspection found no remaining audit23 binary process.
+- PG16 endpoint: 127.0.0.1:55432 user kiri dbname postgres. Used own short-lived local TLS certificates and file roots, cleaned by temporary-directory contexts.
+
+Executed results (all passed)
+145/145 embedded acceptance cases: /tmp/kiroha-audit23-corpus.json
+  timeout 60 /tmp/kiroha-audit23 conformance spec.md --json
+53/53 general semantic controls: /tmp/kiroha-audit23-pure.py; -pure-results.json
+65/65 fresh semantic/frontend controls: /tmp/kiroha-audit23-fresh.py; -fresh-results.json
+19/19 raw client HTTP controls: /tmp/kiroha-audit23-http.py; -http-results.json
+13/13 real PG16 controls: /tmp/kiroha-audit23-pg.py; -pg-results.json
+17/17 CLI/host/harness controls: /tmp/kiroha-audit23-cli.py; -cli-results.json
+14/14 real server controls: /tmp/kiroha-audit23-realserver.py; -realserver-results.json
+4/4 additional virtual-server cases, containing 18 requests: /tmp/kiroha-audit23-server.md; -server-results.json
+26/26 TLS/files/additional server controls: /tmp/kiroha-audit23-io.py; -io-results.json
+4/4 new command-count controls: /tmp/kiroha-audit23-count-controls.md; -count-controls-results.json
+Total 360 passing cases/control records (virtual requests are contained in their cases, not added separately).
+All listed -results.json files are prefixed /tmp/kiroha-audit23.
+
+Fresh command-count controls
+- 100001 significant digits -> non-catchable resource abort, data.resource number; release still completed.
+- 100001 zero digits -> exact numeric 0.
+- 1 followed by 100001 zero digits -> exact numeric 1e100001.
+- u64::MAX + 1 -> exact numeric 18446744073709551616.
+Each fixture executes pool/acquire/execute/release with committed outcome; all expected trace operations completed. This directly rechecks the latest convert_rows quota-vs-zero fix independently of parent regression tests.
+
+Detailed normative coverage
+§2.1 Source representation — UTF-8/source cap/BOM/control/comment/number/string/span controls in corpus, CLI and fresh frontend cases; lexer/parser design read.
+§2.2 Grammar — full productions and all 12 restrictions walked; lex/parse/check separation, definitions, lambda slot/positional rejection, comparisons, grouping, records, separators and postfix controls in corpus/pure/fresh.
+§2.3 AST contract — frontend architecture/resolver source plus closure/shadowing/recursive self name/binding grouping and evaluation tests.
+§2.4 Query lexing — corpus nested holes/query adjacency/escaped query controls; fresh lexical and check cases; PG translated interpolations.
+§3.1 Value domain — opaque bytes/functions/schemas/query/db/tx categories and JSON restrictions in corpus, CLI wire controls and fresh parallel opaque closures.
+§3.2 Decimal operations — exact operands/arithmetic, remainder, huge exponent, division, quota abort, canonical negative zero, huge host count controls. Count-quota fix independently passed all four controls above.
+§3.3 Canonical spelling — thresholds/scientific notation/zero/exact u64+1 and 1e100001 results, canonical fixture comparison and CLI wire output.
+§3.4 Strings/Bytes/JSON — Unicode scalar behavior, strict UTF-8 and escape/JSON parsing, encode/decode, numeric/string JSON restrictions, exact wireBytes controls.
+§3.5 Equality/ordering — JSON-only recursive equality, key order, numeric/string comparisons, sorting, group/unique controls; pure/callback source selected walks.
+§4 Static resolution — full resolver selected walk; unresolved inactive branch, lexical capture, parameter/slot/recursive-name shadowing, duplicates, shorthand controls.
+§5.1 Order/sequence — corpus and pure/fresh sequence/shortcircuit/prevalidation controls.
+§5.2 Calls/callback slots — builtin signatures, dynamic arity, callback attachment, empty-collection callback validation, effects in callbacks, fresh frontend rejection controls.
+§5.3 Pipe — corpus composition/path calls and frontend controls; parser/runtime design walk.
+§5.4 Operators/access — shortcircuit/nullcoalesce, entire operand JSON validation, optional invalid receiver/index, huge valid optional index, arithmetic and field/WORD access.
+§5.5 Try/errors/tail calls — corpus/pure recursion and catch behavior; machine unwind source walk, resource-vs-error distinction in count quota.
+§5.6 Effects/implementation freedom — documented checkpoint/quota policy compared with mandatory semantics; deterministic and real adapters both exercised.
+§6.1 Schema normalization — full subsection read; schema source normalization walk; fresh malformed-schema priority, wrappers/open/optional controls.
+§6.2 Schema validation — atom/composite paths, priority, extra fields, array/item ordering, schema errors, input schema controls.
+§7.1 Closed API inventory — all 51 builtin signatures read; corpus plus pure/fresh/HTTP/PG/server/io control suites cover the API families.
+§7.2 General validation — empty-input callbacks, option/unknown-field precedence, integer/bool distinctions, capability preflight and no dispatched forbidden effects.
+§7.3 Collections — range, flat, take huge n, sum, one, get/pick/merge, callback collection preflight, stable sort and group/unique order; pure/callback source selected walks.
+§7.4 Text/JSON edges — scalar lengths, split/join/replace edge cases, parse/dump strictness, JSON equality and invalid JSON operand checks.
+§8.1 Outcomes — frontend/runtime/abort distinctions in corpus/CLI/fresh/count controls; machine throw vs abort source review.
+§8.2 Error contracts — schema, permission, URL, HTTP network/TLS/framing/limit, SQL decode/statement/state, filesystem, env, validation and timeout data checks across suites.
+§8.3 Time/scopes — virtual tie/deadline/cancellation cases; parallel/retry/pages and real request/SQL deadline recovery; scheduler checked-clock/quota choices reviewed.
+§8.4 Cleanup/precedence — virtual cancellation traces, SQL recovery and first failure poisoning, real orderly SIGINT, pool RAII and shared absolute cleanup deadline source review.
+§9.1 parallel — bounded start order/first failure/cancel/join corpus cases, opaque result fresh case, scheduler group source review.
+§9.2 sleep — negative/type/clock behavior corpus/pure, retry and request deadline effects; checked duration choice reviewed.
+§9.3 retry — callback/attempt/when validation, retry timing/terminal behavior and when false/nonbool controls.
+§9.4 pages — step-shape and done/null priorities, repeated structural cursor, limit/continuation and false cursor controls.
+§10.1 Transport — raw HTTP framing/status/informational responses, case-sensitive method, TLS verified hostname/trust and no redirects; source architecture constraints read.
+§10.2 URL — strict accepted schemes/authorities/percent handling, path encoding, preserved query and fresh constructor controls.
+§10.3 Headers — duplicate Latin1 headers, informational/trailer budget, forbidden headers and line syntax checks; raw HTTP controls.
+§10.4 http — body/timeout/decoded max_bytes and options, gzip concatenation/checksum/trailing garbage, fragmented 9k extension/trailer and20k status, >u64 length narrow/wide controls.
+§10.5 get/post — JSON parse/media-type/body/type/headers preflight and postjson validations, corpus/raw HTTP.
+§10.6 Outcomes — TLS not_sent, network/framing, sent vs not_sent cancellation, limit and timeout fixture/real controls; host cancellation source reviewed.
+§11.1 Connections/dialect — real PG16, alias capabilities, pool size1 timeout recovery/reset search_path, baseline and cancelled slot guard/release source walk.
+§11.2 Query validation — ParamRef holes, raw statement restrictions, grammar parser policy, real statement/ParamRef/U+0000bind controls.
+§11.3 Parameters/results — exact numeric beyond53bits, jsonb, bytea, zero-row unsupported/duplicate metadata, OID validation source and real PG checks.
+§11.4 sql — max_rows/count/deadline/outcome controls, exact new count controls, conversion timeout and release/discard source reviewed.
+§11.5 tx — task ownership/expired state/poison latch/first-error precedence, rollback/commit result source, real failed SQL and recovery tests.
+§12.1 serve — route configuration/literal precedence/param decode, listen authorization, malformed configs, virtual/real suites.
+§12.2 Requests/lifecycle — request target/query/Host/header framing/method validation, inflight/task rejection, size-before404, body coding/framing precedence, deadlines/disconnect/cancellation controls.
+§12.3 input/reply — media and JSON/schema checks, bytes/null/status restrictions, HEAD body suppression, response conversion and bareBytes500 controls.
+§12.4 Errors/finalization — 400/404/405Allow/413/415/500/503/504, request-scope deadline isolation, orderly root SIGINT and listener termination.
+§13.1 Local functions — env authorization/missing/value, now/random/log capabilities and effects fixtures; CLI stdout/stderr isolation.
+§13.2 Filesystem — component normalization/no-follow source, ordinary read/replace/new-file modes/symlinks/parent traversal/notfound, actual bytes and temp cleanup check. No chmod/fault injection.
+§14.1 Host config — closed/default/type/capability/limits, malformed durations/unsigneds, exact huge unused pool configs, sourcecap; shared budgets and step accounting source/design/corpus.
+§14.2 Adapter — normalized effects/fixtures, real cancellation, lifecycle event ordering, pool identities/results, files/TLS/HTTP/PG behavior and host trait source.
+§14.3 Mandatory invariants — compare documented finite clock/native buffer/quota capacities to explicit resource abort behavior; no substitution found by controls. Documented transient allocation/checkpoint timing treated as permitted variation.
+§15.1 CLI — required commands/version/card/run/check/conformance, options/order/duplicates/errors/exit/stdout/stderr/spans controls.
+§15.2 Wire — exact tagged numeric/text/bytes/record/opaque outputs and non-JSON values, canonical metadata.
+§15.3 Completion contract — read stages/acceptance; independently145 corpus plus real client/server/PG/files/CLI behavior. Parent final tests, Clippy, TLC and measurements were reported but not counted as this agent's executions.
+§16.1 Extraction — independently run spec embedded corpus and extra generated manifests; markers/format validations in CLI/harness suite.
+§16.2 Case expectations — closed expectation schemas validated, canonical value assertions, errors/aborts/data/trace/response matching; selected conformance source review.
+§16.3 Scheduler — virtual FIFO/tie timers/cancellation/join/starts/maxparallel corpus controls plus virtual servers.
+§16.4 Fixtures — strict payload/unknown fields/duration/metadata/result validators read; malformed fixture/expect prevalidation probes; pool/execute/release and broad effect traces.
+§16.5 Virtual server — four added cases (18 requests) cover admission, routes, head, media/input, deadlines, task/inflight limits, response order and server cancellation.
+§16.6 Acceptance —145/145 independently passed current immutable release.
+
+Audit bookkeeping
+- The first fresh modulo oracle expected 1e100001 % 7 = 3. Actual 5 was independently verified with Python pow(10,100001,7); corrected oracle to5 and reran all65 successfully. This was an audit oracle error, not an implementation violation.
+- Initial generated count-control expectations used wrong harness field names; the harness rejected these with exit2 before execution. Corrected them to the documented expect schema; all4 then passed.
+- No speculative timing/quota/path issue was promoted into a finding without an observable contract violation.
+- No source:line violation report exists because no confirmed violation was found.

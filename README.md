@@ -34,6 +34,7 @@ local filesystem.
 | Formal verification | TLA+ models of `parallel` and `tx` model-checked with TLC; property-based tests of decimals and JSON against oracles ([details](docs/formal-verification.md)) |
 | 51 prelude functions + 5 schema atoms | Implemented; inventory matches the generation card |
 | CLI protocol `kiroha-cli/1` | Implemented |
+| Final acceptance | 82 tests pass with PostgreSQL; audit 23: 0 confirmed violations ([record](docs/completion.md)) |
 
 Details, versions and known deviations are in
 [docs/conformance-report.md](docs/conformance-report.md).
@@ -93,7 +94,8 @@ See [the examples and their setup instructions](examples/README.md) for runnable
 | [Conformance report](docs/conformance-report.md) | Test results, environment, deviations |
 | [Formal verification](docs/formal-verification.md) | TLA+ models (scheduler, transactions) and property-based tests (decimals, JSON) |
 | [Specification](spec.md) | The normative Kiroha 0.3.0 / Web1 contract |
-| [Handoff](HANDOFF.md) | Current state, open work, verification and audit workflow for the next maintainer |
+| [Acceptance record](docs/completion.md) | Requirement-by-requirement completion evidence and final independent audit |
+| [Handoff](HANDOFF.md) | Completed state, verification and maintenance workflow |
 
 ## Development
 
