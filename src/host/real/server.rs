@@ -64,7 +64,7 @@ fn framing_of(headers: &[(String, Vec<u8>)]) -> Framing {
         .filter(|t| !t.is_empty())
         .collect();
     let cl_present = field("content-length").next().is_some();
-    if !te.is_empty() {
+    if field("transfer-encoding").next().is_some() {
         // Transfer-Encoding overrides Content-Length and indicates smuggling
         // when both are present (RFC 9112 §6.3): reject.
         if cl_present || te != ["chunked"] {
@@ -181,7 +181,7 @@ impl Servers {
                     {
                         Ok(()) => Ok(out),
                         Err(ChunkErr::TooLarge) => Err(BodyFault::TooLarge),
-                        // an over-limit trailer section is invalid framing (400)
+                        Err(ChunkErr::TrailerTooLarge) => return EffOutcome::Resource("header_bytes".into()),
                         Err(_) => Err(BodyFault::BadFraming),
                     }
                 }
@@ -327,7 +327,8 @@ async fn handle_conn(
             Ok(Ok(k)) => buf.extend_from_slice(&chunk[..k]),
         }
     };
-    if http1::field_section_len(&buf, head_end) as u64 > header_limit {
+    let header_bytes = http1::field_section_len(&buf, head_end) as u64;
+    if header_bytes > header_limit {
         return;
     }
     // Each field line takes at least 4 octets, so header_bytes bounds the count.
@@ -364,7 +365,11 @@ async fn handle_conn(
         let mut i = inner.borrow_mut();
         i.next_req += 1;
         let id = i.next_req;
-        i.conns.insert(id, ConnState { read: Some(rd), write: Some(wr), buf: rest, framing, watcher: None, header_limit });
+        i.conns.insert(id, ConnState {
+            read: Some(rd), write: Some(wr), buf: rest, framing, watcher: None,
+            // The body reader receives only the budget left for trailers.
+            header_limit: header_limit - header_bytes,
+        });
         id
     };
     let _ = tx.send(HostEvent::Request(IncomingRequest {

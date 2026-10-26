@@ -608,6 +608,12 @@ impl<H: Host> Runtime<H> {
             ReqPhase::Body => match o {
                 EffOutcome::Ok(EffValue::Body(Ok(body))) => self.route(t, f, body),
                 EffOutcome::Ok(EffValue::Body(Err(BodyFault::TooLarge))) => self.send_error(t, f, 413, "payload_too_large", false),
+                EffOutcome::Resource(r) => {
+                    // Keep the request boundary to map its quota abort to 503
+                    // using a cleanup send (§12.4), without running a handler.
+                    t.stack.push(Frame::Request(Box::new(f)));
+                    self.fail_ctl(t, Fail::Abort(AbortReason::Resource(super::callbacks::leak(r))))
+                }
                 EffOutcome::Err(e) if err::code_of(&e) == "media" => self.send_error(t, f, 415, "unsupported_media_type", false),
                 _ => self.send_error(t, f, 400, "bad_request", false),
             },

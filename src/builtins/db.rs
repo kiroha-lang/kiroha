@@ -468,6 +468,7 @@ impl<H: Host> Runtime<H> {
     }
 
     fn tx_cleanup(&mut self, t: &mut Task, mut x: TxFrame, eff: Effect, phase: TxPhase) -> Ctl {
+        self.begin_cleanup(x.scope);
         x.phase = phase;
         t.stack.push(Frame::Tx(Box::new(x)));
         Ctl::Dispatch(eff, DispatchOpts { cleanup: true, timeout: None })

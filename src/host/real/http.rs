@@ -208,6 +208,7 @@ where
     let limit = req.header_limit;
     let mut buf: Vec<u8> = Vec::new();
     let mut interim = 0;
+    let mut header_bytes = 0u64;
     let (status, headers) = loop {
         let head_end = loop {
             if let Some(i) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
@@ -224,7 +225,8 @@ where
         };
         // header_bytes counts the received field-section octets exactly
         // (unlike a parsed, whitespace-trimmed view).
-        if http1::field_section_len(&buf, head_end) as u64 > limit {
+        header_bytes = header_bytes.saturating_add(http1::field_section_len(&buf, head_end) as u64);
+        if header_bytes > limit {
             return EffOutcome::Resource("header_bytes".into());
         }
         let parsed = {
@@ -268,7 +270,7 @@ where
     let te = tokens("transfer-encoding");
     let mode = if bodyless {
         Mode::None
-    } else if !te.is_empty() {
+    } else if field("transfer-encoding").next().is_some() {
         // Only exactly `chunked` can be removed (no TE header is ever sent);
         // Transfer-Encoding together with Content-Length is a smuggling signal.
         if field("content-length").next().is_some() || te != ["chunked"] {
@@ -331,7 +333,9 @@ where
             }
         }
         Mode::Chunked => {
-            match http1::read_chunked(&mut io, std::mem::take(&mut buf), raw_cap, limit, |d| sink.push(d)).await {
+            // Head fields (including interim responses) and trailers share
+            // one received-field budget (§14.1).
+            match http1::read_chunked(&mut io, std::mem::take(&mut buf), raw_cap, limit - header_bytes, |d| sink.push(d)).await {
                 Ok(()) => {}
                 Err(ChunkErr::Framing) => return net("framing", "unknown"),
                 Err(ChunkErr::TooLarge) => return too_large(gzip),

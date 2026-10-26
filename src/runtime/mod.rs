@@ -119,6 +119,9 @@ pub struct Task {
     pub seen_epoch: u64,
     /// Waiting on a cleanup effect whose result must be delivered.
     pub in_cleanup: bool,
+    /// Shared across cancellation acknowledgment and subsequent cleanup effects,
+    /// cleared when evaluation starts user work again.
+    pub cleanup_deadline: Option<u64>,
     /// The abort currently being unwound, if any.
     pub unwinding: Option<AbortSig>,
     pub waiting_eff: Option<EffId>,
@@ -129,6 +132,8 @@ pub struct Scope {
     pub abort: Option<AbortReason>,
     /// Absolute monotonic ms of this scope's own deadline, if any.
     pub deadline: Option<u64>,
+    /// One final-cleanup budget shared by this scope and its descendants.
+    pub cleanup_deadline: Option<u64>,
 }
 
 pub struct Budget {
@@ -304,7 +309,7 @@ impl<H: Host> Runtime<H> {
     pub fn new_scope(&mut self, parent: Option<ScopeId>) -> ScopeId {
         let id = self.next_scope;
         self.next_scope += 1;
-        self.scopes.insert(id, Scope { parent, abort: None, deadline: None });
+        self.scopes.insert(id, Scope { parent, abort: None, deadline: None, cleanup_deadline: None });
         id
     }
 
@@ -348,6 +353,7 @@ impl<H: Host> Runtime<H> {
             Some(s) if s.abort.is_none() => s.abort = Some(reason),
             _ => return,
         }
+        self.begin_cleanup(scope);
         self.abort_epoch += 1;
         let mut to_cancel = Vec::new();
         for (id, p) in self.pending.iter() {
@@ -368,6 +374,8 @@ impl<H: Host> Runtime<H> {
                 p.cancelled = true;
             }
             self.host.cancel(id);
+            let deadline = self.cleanup_deadline(scope).unwrap();
+            self.add_timer(deadline, TimerKind::CleanupGrace(id));
         }
         // Server listeners whose scope is aborted stop accepting.
         let servers: Vec<u32> = self.servers.keys().copied().collect();
@@ -377,6 +385,25 @@ impl<H: Host> Runtime<H> {
     }
 
     // ---------------------------------------------------------------- timers
+
+    pub fn begin_cleanup(&mut self, scope: ScopeId) {
+        let at = self.host.now_ms().saturating_add(self.config.limits.cleanup_ms);
+        if let Some(s) = self.scopes.get_mut(&scope) {
+            s.cleanup_deadline.get_or_insert(at);
+        }
+    }
+
+    fn cleanup_deadline(&self, scope: ScopeId) -> Option<u64> {
+        let mut current = Some(scope);
+        let mut deadline: Option<u64> = None;
+        while let Some(s) = current.and_then(|id| self.scopes.get(&id)) {
+            if let Some(at) = s.cleanup_deadline {
+                deadline = Some(deadline.map_or(at, |d| d.min(at)));
+            }
+            current = s.parent;
+        }
+        deadline
+    }
 
     pub fn add_timer(&mut self, at: u64, kind: TimerKind) {
         self.next_timer_seq += 1;
@@ -416,20 +443,41 @@ impl<H: Host> Runtime<H> {
                     self.abort_scope(root, AbortReason::Cancelled);
                 }
                 TimerKind::EffectTimeout(id) => {
+                    let mut cancelled = false;
                     if let Some(p) = self.pending.get_mut(&id) {
                         if !p.cancelled {
                             p.cancelled = true;
                             p.timed_out = true;
                             self.host.cancel(id);
+                            cancelled = true;
                         }
+                    }
+                    if cancelled {
+                        let mut at = now.saturating_add(self.config.limits.cleanup_ms);
+                        if let Some(t) = self.pending.get(&id).and_then(|p| self.tasks.get(&p.task)) {
+                            if let Some(scope_at) = self.cleanup_deadline(t.scope) {
+                                at = at.min(scope_at);
+                            }
+                        }
+                        if let Some(t) = self.pending.get(&id).and_then(|p| self.tasks.get_mut(&p.task)) {
+                            t.cleanup_deadline = Some(at);
+                        }
+                        self.add_timer(at, TimerKind::CleanupGrace(id));
                     }
                 }
                 TimerKind::CleanupGrace(id) => {
                     if self.pending.contains_key(&id) {
                         // Detach an unresponsive cleanup operation.
                         let p = self.pending.remove(&id).unwrap();
+                        self.host.cancel(id);
                         self.host.diagnostic("cleanup grace expired; operation detached");
-                        self.deliver(p.task, EffOutcome::Joined);
+                        let outcome = if p.timed_out {
+                            let (op, ms) = p.timeout.unwrap();
+                            EffOutcome::Err(timeout_error(op, ms, Some("unknown")))
+                        } else {
+                            EffOutcome::Joined
+                        };
+                        self.deliver(p.task, outcome);
                     }
                 }
             }
@@ -462,6 +510,7 @@ impl<H: Host> Runtime<H> {
             cur_node: 0,
             seen_epoch: u64::MAX,
             in_cleanup: false,
+            cleanup_deadline: None,
             unwinding: None,
             waiting_eff: None,
         };
@@ -626,7 +675,10 @@ impl<H: Host> Runtime<H> {
         }
         if opts.cleanup {
             let grace = self.config.limits.cleanup_ms;
-            self.add_timer(now.saturating_add(grace), TimerKind::CleanupGrace(id));
+            let mut deadline = self.cleanup_deadline(t.scope).unwrap_or_else(|| now.saturating_add(grace));
+            deadline = deadline.min(*t.cleanup_deadline.get_or_insert(deadline));
+            t.cleanup_deadline = Some(deadline);
+            self.add_timer(deadline, TimerKind::CleanupGrace(id));
         }
         self.host.dispatch(id, eff);
     }

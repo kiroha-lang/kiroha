@@ -52,6 +52,12 @@ fn i06_quota_and_permission_by_component() {
     assert_eq!(result(&out), r#""permission""#);
     let out = run(r#"write("out/f",encode("abc"))"#, Some(&host));
     assert_eq!(out.code, 3);
+    // A valid maximum u64 quota must not wrap the read sentinel to zero.
+    std::fs::write(root.join("small"), "hello").unwrap();
+    let mut host = fs_host(&root);
+    host.pop();
+    host.push_str(r#", "limits":{"max_file_bytes":18446744073709551615}}"#);
+    assert_eq!(result(&run(r#"decode(read("small"))"#, Some(&host))), r#""hello""#);
 }
 
 /// A cancelled `write` leaves the old target in place and no temp file (§13.2).

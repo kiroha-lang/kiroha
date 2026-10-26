@@ -89,7 +89,7 @@ root/request scope with `resource`. See
 
 ## Independent audits
 
-Fifteen independent read-and-execute audits of sections 2–15 were run against the
+Sixteen independent read-and-execute audits of sections 2–15 were run against the
 code (each walked the normative rules section by section and confirmed every
 finding by running programs or custom fixture manifests).
 
@@ -123,6 +123,8 @@ finding by running programs or custom fixture manifests).
 | 14 (full, §2–§15, incl. RFC syntax) | 5: chunked trailer section not bounded by `header_bytes` (memory growth); lenient chunk-size lines (whitespace, malformed extensions); bare `"` inside quoted media-type parameters accepted; empty Accept-Encoding / empty list elements rejected; quoted-pairs in `charset` not unescaped | Fixed: trailer section counted against `header_bytes` with buffer draining; RFC 9112 §7.1.1 chunk-size/extension parser; RFC 9110 media-type parser with quoted-string unescaping; empty Accept-Encoding elements accepted. Regressions in `tests/i05_server.rs`, `tests/prose_regressions.rs`, header unit tests. Every other subsection "verified, no violation" |
 
 | 15 (full, §2–§15) | 8: a cancelled `write` still replaced the target after the abort and the join did not wait; HEAD/304 with `Transfer-Encoding: gzip, chunked` failed; client `header_bytes` undercounted (trimmed values, trailers); client accepted invalid chunked framing (extensions, trailing blanks, duplicate chunked); server numerals (Content-Length, chunk size) overflowed to 400 instead of 413 and leading zeros were rejected; server `header_bytes` counted the request line; framing errors lost to the Content-Encoding check (415 instead of 400); `Content-Encoding: identity,` / empty value → 415 | All fixed. The HTTP client no longer uses hyper: a purpose-built strict HTTP/1.1 client counts raw octets and shares a strict framing module (`src/host/real/http1.rs`) with the server; file operations are cooperatively cancellable; in-flight slots are released when the response is written. Regressions in `tests/i01_http.rs`, `tests/i05_server.rs`, `tests/i06_i07_i08.rs` and `src/host/real/http1.rs` unit tests |
+
+| 16 (full, §2–§15) | 6: HTTP header budget reset across head/trailers and interim responses; empty Transfer-Encoding treated as absent; admitted trailer quota mapped to 400; max_file_bytes=u64::MAX wrapped the read bound; cancelled pool acquisition leaked capacity; cleanup_ms restarted for each cleanup effect | Fixed: shared field budgets and framing presence checks; request quota abort maps to 503; saturating file bound; RAII pool slots across connection setup/reset cancellation; enclosing cleanup deadlines cover cancellation joins, rollback and release. Regressions in I01/I03/I05/I06 and `tests/fixtures/cleanup.json`; all four cleanup timing cases fail on the audit-16 baseline. |
 
 Audit 2 recorded "no new violations" for §2, §3, §4, §5, §6, §7, §8, §9,
 §10 (apart from the fixture header checks), §11 (apart from the two SQL

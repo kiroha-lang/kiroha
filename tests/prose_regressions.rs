@@ -122,6 +122,13 @@ fn prose_rules_hold() {
     assert!(all, "{}", kiri::json::dump(&report));
 }
 
+#[test]
+fn cleanup_uses_one_enclosing_deadline() {
+    let cases = parse_manifest(include_str!("fixtures/cleanup.json")).expect("cleanup manifest");
+    let (report, all) = run_all(&cases);
+    assert!(all, "{}", kiri::json::dump(&report));
+}
+
 
 #[test]
 fn unmatched_effect_with_pending_timer_is_a_prompt_harness_failure() {

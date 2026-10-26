@@ -100,7 +100,7 @@ fn read_blocking(path: &str, max_bytes: u64, cancel: &Cancel) -> FileRes {
     }
     let mut f = std::fs::File::from(fd);
     let mut buf = Vec::new();
-    let mut limited = (&mut f).take(max_bytes + 1);
+    let mut limited = (&mut f).take(max_bytes.saturating_add(1));
     let mut piece = vec![0u8; 1 << 20];
     loop {
         if cancelled(cancel) {

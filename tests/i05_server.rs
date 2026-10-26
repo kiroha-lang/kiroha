@@ -146,7 +146,7 @@ fn routing_framing_limits_and_shutdown() {
         let mut out = Vec::new();
         let _ = s.read_to_end(&mut out);
         let r = String::from_utf8_lossy(&out).to_string();
-        assert_eq!(status(&r), "400", "{r}");
+        assert_eq!(status(&r), "503", "trailer quota abort: {r}");
     }
     let r = send(port, b"POST /in HTTP/1.1\r\nHost: x\r\nContent-Type: application/json; charset=utf-8;\r\nTransfer-Encoding: chunked\r\n\r\n7\r\n{\"n\":3}\r\n0\r\nX-T: ok\r\n\r\n");
     assert_eq!(body(&r), r#"{"n":3}"#);
@@ -157,6 +157,11 @@ fn routing_framing_limits_and_shutdown() {
     assert_eq!(chunked("ffffffffffffffffff"), "413");
     assert_eq!(chunked("00000000000000007"), "200");
     // Invalid framing is reported before an unsupported Content-Encoding.
+    for te in ["", ","] {
+        let raw = format!("POST /in HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nTransfer-Encoding: {te}\r\nContent-Length: 7\r\n\r\n{{\"n\":1}}");
+        let r = send(port, raw.as_bytes());
+        assert_eq!(status(&r), "400", "empty transfer coding is still a present field: {r}");
+    }
     let r = send(port, b"POST /in HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\nContent-Length: 3\r\nContent-Encoding: gzip\r\n\r\n");
     assert_eq!(status(&r), "400", "{r}");
     // `identity,` and an empty Content-Encoding mean no coding.
@@ -215,7 +220,7 @@ fn request_line_is_not_counted_in_header_bytes() {
     let port = free_port();
     let dir = tempdir("srv-hb");
     let sp = dir.join("s.kiri");
-    std::fs::write(&sp, format!(r#"serve({{"GET /a":{{r=>1}}}},{{port:{port}}})"#)).unwrap();
+    std::fs::write(&sp, format!(r#"serve({{"GET /a":{{r=>1}},"POST /a":{{r=>input(r,json)}}}},{{port:{port}}})"#)).unwrap();
     let hp = dir.join("h.json");
     std::fs::write(
         &hp,
@@ -233,6 +238,15 @@ fn request_line_is_not_counted_in_header_bytes() {
     let raw = format!("GET {long_path} HTTP/1.1\r\nHost: x\r\nX-A: {}\r\n\r\n", "b".repeat(80));
     let r = send(port, raw.as_bytes());
     assert_eq!(status(&r), "404", "long request line with a small field section is admitted: {r}");
+    let fields = "Host: x\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\n";
+    for total in [300, 301] {
+        let trailer = format!("Y: {}\r\n", "z".repeat(total - fields.len() - 5));
+        let raw = format!("POST /a HTTP/1.1\r\n{fields}\r\n1\r\n1\r\n0\r\n{trailer}\r\n");
+        let r = send(port, raw.as_bytes());
+        assert_eq!(status(&r), if total == 300 { "200" } else { "503" }, "total field octets {total}: {r}");
+    }
+    let r = send(port, b"GET /a HTTP/1.1\r\nHost: x\r\n\r\n");
+    assert_eq!(status(&r), "200", "a quota abort leaves the listener live: {r}");
     let raw = format!("GET /a HTTP/1.1\r\nHost: x\r\nX-A: {}\r\n\r\n", "b".repeat(400));
     assert_eq!(send(port, raw.as_bytes()), "", "an oversized field section is closed without a response");
     let _ = child.kill();

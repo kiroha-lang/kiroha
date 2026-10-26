@@ -232,6 +232,10 @@ fn strict_client_framing() {
         "/c6" => raw("200 OK", &["Transfer-Encoding: chunked", "Content-Length: 2"], b"2\r\nab\r\n0\r\n\r\n"),
         "/c7" => raw("200 OK", &["Content-Length: 2", "Content-Length: 3"], b"abc"),
         "/c8" => raw("200 OK", &["Transfer-Encoding: chunked"], b"2\r\nab\r\n0\r\nBad Trailer\r\n\r\n"),
+        "/c9" => raw("200 OK", &["Transfer-Encoding:", "Content-Length: 2"], b"ab"),
+        "/c10" => raw("200 OK", &["Transfer-Encoding: ,"], b"ab"),
+        "/combined" => raw("200 OK", &["Transfer-Encoding: chunked", "X: 1234567890"], b"0\r\nY: 12345678901234567890\r\n\r\n"),
+        "/interim" => b"HTTP/1.1 103 Early Hints\r\nX: 12345678901234567890\r\n\r\nHTTP/1.1 200 OK\r\nContent-Length: 0\r\nX: 12345678901234567890\r\n\r\n".to_vec(),
         _ => raw("404 Not Found", &["Content-Length: 0"], b""),
     });
     let b = format!("http://127.0.0.1:{port}");
@@ -239,12 +243,12 @@ fn strict_client_framing() {
         &format!(
             r#"[http("HEAD","{b}/head-te").status, len(http("HEAD","{b}/head-te").body), http("GET","{b}/304-te").status,
                get("{b}/ok-chunked"),
-               map(["c1","c2","c3","c4","c5","c6","c7","c8"]){{p=>try http("GET","{b}/"+p) catch {{e=>[e.code,e.data.reason]}}}}]"#
+               map(["c1","c2","c3","c4","c5","c6","c7","c8","c9","c10"]){{p=>try http("GET","{b}/"+p) catch {{e=>[e.code,e.data.reason]}}}}]"#
         ),
         Some(&host(port)),
     );
     let framing = r#"["network","framing"]"#;
-    assert_eq!(result(&r), format!("[200,0,304,[7],[{}]]", [framing; 8].join(",")));
+    assert_eq!(result(&r), format!("[200,0,304,[7],[{}]]", [framing; 10].join(",")));
     // header_bytes counts raw field-section octets, including padding and trailers.
     let small = format!(
         r#"{{"format":"kiri-host/1","capabilities":{{"http":["http://127.0.0.1:{port}"]}},"limits":{{"header_bytes":1000}}}}"#
@@ -254,4 +258,14 @@ fn strict_client_framing() {
         assert_eq!(r.code, 3, "{p}: {}", r.stdout);
         assert!(r.stdout.contains("\"resource\":\"header_bytes\""), "{p}: {}", r.stdout);
     }
+    // Neither section alone exceeds 64 bytes; their total does. Interim
+    // response fields also consume the same per-operation budget (§14.1).
+    for p in ["combined", "interim"] {
+        let r = run(&format!(r#"http("GET","{b}/{p}")"#), Some(&small.replace("1000", "64")));
+        assert_eq!(r.code, 3, "{p}: {}", r.stdout);
+        assert!(r.stdout.contains("\"resource\":\"header_bytes\""), "{p}: {}", r.stdout);
+    }
+    // Exactly 68 field octets (43 head + 25 trailer) are allowed.
+    let r = run(&format!(r#"len(http("GET","{b}/combined").body)"#), Some(&small.replace("1000", "68")));
+    assert_eq!(result(&r), "0");
 }

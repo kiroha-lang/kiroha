@@ -85,6 +85,9 @@ impl<H: Host> Runtime<H> {
 
     pub fn step(&mut self, t: &mut Task) -> StepResult {
         let ctl = std::mem::replace(&mut t.ctl, Ctl::Waiting);
+        if matches!(ctl, Ctl::Eval(..) | Ctl::Seq(..) | Ctl::Apply(..)) {
+            t.cleanup_deadline = None;
+        }
         let next = match ctl {
             Ctl::Eval(id, env) => match self.checkpoint(t) {
                 Some(c) => c,

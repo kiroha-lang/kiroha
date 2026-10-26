@@ -43,6 +43,49 @@ macro_rules! need_pg {
 }
 
 #[test]
+fn cancelled_connection_setup_returns_pool_slot() {
+    need_pg!();
+    let d = dsn().unwrap();
+    let cfg: tokio_postgres::Config = d.parse().unwrap();
+    let pg_port = cfg.get_ports().first().copied().unwrap_or(5432);
+    let (ready, port) = std::sync::mpsc::channel();
+    // Stall just the first startup handshake. The second connection reaches
+    // the real database, proving cancellation did not exhaust the single slot.
+    let proxy = std::thread::spawn(move || {
+        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        rt.block_on(async {
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            ready.send(listener.local_addr().unwrap().port()).unwrap();
+            let mut tasks = Vec::new();
+            for index in 0..2 {
+                let (mut client, _) = tokio::time::timeout(std::time::Duration::from_secs(5), listener.accept()).await.unwrap().unwrap();
+                tasks.push(tokio::spawn(async move {
+                    if index == 0 {
+                        tokio::io::copy(&mut client, &mut tokio::io::sink()).await.ok();
+                    } else {
+                        let mut server = tokio::net::TcpStream::connect(("127.0.0.1", pg_port)).await.unwrap();
+                        tokio::io::copy_bidirectional(&mut client, &mut server).await.ok();
+                    }
+                }));
+            }
+            for task in tasks {
+                tokio::time::timeout(std::time::Duration::from_secs(5), task).await.unwrap().unwrap();
+            }
+        });
+    });
+    let port = port.recv_timeout(std::time::Duration::from_secs(5)).unwrap();
+    // DSNs in the integration environment use a single localhost endpoint.
+    let proxied = format!("host=127.0.0.1 port={port} user={} dbname={} sslmode=disable", cfg.get_user().unwrap(), cfg.get_dbname().unwrap_or("postgres"));
+    let h = host().replace("\"max_connections\":2", "\"max_connections\":1");
+    let r = run_env(
+        r#"d=db("main"); [(try sql(d,q`select 1 as x`,{timeout:100}) catch {e=>e.code}), one(sql(d,q`select 2 as x`,{timeout:2000}).rows).x]"#,
+        Some(&h), &[("KIRI_PG_MAIN", &proxied)],
+    );
+    proxy.join().unwrap();
+    assert_eq!(result(&r), r#"["timeout",2]"#);
+}
+
+#[test]
 fn i03_parameters_results_and_restrictions() {
     need_pg!();
     let r = pg(r#"d=db("main");x=one(sql(d,q`select ${null}::text as z, ${true}::boolean as b, ${"x'); drop table t; --"}::text as s,

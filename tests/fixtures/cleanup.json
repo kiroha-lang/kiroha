@@ -1,0 +1,295 @@
+{
+  "format": "kiri-conformance/1",
+  "language": "0.3.0/Web1",
+  "scheduler": "virtual-fifo/1",
+  "cases": [
+    {
+      "id": "rollback-and-release-share-cleanup-budget",
+      "source": "try tx(db(\"main\"),{timeout:1}){t=>sleep(100)} catch {e=>log(1)}",
+      "host": {
+        "capabilities": {
+          "databases": [
+            "main"
+          ],
+          "log": true
+        },
+        "limits": {
+          "cleanup_ms": 1000
+        }
+      },
+      "fixtures": [
+        {
+          "id": "pool",
+          "op": "pool",
+          "match": {
+            "alias": "main"
+          },
+          "ok": "p"
+        },
+        {
+          "id": "acq",
+          "op": "acquire",
+          "match": {
+            "pool": "p"
+          },
+          "ok": "c"
+        },
+        {
+          "id": "begin",
+          "op": "begin",
+          "match": {
+            "connection": "c"
+          },
+          "ok": null
+        },
+        {
+          "id": "rollback",
+          "op": "rollback",
+          "match": {
+            "connection": "c"
+          },
+          "ok": null,
+          "after_ms": 900
+        },
+        {
+          "id": "release",
+          "op": "release",
+          "match": {
+            "connection": "c"
+          },
+          "ok": null,
+          "after_ms": 900
+        },
+        {
+          "id": "log",
+          "op": "log_line",
+          "match": {},
+          "ok": null
+        }
+      ],
+      "expect": {
+        "phase": "value",
+        "json": "null",
+        "starts": {
+          "log": 1001
+        }
+      }
+    },
+    {
+      "id": "failed-callback-cleanup-preserves-primary",
+      "source": "try tx(db(\"main\")){t=>fail({code:\"boom\",message:\"x\",data:{}})} catch {e=>log(e.code);e.code}",
+      "host": {
+        "capabilities": {
+          "databases": [
+            "main"
+          ],
+          "log": true
+        },
+        "limits": {
+          "cleanup_ms": 1000
+        }
+      },
+      "fixtures": [
+        {
+          "id": "pool",
+          "op": "pool",
+          "match": {
+            "alias": "main"
+          },
+          "ok": "p"
+        },
+        {
+          "id": "acq",
+          "op": "acquire",
+          "match": {
+            "pool": "p"
+          },
+          "ok": "c"
+        },
+        {
+          "id": "begin",
+          "op": "begin",
+          "match": {
+            "connection": "c"
+          },
+          "ok": null
+        },
+        {
+          "id": "rollback",
+          "op": "rollback",
+          "match": {
+            "connection": "c"
+          },
+          "ok": null,
+          "after_ms": 900
+        },
+        {
+          "id": "release",
+          "op": "release",
+          "match": {
+            "connection": "c"
+          },
+          "ok": null,
+          "after_ms": 900
+        },
+        {
+          "id": "log",
+          "op": "log_line",
+          "match": {},
+          "ok": null
+        }
+      ],
+      "expect": {
+        "phase": "value",
+        "json": "\"boom\"",
+        "starts": {
+          "log": 1000
+        }
+      }
+    },
+    {
+      "id": "cancel-join-shares-rollback-release-budget",
+      "source": "try tx(db(\"main\"),{timeout:1}){t=>get(\"https://f.invalid/\")} catch {e=>log(1)}",
+      "host": {
+        "capabilities": {
+          "databases": [
+            "main"
+          ],
+          "log": true,
+          "http": [
+            "https://f.invalid"
+          ]
+        },
+        "limits": {
+          "cleanup_ms": 1000
+        }
+      },
+      "fixtures": [
+        {
+          "id": "pool",
+          "op": "pool",
+          "match": {
+            "alias": "main"
+          },
+          "ok": "p"
+        },
+        {
+          "id": "acq",
+          "op": "acquire",
+          "match": {
+            "pool": "p"
+          },
+          "ok": "c"
+        },
+        {
+          "id": "begin",
+          "op": "begin",
+          "match": {
+            "connection": "c"
+          },
+          "ok": null
+        },
+        {
+          "id": "http",
+          "op": "http",
+          "match": {},
+          "hold": true,
+          "cancel_ack_ms": 900
+        },
+        {
+          "id": "rollback",
+          "op": "rollback",
+          "match": {
+            "connection": "c"
+          },
+          "ok": null,
+          "after_ms": 900
+        },
+        {
+          "id": "release",
+          "op": "release",
+          "match": {
+            "connection": "c"
+          },
+          "ok": null,
+          "after_ms": 900
+        },
+        {
+          "id": "log",
+          "op": "log_line",
+          "match": {},
+          "ok": null
+        }
+      ],
+      "expect": {
+        "phase": "value",
+        "json": "null",
+        "starts": {
+          "log": 1001
+        }
+      }
+    },
+    {
+      "id": "sql-timeout-join-and-release-share-budget",
+      "source": "try sql(db(\"main\"),q`select 1`,{timeout:1}) catch {e=>log(e.code);e.code}",
+      "host": {
+        "capabilities": {
+          "databases": [
+            "main"
+          ],
+          "log": true
+        },
+        "limits": {
+          "cleanup_ms": 1000
+        }
+      },
+      "fixtures": [
+        {
+          "id": "pool",
+          "op": "pool",
+          "match": {
+            "alias": "main"
+          },
+          "ok": "p"
+        },
+        {
+          "id": "acq",
+          "op": "acquire",
+          "match": {
+            "pool": "p"
+          },
+          "ok": "c"
+        },
+        {
+          "id": "execute",
+          "op": "execute",
+          "match": {},
+          "hold": true,
+          "cancel_ack_ms": 900
+        },
+        {
+          "id": "release",
+          "op": "release",
+          "match": {
+            "connection": "c"
+          },
+          "ok": null,
+          "after_ms": 900
+        },
+        {
+          "id": "log",
+          "op": "log_line",
+          "match": {},
+          "ok": null
+        }
+      ],
+      "expect": {
+        "phase": "value",
+        "json": "\"timeout\"",
+        "starts": {
+          "log": 1001
+        }
+      }
+    }
+  ]
+}

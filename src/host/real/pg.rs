@@ -44,6 +44,32 @@ struct Inner {
     next: u64,
 }
 
+/// An open pool slot remains owned while connection setup or reset awaits
+/// I/O. Dropping a cancelled future must return the slot and discard any
+/// connection being reset (§11.1, §11.5).
+struct SlotGuard {
+    inner: Rc<RefCell<Inner>>,
+    pool: String,
+    conn: Option<String>,
+    keep: bool,
+}
+
+impl Drop for SlotGuard {
+    fn drop(&mut self) {
+        if self.keep {
+            return;
+        }
+        let mut i = self.inner.borrow_mut();
+        if let Some(conn) = &self.conn {
+            i.conns.remove(conn);
+        }
+        if let Some(p) = i.pools.get_mut(&self.pool) {
+            p.open = p.open.saturating_sub(1);
+            p.notify.notify_one();
+        }
+    }
+}
+
 pub struct Pools {
     config: Rc<HostConfig>,
     inner: Rc<RefCell<Inner>>,
@@ -243,6 +269,7 @@ impl Pools {
                         continue;
                     }
                 };
+                let mut slot = SlotGuard { inner: inner.clone(), pool: pool.clone(), conn: None, keep: false };
                 let connected = async {
                     let (client, connection) = tokio_postgres::connect(&dsn, tls_connector()).await?;
                     tokio::task::spawn_local(async move {
@@ -258,13 +285,10 @@ impl Pools {
                         i.next += 1;
                         let id = format!("{pool}#{}", i.next);
                         i.conns.insert(id.clone(), Conn { client: Rc::new(client), pool: pool.clone(), in_tx: false });
+                        slot.keep = true;
                         return EffOutcome::Ok(EffValue::Str(id));
                     }
                     Err(_) => {
-                        if let Some(p) = i.pools.get_mut(&pool) {
-                            p.open -= 1;
-                            p.notify.notify_one();
-                        }
                         return err_out("pool", "not_sent", None);
                     }
                 }
@@ -324,9 +348,15 @@ impl Pools {
 
     pub fn release(&mut self, conn: String, discard: bool) -> impl Future<Output = EffOutcome> {
         let inner = self.inner.clone();
+        // Arm before the future is polled: cancellation can win the host's
+        // select immediately, and must still discard this checked-out lease.
+        let lease = inner.borrow().conns.get(&conn).map(|c| (c.client.clone(), c.pool.clone()));
+        let mut slot = lease.as_ref().map(|(_, pool)| SlotGuard {
+            inner: inner.clone(), pool: pool.clone(), conn: Some(conn.clone()), keep: false,
+        });
         async move {
-            let (client, pool) = match inner.borrow().conns.get(&conn) {
-                Some(c) => (c.client.clone(), c.pool.clone()),
+            let (client, pool) = match lease {
+                Some(c) => c,
                 None => return EffOutcome::Ok(EffValue::Null),
             };
             let healthy = if discard {
@@ -339,12 +369,7 @@ impl Pools {
                 if let Some(p) = i.pools.get_mut(&pool) {
                     p.idle.push(conn);
                     p.notify.notify_one();
-                }
-            } else {
-                i.conns.remove(&conn);
-                if let Some(p) = i.pools.get_mut(&pool) {
-                    p.open = p.open.saturating_sub(1);
-                    p.notify.notify_one();
+                    slot.as_mut().unwrap().keep = true;
                 }
             }
             EffOutcome::Ok(EffValue::Null)

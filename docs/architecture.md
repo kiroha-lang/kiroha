@@ -101,7 +101,7 @@ separate `Ctl::Abort` that no `Try` frame handles.
   comes back as `Ctl::Effect(outcome)` to the waiting frame. Cleanup effects
   (rollback, release, close listener, timeout responses) are flagged so the
   abort being cleaned up does not cancel them, but they are bounded by
-  `cleanup_ms`.
+  `cleanup_ms`. A scope has one absolute final-cleanup deadline shared by cancellation acknowledgments, rollback, reset/release and descendants; successive effects do not renew it. Expiry cancels and detaches unresponsive adapter work without replacing the primary outcome.
 - **Parallel groups** start children in index order up to `n`, start the next
   index on each completion, latch the first observed failure, abort sibling
   scopes, and resume the parent only after every started child has finished.
@@ -156,7 +156,7 @@ cancelled.
   `connection: close`). It is not a general HTTP library because the
   specification needs exact control: the response head is parsed with
   `httparse` from the raw octets, so `header_bytes` counts the received field
-  section exactly (status line and terminal blank line excluded; trailers
+  section exactly across interim/final heads and trailers (status line and terminal blank line excluded; trailers
   included) and over-limit input is a host resource abort; body framing is
   none (HEAD/204/304), exactly `chunked`, a single Content-Length, or
   close-delimited, and anything else — `Transfer-Encoding` with
@@ -175,7 +175,7 @@ cancelled.
   converted to exact text (numeric is decoded from base-10000 digits, never
   through floats). Pools are per alias with `max_connections`; release runs
   `DISCARD ALL` plus the baseline settings, otherwise the connection is
-  dropped. A cancelled or timed-out statement triggers a PostgreSQL
+  dropped. Pool slots are guarded across connection setup and reset: dropping a cancelled future discards the lease and returns its slot, even if reset never started. A cancelled or timed-out statement triggers a PostgreSQL
   CancelRequest, so the backend stops and the following ROLLBACK is not
   queued behind it.
 - **Server** — a tokio listener and an httparse request-head parser that keeps
