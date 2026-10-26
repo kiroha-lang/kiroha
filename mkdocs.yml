@@ -1,0 +1,88 @@
+site_name: Kiroha
+site_url: https://kiroha-lang.github.io/kiroha/
+site_description: A friendly place to learn Kiroha, one small program at a time.
+repo_url: https://github.com/kiroha-lang/kiroha
+repo_name: GitHub
+edit_uri: edit/main/docs/
+strict: true
+hooks:
+  - scripts/docs/hooks.py
+theme:
+  name: material
+  language: en
+  font: false
+  logo: assets/kiroha.svg
+  favicon: assets/kiroha.svg
+  features:
+    - navigation.sections
+    - navigation.indexes
+    - navigation.footer
+    - navigation.top
+    - search.highlight
+    - search.suggest
+    - content.code.copy
+    - content.action.edit
+  palette:
+    - scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+plugins:
+  - search:
+      lang: en
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+      title: On this page
+  - pymdownx.details
+  - pymdownx.highlight:
+      pygments_lang_class: true
+  - pymdownx.superfences
+extra_javascript:
+  - javascripts/navigation.js
+extra_css:
+  - stylesheets/kiroha.css
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/kiroha-lang/kiroha
+      name: Kiroha on GitHub
+nav:
+  - Start here:
+      - Welcome: index.md
+      - Install Kiroha: install.md
+      - Your first program: getting-started.md
+  - Learn:
+      - Functions, step by step: learn/functions.md
+      - Work with data: learn/data.md
+      - Read JSON over HTTP: guides/http.md
+      - When something goes wrong: guides/troubleshooting.md
+      - Complete language guide: language-guide.md
+  - Reference:
+      - Built-in functions: reference/builtins.md
+      - Values and numbers: reference/values-and-numbers.md
+      - Errors and aborts: reference/errors.md
+      - Command line: cli.md
+      - Host configuration: host-config.md
+      - Move from 0.3 to 0.4: migration-0.4.md
+  - Go deeper:
+      - Example programs: examples.md
+      - Language specification: spec.md
+      - Runtime architecture: architecture.md
+      - Verification: formal-verification.md
+      - Conformance report: conformance-report.md
+      - Acceptance record: completion.md
+      - The name Kiroha: naming.md
+      - Help improve these docs: contributing-docs.md

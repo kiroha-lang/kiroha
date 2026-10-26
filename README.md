@@ -1,5 +1,7 @@
 # Kiroha
 
+**Documentation:** [Learn Kiroha, one small program at a time](https://kiroha-lang.github.io/kiroha/).
+
 **Kiroha (きろは)** combines the original working name Kiri with *iroha*, the basics of a language. The executable and source extension are `kiroha` and `.kiroha`. See [the naming and migration note](docs/naming.md).
 
 Kiroha is a small, strict, immutable expression language for programs that

@@ -1,12 +1,19 @@
 # Install Kiroha
 
-Install the latest prebuilt release:
+You can get started with a ready-to-run binary. You don't need to set up a
+Rust toolchain or compile the language yourself.
+
+Open a terminal and run these commands to install the latest release:
 
 ```sh
 curl -fsSL https://github.com/kiroha-lang/kiroha/releases/latest/download/install.sh | bash
 export PATH="$HOME/.local/bin:$PATH"
 kiroha --version
 ```
+
+If the version command prints a JSON line, you're ready to
+[write your first program](getting-started.md). If your terminal can't find
+`kiroha`, run the PATH command above and try again.
 
 No Rust toolchain, C compiler or libclang is needed for prebuilt binaries.
 The installer detects the OS and CPU, downloads the matching archive, verifies

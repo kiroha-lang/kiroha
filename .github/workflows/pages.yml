@@ -1,0 +1,78 @@
+name: Documentation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'examples/**'
+      - 'spec.md'
+      - 'Cargo.toml'
+      - 'README.md'
+      - 'mkdocs.yml'
+      - 'requirements-docs.txt'
+      - 'scripts/docs/**'
+      - '.github/workflows/pages.yml'
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'examples/**'
+      - 'spec.md'
+      - 'Cargo.toml'
+      - 'README.md'
+      - 'mkdocs.yml'
+      - 'requirements-docs.txt'
+      - 'scripts/docs/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-${{ github.event_name == 'pull_request' && github.ref || 'github-pages' }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements-docs.txt
+      - run: python -m pip install -r requirements-docs.txt
+      - name: Build documentation
+        run: python -m mkdocs build --strict
+      - name: Check pages and internal links
+        run: python scripts/docs/check_site.py site
+      - name: Check beginner programs with the published runtime
+        shell: bash
+        run: |
+          curl -fsSL https://github.com/kiroha-lang/kiroha/releases/download/v0.4.0/install.sh \
+            | bash -s -- --version 0.4.0 --install-dir "$RUNNER_TEMP/kiroha-docs-bin"
+          python scripts/docs/check_examples.py --kiroha "$RUNNER_TEMP/kiroha-docs-bin/kiroha"
+      - name: Upload Pages artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@v5
+      - name: Deploy documentation
+        id: deployment
+        uses: actions/deploy-pages@v4
