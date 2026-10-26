@@ -61,7 +61,16 @@ jobs:
           key: verify-rust1.96-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock', 'Cargo.toml') }}
           restore-keys: verify-rust1.96-${{ runner.os }}-${{ runner.arch }}-
       - name: Install native build dependencies
-        run: sudo apt-get update && sudo apt-get install -y libclang-dev
+        run: |
+          # The Azure mirror stalled repeatedly on the libclang archive.
+          for kiroha_sources in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do
+            if [[ -f "$kiroha_sources" ]]; then
+              sudo sed -i 's/azure.archive.ubuntu.com/archive.ubuntu.com/g' "$kiroha_sources"
+            fi
+          done
+          sudo apt-get update
+          sudo apt-get install -y libclang-dev
+
       - name: Check beginner programs with this revision
         run: |
           cargo build --release --locked
