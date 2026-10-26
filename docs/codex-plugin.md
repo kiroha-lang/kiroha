@@ -2,7 +2,7 @@
 
 The **Kiroha** plugin gives an agent the language guidance it needs to write,
 review, migrate and debug `.kiroha` programs. Its `write-kiroha` skill targets
-Kiroha 0.6.0: explicit structural types, simple generics, compact named functions and collection methods.
+Kiroha 0.7.0: explicit structural types, simple generics, compact named functions and collection methods.
 
 It includes the canonical generation card, API and host references, a migration
 guide and eight complete example programs. References travel with the plugin,
@@ -61,7 +61,7 @@ codex plugin marketplace upgrade kiroha-lang
 codex plugin add kiroha@kiroha-lang
 ```
 
-The plugin version is **0.2.0**, independently of the language version **0.6.0**.
+The plugin version is **0.3.0**, independently of the language version **0.7.0**.
 Its examples and bundled card are checked against that language version.
 
 ## Develop the plugin
@@ -95,7 +95,7 @@ eight programs, and executes pure examples, HTTP/pagination fixtures, file I/O
 and a live HTTP service. The database example is statically checked and documents
 its expected table and write; it is not run against an arbitrary database.
 
-The package command writes and inspects `target/plugins/kiroha-0.2.0.zip`.
+The package command writes and inspects `target/plugins/kiroha-0.3.0.zip`.
 The ZIP contains only the self-contained plugin, including its license. It
 excludes the marketplace, repository, runtime binary and dependencies. Normal
 CI checks synchronization, executes the examples and builds the package.

@@ -21,8 +21,32 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U kiroha -d postgres"
           --health-interval 5s --health-timeout 5s --health-retries 10
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: kiroha_ci
+          MYSQL_ROOT_HOST: "%"
+          MYSQL_DATABASE: kiroha
+        ports:
+          - 53306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -pkiroha_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: kiroha_ci
+          MARIADB_ROOT_HOST: "%"
+          MARIADB_DATABASE: kiroha
+        ports:
+          - 53307:3306
+        options: >-
+          --health-cmd "healthcheck.sh --connect --innodb_initialized"
+          --health-interval 5s --health-timeout 5s --health-retries 20
     env:
       KIROHA_TEST_PG_DSN: host=127.0.0.1 port=55432 user=kiroha dbname=postgres
+      KIROHA_TEST_MYSQL_DSN: mysql://root:kiroha_ci@127.0.0.1:53306/kiroha
+      KIROHA_TEST_MARIADB_DSN: mariadb://root:kiroha_ci@127.0.0.1:53307/kiroha
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.96.0

@@ -34,8 +34,8 @@ source build where the POSIX host adapters are supported.
 Pin both the installer and executable to a release:
 
 ```sh
-curl -fsSL https://github.com/kiroha-lang/kiroha/releases/download/v0.6.0/install.sh \
-  | bash -s -- --version 0.6.0
+curl -fsSL https://github.com/kiroha-lang/kiroha/releases/download/v0.7.0/install.sh \
+  | bash -s -- --version 0.7.0
 ```
 
 Choose a different directory:

@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "kiroha",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Write, review and debug Kiroha programs with versioned language guidance and executable examples.",
   "author": {
     "name": "Kiroha contributors",
@@ -22,7 +22,7 @@
       "interface": {
         "displayName": "Kiroha",
         "shortDescription": "Write and check Kiroha code",
-        "longDescription": "Create and maintain Kiroha 0.6 with explicit types and simple generics programs for JSON data, collection methods, HTTP clients and services, PostgreSQL and local files. Includes the canonical generation card, API and host references, migration guidance and runnable examples. Uses an existing shell and Kiroha CLI when execution is needed; no MCP server or account connection is required.",
+        "longDescription": "Create and maintain Kiroha 0.7 programs with explicit types and simple generics for JSON data, collection methods, HTTP clients and services, PostgreSQL/MySQL/MariaDB and local files. Includes the canonical generation card, API and host references, migration guidance and runnable examples. Uses an existing shell and Kiroha CLI when execution is needed; no MCP server or account connection is required.",
         "developerName": "Kiroha contributors",
         "category": "Developer Tools",
         "capabilities": [

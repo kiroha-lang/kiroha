@@ -1,4 +1,29 @@
-# Handoff: Kiroha 0.6.0 / Web1
+# Handoff: Kiroha 0.7.0 / Web1
+
+## Database adapters (0.7, publication in progress)
+
+Active work is on `feat/database-backends` in `/home/mizushima/dev/kiroha`.
+PostgreSQL 16, MySQL 8.4 and MariaDB 11.4 share `db`/`sql`/`tx`, normalized
+`SqlType`/`SqlParam`/`RawRows`, pool leases and the transaction state machine.
+Host pool `backend` defaults to `postgresql`; `mysql` and `mariadb` select
+MySQL-protocol connections and their statement validator. See
+[database guide](docs/guides/databases.md), spec §11.6 and
+`tests/database_backends.rs`. Plugin 0.3 includes the same guide.
+
+Nine new integration tests pass against MySQL 8.4.4 and MariaDB 11.4.5,
+including exact values, JSON differences, cleanup, poisoned transactions,
+canceled handshakes, session reset, lost COMMIT acknowledgment and mixed
+aliases with PostgreSQL 16.4. Complete release gates and hosted CI still
+need to finish before publication. The original uncommitted handoff is
+preserved in `HANDOFF-codex.md`; its configuration/testing claims are
+historical and the current tree/test output is authoritative.
+
+Do not run `git worktree prune`: the linked worktree was moved from
+`kiroha-databases` to `kiroha`. Repair its pointer before any worktree cleanup.
+The test servers are task-owned native binaries under the scratch directory
+recorded in `HANDOFF-codex.md`, ports 55433/33062/33061. Docker Desktop's WSL
+integration is currently unavailable; CI provisions all three container
+services, with nonempty test-only passwords for MySQL/MariaDB.
 
 ## Current revision and contribution workflow
 

@@ -7,7 +7,7 @@ Start with something small. Read a little data, write a clear function,
 and build from there. We'll take it one step at a time.
 </div>
 
-Kiroha is a small language for working with JSON, web services and PostgreSQL.
+Kiroha is a small language for working with JSON, web services and databases.
 Its values are immutable, its decimal arithmetic is exact, and its functions
 have a clear beginning and a matching named end.
 

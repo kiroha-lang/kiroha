@@ -132,6 +132,7 @@ impl<H: Host> Runtime<H> {
                 if let Some(pool) = self.pools.get(&**name) {
                     return Ok(Prepared::Value(Value::Database(Rc::new(DbHandle {
                         alias: name.to_string(),
+                        backend: self.config.database_pools.iter().find(|(a,_)| a == &**name).map_or(crate::database::Backend::default(), |(_,p)| p.backend),
                         pool: pool.clone(),
                     }))));
                 }
@@ -285,7 +286,7 @@ impl<H: Host> Runtime<H> {
             }
             (OpFrame::Pool { alias }, EffValue::Str(id)) => {
                 self.pools.insert(alias.clone(), id.clone());
-                Ok(Value::Database(Rc::new(DbHandle { alias, pool: id })))
+                Ok(Value::Database(Rc::new(DbHandle { backend: self.config.database_pools.iter().find(|(a,_)| a == &alias).map_or(crate::database::Backend::default(), |(_,p)| p.backend), alias, pool: id })))
             }
             (OpFrame::Http { kind, head, max_bytes }, EffValue::Http(resp)) => http_result(kind, head, max_bytes, resp),
             _ => {

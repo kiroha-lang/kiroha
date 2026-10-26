@@ -128,7 +128,7 @@ impl VirtualHost {
                 ps.iter()
                     .map(|p| {
                         Value::rec(vec![
-                            ("oid", Value::int(p.oid as i64)),
+                            ("oid", Value::int(super::real::pg::param_oid(p.kind) as i64)),
                             ("value", p.value.as_deref().map(Value::str).unwrap_or(Value::Null)),
                         ])
                     })
@@ -298,6 +298,18 @@ impl VirtualHost {
                 let outcome = r.get("outcome").and_then(|x| x.as_str()).ok_or("outcome")?.to_string();
                 if count.is_empty() || !count.bytes().all(|b| b.is_ascii_digit()) { return Err("count must be a nonnegative integer string".into()); }
                 if !matches!(outcome.as_str(), "committed" | "unknown") { return Err("invalid execute outcome".into()); }
+                for row in &mut rows {
+                    for ((_,oid),cell) in columns.iter().zip(row) {
+                        if let Some(text)=cell {
+                            if *oid==16 { *text=match text.as_str(){"t"=>"true","f"=>"false",_=>"invalid"}.into(); }
+                            if *oid==17 {
+                                let bytes=text.strip_prefix("\\x").filter(|h| h.len()%2==0 && h.is_ascii()).and_then(|h|(0..h.len()).step_by(2).map(|i|u8::from_str_radix(&h[i..i+2],16).ok()).collect::<Option<Vec<_>>>());
+                                *text=bytes.map(|b|base64::engine::general_purpose::STANDARD.encode(b)).unwrap_or_else(||"!".into());
+                            }
+                        }
+                    }
+                }
+                let columns=columns.into_iter().map(|(name,oid)|(name,super::real::pg::column_kind(oid))).collect();
                 EffValue::Rows(RawRows { columns, rows, count, outcome })
             }
             _ => {

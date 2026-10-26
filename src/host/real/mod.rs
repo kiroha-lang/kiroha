@@ -4,6 +4,8 @@ pub mod files;
 pub mod http;
 pub mod http1;
 pub mod pg;
+pub mod mysql;
+pub mod database;
 pub mod server;
 
 use super::config::HostConfig;
@@ -22,7 +24,7 @@ pub struct RealHost {
     tx: mpsc::UnboundedSender<HostEvent>,
     rx: mpsc::UnboundedReceiver<HostEvent>,
     tokens: HashMap<u64, CancellationToken>,
-    pub pg: pg::Pools,
+    pub databases: database::Pools,
     pub servers: server::Servers,
     http: Rc<http::Client>,
 }
@@ -30,14 +32,14 @@ pub struct RealHost {
 impl RealHost {
     pub fn new(config: Rc<HostConfig>) -> RealHost {
         let (tx, rx) = mpsc::unbounded_channel();
-        let pg = pg::Pools::new(config.clone());
+        let databases = database::Pools::new(config.clone());
         RealHost {
             start: Instant::now(),
             config,
             tx: tx.clone(),
             rx,
             tokens: HashMap::new(),
-            pg,
+            databases,
             servers: server::Servers::new(tx),
             http: Rc::new(http::Client::new()),
         }
@@ -205,34 +207,33 @@ impl Host for RealHost {
                 });
             }
             Effect::Pool(alias) => {
-                let out = self.pg.pool(&alias);
+                let out = self.databases.pool(&alias);
                 self.done_now(id, out);
             }
             Effect::Acquire(pool) => {
-                let fut = self.pg.acquire(pool);
+                let fut = self.databases.acquire(pool);
                 self.spawn(id, fut);
             }
             Effect::Begin(c) => {
-                let fut = self.pg.simple(c, "BEGIN ISOLATION LEVEL READ COMMITTED", "begin");
+                let fut = self.databases.transaction(c, database::TransactionOp::Begin);
                 self.spawn(id, fut);
             }
             Effect::Commit(c) => {
-                let fut = self.pg.commit(c);
+                let fut = self.databases.transaction(c, database::TransactionOp::Commit);
                 self.spawn(id, fut);
             }
             Effect::Rollback(c) => {
-                let fut = self.pg.simple(c, "ROLLBACK", "rollback");
+                let fut = self.databases.transaction(c, database::TransactionOp::Rollback);
                 self.spawn(id, fut);
             }
             Effect::Release { connection, discard } => {
-                let fut = self.pg.release(connection, discard);
+                let fut = self.databases.release(connection, discard);
                 self.spawn(id, fut);
             }
             Effect::Execute { connection, sql, params, max_rows } => {
-                // On timeout/abort, send a PostgreSQL CancelRequest so the
-                // backend stops and a following ROLLBACK is not queued behind it.
-                let cancel = self.pg.cancel_token(&connection);
-                let fut = guarded(self.pg.execute(connection, sql, params, max_rows));
+                // Each driver cancels server-side work before cleanup continues.
+                let cancel = self.databases.cancel(&connection);
+                let fut = guarded(self.databases.execute(connection, sql, params, max_rows));
                 let token = CancellationToken::new();
                 self.tokens.insert(id, token.clone());
                 let tx = self.tx.clone();
@@ -240,9 +241,7 @@ impl Host for RealHost {
                     let out = tokio::select! {
                         biased;
                         _ = token.cancelled() => {
-                            if let Some(c) = cancel {
-                                let _ = c.cancel_query(pg::tls_connector()).await;
-                            }
+                            cancel.await;
                             EffOutcome::Joined
                         }
                         o = fut => o,

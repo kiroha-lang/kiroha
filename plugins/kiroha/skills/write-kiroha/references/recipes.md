@@ -46,7 +46,11 @@ and `POST /total` at `127.0.0.1:8080`. A JSON body such as
 JSON directly or a nominal `reply(status,value)`; a plain `{status:...}` record
 is just response data.
 
-## PostgreSQL
+## Databases
+
+PostgreSQL, MySQL and MariaDB use the same `db`/`sql`/`tx` API. See the
+[database guide](databases.md) before choosing backend SQL or result types.
+The recipe below uses PostgreSQL-specific `RETURNING` syntax.
 
 [database.kiroha](../assets/examples/database.kiroha) shows parameterized
 insertion within `tx`, using [database.host.json](../assets/examples/database.host.json).

@@ -1,6 +1,6 @@
 # Built-in reference
 
-Kiroha 0.6.0 / Web1 has **31 global functions, 19 collection methods, one `.size` property and 5 schema
+Kiroha 0.7.0 / Web1 has **31 global functions, 19 collection methods, one `.size` property and 5 schema
 atoms**. Globals are ordinary bindings and may be shadowed. Members are selected
 by receiver kind; they are not global names. Normative text:
 [`spec.md`](../../spec.md) §7–§13.
@@ -198,6 +198,10 @@ url("https://api.example/base?old=1", ["a/b","x y"], {q:["a b",null,true], n:0})
 ```
 
 ## Database
+
+The `db`/`sql`/`tx` API is shared by PostgreSQL, MySQL and MariaDB. Select
+`backend` in the host pool configuration; SQL dialect and native result types
+follow that backend. See the [database guide](../guides/databases.md).
 
 ### `db(name)`
 

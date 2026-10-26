@@ -234,6 +234,7 @@ pub struct Query {
 
 #[derive(Debug)]
 pub struct DbHandle {
+    pub backend: crate::database::Backend,
     pub alias: String,
     pub pool: String,
 }

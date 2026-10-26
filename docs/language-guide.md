@@ -19,7 +19,7 @@ every function. Examples show the result after `//`.
 - [11. Working with data](#11-working-with-data)
 - [12. Concurrency, retries and pagination](#12-concurrency-retries-and-pagination)
 - [13. HTTP client](#13-http-client)
-- [14. PostgreSQL](#14-postgresql)
+- [14. Databases](#14-databases)
 - [15. HTTP server](#15-http-server)
 - [16. Local effects](#16-local-effects)
 - [17. Things Kiroha deliberately does not have](#17-things-kiroha-deliberately-does-not-have)
@@ -382,7 +382,11 @@ url("https://api.example/v1", ["users", "a/b"], {q:"x y"})
 - Response gzip is decoded; `max_bytes` limits the decoded body.
 - The origin must be listed in the host's `capabilities.http`.
 
-## 14. PostgreSQL
+## 14. Databases
+
+PostgreSQL, MySQL and MariaDB share this API. The examples in this section
+use PostgreSQL SQL syntax. See the [database guide](guides/databases.md) for
+MySQL/MariaDB host configuration, portable examples and result type differences.
 
 Queries are written as query literals; `${...}` holes become bound parameters,
 never text:

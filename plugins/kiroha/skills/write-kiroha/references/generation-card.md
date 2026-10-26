@@ -1,4 +1,4 @@
-Kiroha 0.6.0 / Web1
+Kiroha 0.7.0 / Web1
 Write only this language/API. No imports, host escape, invented methods or implicit variables. Task URLs, credentials, DB schemas and requirements are separate input.
 
 CORE
@@ -64,8 +64,8 @@ url(base,segments,query={}): append encoded string segments, preserve origin/que
 Network/timeout outcome not_sent only when proven, otherwise unknown. Failed request does not imply rollback.
 
 DATABASE
-db(name): configured borrowed PostgreSQL pool,reused,no close.
-sql(d,Q,o={}): one parameterized PostgreSQL16 SELECT/INSERT/UPDATE/DELETE/MERGE (WITH allowed); no SELECT INTO/DDL/session/transaction control. Query only; no literal $n parameters. o={timeout:10000,max_rows:10000}. Returns {rows:[record],count:int}, count server command count. Outside tx autocommit.
+db(name): configured borrowed database pool,reused,no close. Host selects postgresql(default)/mysql/mariadb.
+sql(d,Q,o={}): one parameterized SELECT/INSERT/UPDATE/DELETE (PG16 also MERGE, WITH allowed); backend SQL syntax, no SELECT INTO/DDL/session/transaction control. Query only; no literal $n(PG)/?(MySQL/MariaDB) parameters. o={timeout:10000,max_rows:10000}. Returns {rows:[record],count:int}, count server command count. Outside tx autocommit.
 Bind null/bool/string/exact-number/Bytes; JSON records/arrays=>JSONB, not SQL arrays. Results: integer/numeric exact; text/varchar/char/uuid string; bool,bytea,JSON/JSONB,NULL map naturally. Other OIDs (arrays,date/time,float,etc.) require explicit SQL conversion. Duplicate columns/mapping/limit errors; autocommit may already have committed.
 tx(d,o={timeout:10000}){f}: f(t), pinned read-committed transaction. Normal unpoisoned result commits; otherwise rollback attempt. Every sql(t) failure after live owned t accepted poisons with first failure even if caught. t task-confined/expires on callback return; parallel children cannot use it even n1. No nested tx same task. Only explicit sql(t) joins; sql(d),HTTP/files independent.
 tx timeout aborts callback and is catchable only outside tx. Ancestor abort wins, then tx timeout, then first SQL error, then other callback error. Lost COMMIT acknowledgment=>db outcome unknown; no replay.

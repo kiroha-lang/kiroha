@@ -35,21 +35,7 @@ pub struct RawResponse {
     pub body: Vec<u8>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SqlParam {
-    pub oid: u32,
-    /// Normalized text value (None for SQL NULL). Bytea is padded base64.
-    pub value: Option<String>,
-}
-
-#[derive(Clone, Debug)]
-pub struct RawRows {
-    pub columns: Vec<(String, u32)>,
-    /// PostgreSQL text-format cells; bytea as `\x` hex.
-    pub rows: Vec<Vec<Option<String>>>,
-    pub count: String,
-    pub outcome: String,
-}
+pub use crate::database::{RawRows, SqlParam};
 
 #[derive(Clone, Debug)]
 pub enum Effect {

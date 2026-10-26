@@ -5,78 +5,44 @@
 //! received in binary and converted to PostgreSQL text-format strings without
 //! any floating-point step (numeric is decoded digit by digit).
 
+use super::database::{Connection, RowBudget, TransactionOp};
 use crate::builtins::db::db_error;
+use crate::database::SqlType;
 use crate::decimal::Decimal;
-use crate::host::config::HostConfig;
 use crate::host::{EffOutcome, EffValue, RawRows, SqlParam};
 use base64::Engine;
 use bytes::BytesMut;
+use futures_util::future::LocalBoxFuture;
 use num_bigint::BigInt;
 use postgres_types::{Format, IsNull, Kind, ToSql, Type};
-use std::cell::RefCell;
-use std::collections::HashMap;
 use std::error::Error;
-use std::future::Future;
 use std::rc::Rc;
-use tokio::sync::Notify;
 
-const BASELINE: &str =
-    "SET client_encoding = 'UTF8'; SET standard_conforming_strings = on; SET default_transaction_isolation = 'read committed'";
-
-struct Conn {
-    client: Rc<tokio_postgres::Client>,
-    pool: String,
-    in_tx: bool,
+pub(crate) fn column_kind(oid: u32) -> SqlType {
+    match oid {
+        16 => SqlType::Bool,
+        20 | 21 | 23 => SqlType::Int,
+        1700 => SqlType::Num,
+        25 | 1043 | 1042 | 2950 => SqlType::Str,
+        17 => SqlType::Bytes,
+        114 | 3802 => SqlType::Json,
+        _ => SqlType::Unsupported,
+    }
 }
-
-struct PoolState {
-    dsn: String,
-    max: u64,
-    open: u64,
-    idle: Vec<String>,
-    notify: Rc<Notify>,
-}
-
-#[derive(Default)]
-struct Inner {
-    pools: HashMap<String, PoolState>,
-    conns: HashMap<String, Conn>,
-    next: u64,
-}
-
-/// An open pool slot remains owned while connection setup or reset awaits
-/// I/O. Dropping a cancelled future must return the slot and discard any
-/// connection being reset (§11.1, §11.5).
-struct SlotGuard {
-    inner: Rc<RefCell<Inner>>,
-    pool: String,
-    conn: Option<String>,
-    keep: bool,
-}
-
-impl Drop for SlotGuard {
-    fn drop(&mut self) {
-        if self.keep {
-            return;
-        }
-        let mut i = self.inner.borrow_mut();
-        if let Some(conn) = &self.conn {
-            i.conns.remove(conn);
-        }
-        if let Some(p) = i.pools.get_mut(&self.pool) {
-            p.open = p.open.saturating_sub(1);
-            p.notify.notify_one();
-        }
+pub(crate) fn param_oid(kind: SqlType) -> u32 {
+    match kind {
+        SqlType::Null => 0,
+        SqlType::Bool => 16,
+        SqlType::Int | SqlType::Num => 1700,
+        SqlType::Str => 25,
+        SqlType::Bytes => 17,
+        SqlType::Json => 3802,
+        SqlType::Unsupported => 0,
     }
 }
 
-pub struct Pools {
-    config: Rc<HostConfig>,
-    inner: Rc<RefCell<Inner>>,
-    /// Live-heap baseline for counting outstanding decoded row buffers
-    /// against `memory_bytes` (§14.1).
-    baseline: usize,
-}
+const BASELINE: &str =
+    "SET client_encoding = 'UTF8'; SET standard_conforming_strings = on; SET default_transaction_isolation = 'read committed'";
 
 fn err_out(phase: &str, outcome: &str, sqlstate: Option<String>) -> EffOutcome {
     let extra = match sqlstate {
@@ -88,7 +54,11 @@ fn err_out(phase: &str, outcome: &str, sqlstate: Option<String>) -> EffOutcome {
 
 fn map_err(e: &tokio_postgres::Error, phase: &str, in_tx: bool) -> EffOutcome {
     match e.as_db_error() {
-        Some(db) => err_out(phase, if in_tx { "unknown" } else { "rolled_back" }, Some(db.code().code().to_string())),
+        Some(db) => err_out(
+            phase,
+            if in_tx { "unknown" } else { "rolled_back" },
+            Some(db.code().code().to_string()),
+        ),
         None => err_out(phase, "unknown", None),
     }
 }
@@ -99,7 +69,11 @@ struct TextParam {
 }
 
 impl ToSql for TextParam {
-    fn to_sql(&self, _ty: &Type, out: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
+    fn to_sql(
+        &self,
+        _ty: &Type,
+        out: &mut BytesMut,
+    ) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
         match &self.value {
             None => Ok(IsNull::Yes),
             Some(v) => {
@@ -133,13 +107,16 @@ impl<'a> postgres_types::FromSql<'a> for RawCell {
 }
 
 fn param_type(oid: u32) -> Type {
-    Type::from_oid(oid).unwrap_or_else(|| Type::new("unspecified".into(), oid, Kind::Pseudo, "pg_catalog".into()))
+    Type::from_oid(oid)
+        .unwrap_or_else(|| Type::new("unspecified".into(), oid, Kind::Pseudo, "pg_catalog".into()))
 }
 
 fn text_param(p: &SqlParam) -> TextParam {
     let value = p.value.as_ref().map(|v| {
-        if p.oid == 17 {
-            let raw = base64::engine::general_purpose::STANDARD.decode(v).unwrap_or_default();
+        if p.kind == SqlType::Bytes {
+            let raw = base64::engine::general_purpose::STANDARD
+                .decode(v)
+                .unwrap_or_default();
             let mut s = String::from("\\x");
             for b in raw {
                 s.push_str(&format!("{b:02x}"));
@@ -187,20 +164,23 @@ fn cell_text(oid: u32, raw: &[u8]) -> String {
         23 if raw.len() == 4 => i32::from_be_bytes(raw.try_into().unwrap()).to_string(),
         20 if raw.len() == 8 => i64::from_be_bytes(raw.try_into().unwrap()).to_string(),
         1700 => numeric_text(raw),
-        16 => (if raw.first() == Some(&1) { "t" } else { "f" }).to_string(),
-        17 => {
-            let mut s = String::from("\\x");
-            for b in raw {
-                s.push_str(&format!("{b:02x}"));
-            }
-            s
-        }
+        16 => (if raw.first() == Some(&1) {
+            "true"
+        } else {
+            "false"
+        })
+        .to_string(),
+        17 => base64::engine::general_purpose::STANDARD.encode(raw),
         2950 if raw.len() == 16 => crate::builtins::effects::format_uuid_raw(raw),
         3802 => match raw.split_first() {
-            Some((1, rest)) => String::from_utf8(rest.to_vec()).unwrap_or_else(|_| "\u{0}invalid".into()),
+            Some((1, rest)) => {
+                String::from_utf8(rest.to_vec()).unwrap_or_else(|_| "\u{0}invalid".into())
+            }
             _ => "\u{0}invalid".into(),
         },
-        25 | 1043 | 1042 | 114 => String::from_utf8(raw.to_vec()).unwrap_or_else(|_| "\u{0}invalid".into()),
+        25 | 1043 | 1042 | 114 => {
+            String::from_utf8(raw.to_vec()).unwrap_or_else(|_| "\u{0}invalid".into())
+        }
         _ => String::new(),
     }
 }
@@ -217,181 +197,86 @@ pub fn tls_connector() -> tokio_postgres_rustls::MakeRustlsConnect {
     tokio_postgres_rustls::MakeRustlsConnect::new(cfg)
 }
 
-impl Pools {
-    pub fn new(config: Rc<HostConfig>) -> Pools {
-        Pools { config, inner: Rc::new(RefCell::new(Inner::default())), baseline: crate::alloc::live_bytes() }
-    }
-
-    pub fn pool(&mut self, alias: &str) -> EffOutcome {
-        let cfg = match self.config.database_pools.iter().find(|(a, _)| a == alias) {
-            Some((_, c)) => c.clone(),
-            None => return err_out("pool", "not_sent", None),
-        };
-        let dsn = match std::env::var(&cfg.dsn_env) {
-            Ok(d) => d,
-            Err(_) => return err_out("pool", "not_sent", None),
-        };
-        let mut inner = self.inner.borrow_mut();
-        inner.pools.entry(alias.to_string()).or_insert_with(|| PoolState {
-            dsn,
-            max: cfg.max_connections,
-            open: 0,
-            idle: Vec::new(),
-            notify: Rc::new(Notify::new()),
+pub struct PgConnection {
+    client: Rc<tokio_postgres::Client>,
+}
+impl PgConnection {
+    pub async fn connect(dsn: &str) -> Result<Self, EffOutcome> {
+        let (client, connection) = tokio_postgres::connect(dsn, tls_connector())
+            .await
+            .map_err(|_| err_out("pool", "not_sent", None))?;
+        tokio::task::spawn_local(async move {
+            let _ = connection.await;
         });
-        EffOutcome::Ok(EffValue::Str(alias.to_string()))
+        client
+            .batch_execute(BASELINE)
+            .await
+            .map_err(|_| err_out("pool", "not_sent", None))?;
+        Ok(Self {
+            client: Rc::new(client),
+        })
     }
-
-    pub fn acquire(&mut self, pool: String) -> impl Future<Output = EffOutcome> {
-        let inner = self.inner.clone();
-        async move {
-            loop {
-                let (dsn, notify) = {
-                    let mut i = inner.borrow_mut();
-                    let p = match i.pools.get_mut(&pool) {
-                        Some(p) => p,
-                        None => return err_out("pool", "not_sent", None),
-                    };
-                    if let Some(c) = p.idle.pop() {
-                        return EffOutcome::Ok(EffValue::Str(c));
-                    }
-                    if p.open < p.max {
-                        p.open += 1;
-                        (Some(p.dsn.clone()), p.notify.clone())
-                    } else {
-                        (None, p.notify.clone())
-                    }
-                };
-                let dsn = match dsn {
-                    Some(d) => d,
-                    None => {
-                        notify.notified().await;
-                        continue;
-                    }
-                };
-                let mut slot = SlotGuard { inner: inner.clone(), pool: pool.clone(), conn: None, keep: false };
-                let connected = async {
-                    let (client, connection) = tokio_postgres::connect(&dsn, tls_connector()).await?;
-                    tokio::task::spawn_local(async move {
-                        let _ = connection.await;
-                    });
-                    client.batch_execute(BASELINE).await?;
-                    Ok::<_, tokio_postgres::Error>(client)
-                }
-                .await;
-                let mut i = inner.borrow_mut();
-                match connected {
-                    Ok(client) => {
-                        i.next += 1;
-                        let id = format!("{pool}#{}", i.next);
-                        i.conns.insert(id.clone(), Conn { client: Rc::new(client), pool: pool.clone(), in_tx: false });
-                        slot.keep = true;
-                        return EffOutcome::Ok(EffValue::Str(id));
-                    }
-                    Err(_) => {
-                        return err_out("pool", "not_sent", None);
-                    }
-                }
-            }
-        }
-    }
-
-    pub fn cancel_token(&self, conn: &str) -> Option<tokio_postgres::CancelToken> {
-        self.inner.borrow().conns.get(conn).map(|c| c.client.cancel_token())
-    }
-
-    fn client(inner: &Rc<RefCell<Inner>>, conn: &str) -> Option<(Rc<tokio_postgres::Client>, bool)> {
-        inner.borrow().conns.get(conn).map(|c| (c.client.clone(), c.in_tx))
-    }
-
-    pub fn simple(&mut self, conn: String, sql: &'static str, phase: &'static str) -> impl Future<Output = EffOutcome> {
-        let inner = self.inner.clone();
-        async move {
-            let (client, in_tx) = match Self::client(&inner, &conn) {
-                Some(c) => c,
-                None => return err_out(phase, "not_sent", None),
+}
+impl Connection for PgConnection {
+    fn transaction(&self, op: TransactionOp, in_tx: bool) -> LocalBoxFuture<'static, EffOutcome> {
+        let client = self.client.clone();
+        Box::pin(async move {
+            let sql = match op {
+                TransactionOp::Begin => "BEGIN ISOLATION LEVEL READ COMMITTED",
+                TransactionOp::Commit => "COMMIT",
+                TransactionOp::Rollback => "ROLLBACK",
             };
             match client.batch_execute(sql).await {
-                Ok(()) => {
-                    if let Some(c) = inner.borrow_mut().conns.get_mut(&conn) {
-                        c.in_tx = phase == "begin";
-                    }
-                    EffOutcome::Ok(EffValue::Null)
-                }
-                Err(e) => map_err(&e, phase, in_tx || phase == "rollback"),
-            }
-        }
-    }
-
-    pub fn commit(&mut self, conn: String) -> impl Future<Output = EffOutcome> {
-        let inner = self.inner.clone();
-        async move {
-            let (client, _) = match Self::client(&inner, &conn) {
-                Some(c) => c,
-                None => return err_out("commit", "not_sent", None),
-            };
-            match client.batch_execute("COMMIT").await {
-                Ok(()) => {
-                    if let Some(c) = inner.borrow_mut().conns.get_mut(&conn) {
-                        c.in_tx = false;
-                    }
-                    EffOutcome::Ok(EffValue::Null)
-                }
-                Err(e) => match e.as_db_error() {
-                    // A server rejection of COMMIT ends the transaction rolled back.
-                    Some(db) => err_out("commit", "rolled_back", Some(db.code().code().to_string())),
+                Ok(()) => EffOutcome::Ok(EffValue::Null),
+                Err(e) if op == TransactionOp::Commit => match e.as_db_error() {
+                    Some(db) => err_out("commit", "rolled_back", Some(db.code().code().into())),
                     None => err_out("commit", "unknown", None),
                 },
+                Err(e) => map_err(&e, op.phase(), in_tx || op == TransactionOp::Rollback),
             }
-        }
+        })
     }
-
-    pub fn release(&mut self, conn: String, discard: bool) -> impl Future<Output = EffOutcome> {
-        let inner = self.inner.clone();
-        // Arm before the future is polled: cancellation can win the host's
-        // select immediately, and must still discard this checked-out lease.
-        let lease = inner.borrow().conns.get(&conn).map(|c| (c.client.clone(), c.pool.clone()));
-        let mut slot = lease.as_ref().map(|(_, pool)| SlotGuard {
-            inner: inner.clone(), pool: pool.clone(), conn: Some(conn.clone()), keep: false,
-        });
-        async move {
-            let (client, pool) = match lease {
-                Some(c) => c,
-                None => return EffOutcome::Ok(EffValue::Null),
-            };
-            let healthy = if discard {
-                false
-            } else {
-                client.batch_execute("DISCARD ALL").await.is_ok() && client.batch_execute(BASELINE).await.is_ok()
-            };
-            let mut i = inner.borrow_mut();
-            if healthy {
-                if let Some(p) = i.pools.get_mut(&pool) {
-                    p.idle.push(conn);
-                    p.notify.notify_one();
-                    slot.as_mut().unwrap().keep = true;
-                }
-            }
-            EffOutcome::Ok(EffValue::Null)
-        }
+    fn reset(&self) -> LocalBoxFuture<'static, bool> {
+        let client = self.client.clone();
+        Box::pin(async move {
+            client.batch_execute("DISCARD ALL").await.is_ok()
+                && client.batch_execute(BASELINE).await.is_ok()
+        })
     }
-
-    pub fn execute(&mut self, conn: String, sql: String, params: Vec<SqlParam>, max_rows: u64) -> impl Future<Output = EffOutcome> {
-        let inner = self.inner.clone();
-        let (baseline, limit) = (self.baseline, self.config.limits.memory_bytes);
-        async move {
-            let (client, in_tx) = match Self::client(&inner, &conn) {
-                Some(c) => c,
-                None => return err_out("execute", "not_sent", None),
-            };
-            let types: Vec<Type> = params.iter().map(|p| param_type(p.oid)).collect();
+    fn cancel(&self) -> LocalBoxFuture<'static, ()> {
+        let cancel = self.client.cancel_token();
+        Box::pin(async move {
+            let _ = cancel.cancel_query(tls_connector()).await;
+        })
+    }
+    fn execute(
+        &self,
+        sql: String,
+        params: Vec<SqlParam>,
+        max_rows: u64,
+        in_tx: bool,
+        budget: RowBudget,
+    ) -> LocalBoxFuture<'static, EffOutcome> {
+        let client = self.client.clone();
+        let (baseline, limit) = (budget.baseline, budget.limit);
+        Box::pin(async move {
+            let types: Vec<Type> = params
+                .iter()
+                .map(|p| param_type(param_oid(p.kind)))
+                .collect();
             let stmt = match client.prepare_typed(&sql, &types).await {
                 Ok(s) => s,
                 Err(e) => return map_err(&e, "execute", in_tx),
             };
             let tp: Vec<TextParam> = params.iter().map(text_param).collect();
-            let refs: Vec<&(dyn ToSql + Sync)> = tp.iter().map(|p| p as &(dyn ToSql + Sync)).collect();
-            let columns: Vec<(String, u32)> = stmt.columns().iter().map(|c| (c.name().to_string(), c.type_().oid())).collect();
+            let refs: Vec<&(dyn ToSql + Sync)> =
+                tp.iter().map(|p| p as &(dyn ToSql + Sync)).collect();
+            let oids: Vec<u32> = stmt.columns().iter().map(|c| c.type_().oid()).collect();
+            let columns: Vec<_> = stmt
+                .columns()
+                .iter()
+                .map(|c| (c.name().to_string(), column_kind(c.type_().oid())))
+                .collect();
             let stream = match client.query_raw(&stmt, refs).await {
                 Ok(s) => s,
                 Err(e) => return map_err(&e, "execute", in_tx),
@@ -419,7 +304,7 @@ impl Pools {
                     Err(e) => return map_err(&e, "execute", in_tx),
                 };
                 let mut cells = Vec::with_capacity(columns.len());
-                for (i, (_, oid)) in columns.iter().enumerate() {
+                for (i, oid) in oids.iter().enumerate() {
                     let cell: Option<RawCell> = row.try_get(i).unwrap_or(None);
                     let large = cell.as_ref().is_some_and(|c| c.0.len() > 4096);
                     cells.push(cell.map(|c| cell_text(*oid, &c.0)));
@@ -440,11 +325,24 @@ impl Pools {
                 // The statement was cancelled mid-result: commit state is unknown.
                 let outcome = "unknown";
                 let count = rows.len().to_string();
-                return EffOutcome::Ok(EffValue::Rows(RawRows { columns, rows, count, outcome: outcome.into() }));
+                return EffOutcome::Ok(EffValue::Rows(RawRows {
+                    columns,
+                    rows,
+                    count,
+                    outcome: outcome.into(),
+                }));
             }
-            let count = stream.rows_affected().map(|n| n.to_string()).unwrap_or_default();
+            let count = stream
+                .rows_affected()
+                .map(|n| n.to_string())
+                .unwrap_or_default();
             let outcome = if in_tx { "unknown" } else { "committed" };
-            EffOutcome::Ok(EffValue::Rows(RawRows { columns, rows, count, outcome: outcome.into() }))
-        }
+            EffOutcome::Ok(EffValue::Rows(RawRows {
+                columns,
+                rows,
+                count,
+                outcome: outcome.into(),
+            }))
+        })
     }
 }

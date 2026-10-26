@@ -5,6 +5,7 @@ use crate::host::{EffOutcome, EffValue, Effect, Host, RawRows, SqlParam};
 use crate::runtime::frames::Frame;
 use crate::runtime::{timeout_error, AbortReason, AbortSig, Ctl, DispatchOpts, Fail, Runtime, ScopeId, Task, TxState};
 use crate::sqlcheck;
+use crate::database::{Backend, SqlType};
 use crate::value::{err, Record, TxHandle, Value};
 use base64::Engine;
 use std::rc::Rc;
@@ -52,6 +53,7 @@ pub enum Primary {
 }
 
 pub struct TxFrame {
+    pub backend: Backend,
     pub phase: TxPhase,
     pub pool: String,
     pub timeout: u64,
@@ -65,38 +67,25 @@ pub struct TxFrame {
     pub timeout_outcome: &'static str,
 }
 
-/// Bind a Kiroha value as a PostgreSQL parameter (§11.3).
+/// Bind a Kiroha value without driver-specific type identifiers.
 pub fn bind_param(v: &Value) -> Result<SqlParam, Value> {
     let bind_err = || db_error("bind", "not_sent", vec![]);
     Ok(match v {
-        Value::Null => SqlParam { oid: 0, value: None },
-        Value::Bool(b) => SqlParam { oid: 16, value: Some(b.to_string()) },
+        Value::Null => SqlParam { kind: SqlType::Null, value: None },
+        Value::Bool(b) => SqlParam { kind: SqlType::Bool, value: Some(b.to_string()) },
         Value::Str(s) => {
-            if s.contains('\0') {
-                return Err(bind_err());
-            }
-            SqlParam { oid: 25, value: Some(s.to_string()) }
+            SqlParam { kind: SqlType::Str, value: Some(s.to_string()) }
         }
-        Value::Num(d) => SqlParam { oid: 1700, value: Some(d.canonical()) },
-        Value::Bytes(b) => SqlParam { oid: 17, value: Some(base64::engine::general_purpose::STANDARD.encode(&**b)) },
+        Value::Num(d) => SqlParam { kind: SqlType::Num, value: Some(d.canonical()) },
+        Value::Bytes(b) => SqlParam { kind: SqlType::Bytes, value: Some(base64::engine::general_purpose::STANDARD.encode(&**b)) },
         Value::Array(_) | Value::Record(_) => {
             if !v.is_json() {
                 return Err(bind_err());
             }
-            SqlParam { oid: 3802, value: Some(crate::json::dump(v)) }
+            SqlParam { kind: SqlType::Json, value: Some(crate::json::dump(v)) }
         }
         _ => return Err(bind_err()),
     })
-}
-
-const SUPPORTED_OIDS: &[u32] = &[21, 23, 20, 1700, 25, 1043, 1042, 2950, 16, 17, 114, 3802];
-
-fn hex_bytes(s: &str) -> Option<Vec<u8>> {
-    let h = s.strip_prefix("\\x")?;
-    if h.len() % 2 != 0 {
-        return None;
-    }
-    (0..h.len()).step_by(2).map(|i| u8::from_str_radix(&h[i..i + 2], 16).ok()).collect()
 }
 
 /// Convert driver rows to `{rows,count}` (§11.3–11.4).
@@ -106,12 +95,12 @@ pub fn convert_rows(raw: &RawRows, max_rows: u64) -> Result<Value, Fail> {
     let outcome = raw.outcome.as_str();
     let decode = || Fail::Err(db_error("decode", outcome, vec![]));
     let mut names: Vec<&str> = Vec::new();
-    for (n, oid) in &raw.columns {
+    for (n, kind) in &raw.columns {
         if names.contains(&n.as_str()) {
             return Err(decode());
         }
         names.push(n);
-        if !SUPPORTED_OIDS.contains(oid) {
+        if *kind == SqlType::Unsupported {
             return Err(decode());
         }
     }
@@ -150,31 +139,31 @@ pub fn convert_rows(raw: &RawRows, max_rows: u64) -> Result<Value, Fail> {
             return Err(decode());
         }
         let mut r = Record::with_capacity(row.len());
-        for ((name, oid), cell) in raw.columns.iter().zip(row) {
+        for ((name, kind), cell) in raw.columns.iter().zip(row) {
             if crate::interrupt::poll_big(cell.as_ref().map_or(0, |c| c.len())) {
                 return Err(Fail::Interrupted);
             }
             let v = match cell {
                 None => Value::Null,
-                Some(text) => match oid {
-                    21 | 23 | 20 | 1700 => match crate::decimal::Decimal::parse_json(text) {
+                Some(text) => match kind {
+                    SqlType::Int | SqlType::Num => match crate::decimal::Decimal::parse_json(text) {
                         Ok(Some(d)) => Value::num(d),
                         Err(_) => return Err(Fail::Abort(AbortReason::Resource("number"))),
                         Ok(None) => return Err(decode()),
                     },
-                    25 | 1043 | 1042 | 2950 => {
+                    SqlType::Str => {
                         if crate::interrupt::reserve(text.len()) {
                             return Err(Fail::Interrupted);
                         }
                         Value::str(text)
                     }
-                    16 => match text.as_str() {
-                        "t" => Value::Bool(true),
-                        "f" => Value::Bool(false),
+                    SqlType::Bool => match text.as_str() {
+                        "true" => Value::Bool(true),
+                        "false" => Value::Bool(false),
                         _ => return Err(decode()),
                     },
-                    17 => Value::bytes(hex_bytes(text).ok_or_else(decode)?),
-                    114 | 3802 => match crate::json::parse(text) {
+                    SqlType::Bytes => Value::bytes(base64::engine::general_purpose::STANDARD.decode(text).map_err(|_| decode())?),
+                    SqlType::Json => match crate::json::parse(text) {
                         Ok(v) => v,
                         Err(crate::json::JsonError::Overflow) => return Err(Fail::Abort(AbortReason::Resource("number"))),
                         Err(crate::json::JsonError::Interrupted) => return Err(Fail::Interrupted),
@@ -204,8 +193,8 @@ impl<H: Host> Runtime<H> {
     pub fn start_sql(&mut self, t: &mut Task, a: Vec<Value>) -> Ctl {
         let op = "sql";
         // 1. handle kind and ownership
-        let (pool, tx, conn) = match &a[0] {
-            Value::Database(d) => (Some(d.pool.clone()), None, None),
+        let (pool, tx, conn, backend) = match &a[0] {
+            Value::Database(d) => (Some(d.pool.clone()), None, None, d.backend),
             Value::Transaction(h) => {
                 let ok = match self.txs.get(&h.id) {
                     Some(st) => st.active && st.owner == t.id,
@@ -220,7 +209,7 @@ impl<H: Host> Runtime<H> {
                     let l = l.clone();
                     return self.raise(t, l);
                 }
-                (None, Some(h.id), Some(st.connection.clone()))
+                (None, Some(h.id), Some(st.connection.clone()), st.backend)
             }
             other => {
                 let e = err::type_error(op, err::Pos::Index(1), "database or transaction", other.kind());
@@ -242,13 +231,14 @@ impl<H: Host> Runtime<H> {
                 None => 10000,
             };
             reject_unknown(op, o, &["timeout", "max_rows"])?;
-            let sql = sqlcheck::translate(&q.segments).map_err(|r| {
+            let sql = sqlcheck::translate_for(backend, &q.segments).map_err(|r| {
                 Fail::Err(db_error("prepare", "not_sent", vec![("reason", Value::str(r.reason()))]))
             })?;
             let mut params = Vec::with_capacity(q.values.len());
             for v in &q.values {
                 params.push(bind_param(v).map_err(Fail::Err)?);
             }
+            if !backend.validate_params(&params) { return Err(Fail::Err(db_error("bind", "not_sent", vec![]))); }
             Ok((sql, params, timeout, max_rows))
         })();
         let (sql, params, timeout, max_rows) = match prepared {
@@ -444,7 +434,9 @@ impl<H: Host> Runtime<H> {
         };
         let scope = self.new_scope(Some(t.scope));
         self.add_scope_deadline(scope, at, Some(timeout));
+        let backend = match &a[0] { Value::Database(d) => d.backend, _ => unreachable!() };
         let frame = TxFrame {
+            backend,
             phase: TxPhase::Acquiring,
             pool: pool.clone(),
             timeout,
@@ -572,7 +564,7 @@ impl<H: Host> Runtime<H> {
                 EffOutcome::Ok(_) => {
                     let id = self.next_tx;
                     self.next_tx += 1;
-                    self.txs.insert(id, TxState { owner: t.id, connection: x.conn.clone().unwrap(), active: true, latched: None });
+                    self.txs.insert(id, TxState { backend: x.backend, owner: t.id, connection: x.conn.clone().unwrap(), active: true, latched: None });
                     x.tx = Some(id);
                     t.tx = Some(id);
                     x.phase = TxPhase::Callback;
