@@ -1,6 +1,16 @@
 name: Verify Web1
 
-on: [push, pull_request, workflow_dispatch, workflow_call]
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      source_ref:
+        description: Source revision to verify (defaults to the triggering revision)
+        type: string
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -49,6 +59,8 @@ jobs:
       KIROHA_TEST_MARIADB_DSN: mariadb://root:kiroha_ci@127.0.0.1:53307/kiroha
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref || github.ref }}
       - uses: dtolnay/rust-toolchain@1.96.0
         with:
           components: clippy

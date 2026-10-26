@@ -4,13 +4,24 @@ on:
   push:
     tags: ['v[0-9]*']
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing version tag to build and publish (empty builds the current revision without publishing)
+        type: string
+        required: false
+        default: ''
 
 permissions:
   contents: read
 
+env:
+  RELEASE_TAG: ${{ inputs.release_tag || (github.ref_type == 'tag' && github.ref_name) || '' }}
+
 jobs:
   verify:
     uses: ./.github/workflows/verify.yml
+    with:
+      source_ref: ${{ inputs.release_tag != '' && format('refs/tags/{0}', inputs.release_tag) || github.ref }}
   build:
     strategy:
       fail-fast: false
@@ -22,7 +33,7 @@ jobs:
             target: aarch64-unknown-linux-gnu
           - runner: macos-15-intel
             target: x86_64-apple-darwin
-          - runner: macos-14
+          - runner: macos-15
             target: aarch64-apple-darwin
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 40
@@ -30,8 +41,10 @@ jobs:
       MACOSX_DEPLOYMENT_TARGET: '13.0'
     steps:
       - uses: actions/checkout@v4
-      - name: Select compatible Intel macOS SDK
-        if: runner.os == 'macOS' && runner.arch == 'X64'
+        with:
+          ref: ${{ inputs.release_tag != '' && format('refs/tags/{0}', inputs.release_tag) || github.ref }}
+      - name: Select compatible macOS SDK
+        if: runner.os == 'macOS'
         run: |
           # pg_query 5's fallback strchrnul conflicts with SDK 15.4+.
           # Xcode 16.2's SDK retains the audited parser and macOS 13 target.
@@ -68,8 +81,9 @@ jobs:
         shell: bash
         run: |
           version=$(awk -F '"' '/^version = / {print $2; exit}' Cargo.toml)
-          if [[ "$GITHUB_REF_TYPE" == tag ]]; then
-            test "$GITHUB_REF_NAME" = "v$version"
+          if [[ -n "$RELEASE_TAG" ]]; then
+            [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+            test "$RELEASE_TAG" = "v$version"
           fi
       - run: cargo build --release --locked --target '${{ matrix.target }}'
       - name: Smoke test native binary
@@ -95,13 +109,15 @@ jobs:
           path: dist/*.tar.gz
           if-no-files-found: error
   publish:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.release_tag != ''
     needs: [verify, build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag != '' && format('refs/tags/{0}', inputs.release_tag) || github.ref }}
       - uses: actions/download-artifact@v4
         with:
           path: dist
@@ -136,6 +152,6 @@ jobs:
           Linux binaries require glibc 2.35+; macOS binaries target macOS 13+.
           See the repository's installation and language documentation for details.
           EOF
-          gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --draft \
-            --title "Kiroha ${GITHUB_REF_NAME#v}" --notes-file release-notes.md
-          gh release edit "$GITHUB_REF_NAME" --draft=false --latest
+          gh release create "$RELEASE_TAG" dist/* --verify-tag --draft \
+            --title "Kiroha ${RELEASE_TAG#v}" --notes-file release-notes.md
+          gh release edit "$RELEASE_TAG" --draft=false --latest
