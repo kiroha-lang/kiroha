@@ -15,6 +15,8 @@ pub enum Kw {
     Do,
     Try,
     Catch,
+    Fun,
+    End,
 }
 
 impl Kw {
@@ -29,6 +31,8 @@ impl Kw {
             "do" => Kw::Do,
             "try" => Kw::Try,
             "catch" => Kw::Catch,
+            "fun" => Kw::Fun,
+            "end" => Kw::End,
             _ => return None,
         })
     }
@@ -44,6 +48,8 @@ impl Kw {
             Kw::Do => "do",
             Kw::Try => "try",
             Kw::Catch => "catch",
+            Kw::Fun => "fun",
+            Kw::End => "end",
         }
     }
 }

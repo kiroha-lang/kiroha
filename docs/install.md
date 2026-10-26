@@ -27,8 +27,8 @@ source build where the POSIX host adapters are supported.
 Pin both the installer and executable to a release:
 
 ```sh
-curl -fsSL https://github.com/kiroha-lang/kiroha/releases/download/v0.3.0/install.sh \
-  | bash -s -- --version 0.3.0
+curl -fsSL https://github.com/kiroha-lang/kiroha/releases/download/v0.4.0/install.sh \
+  | bash -s -- --version 0.4.0
 ```
 
 Choose a different directory:
@@ -70,7 +70,7 @@ kiroha --version
 ## Release verification
 
 The release workflow runs the full PostgreSQL-backed verification suite and
-builds each target on a native runner, executes `--version`, the 145
+builds each target on a native runner, executes `--version`, the
 embedded conformance cases and an exact-decimal program, packages binaries and
 the license, and publishes the release only after every target passes.
 Installer tests use a local release server and cover platform selection,
@@ -83,5 +83,8 @@ Latest and pinned installers were then executed from the public download URLs;
 both installed binaries passed all 145 conformance cases. The
 [publication record](completion.md#public-distribution) contains the evidence
 and installed Linux binary checksum.
+
+The 0.4.0 language revision adds explicit named-function delimiters; see the
+[migration guide](migration-0.4.md) before running 0.3 source on 0.4.
 
 To remove a default installation, delete `~/.local/bin/kiroha`.

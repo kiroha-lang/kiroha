@@ -1,6 +1,6 @@
 // Ordinary errors are data; aborts are not.
-parse_age(s) = do {
+fun parse_age(s) then
   n = try number(s) catch {e => fail({code:"bad_age", message:"not a number", data:{input:s}})};
   if n < 0 || n > 150 then fail({code:"bad_age", message:"out of range", data:{input:s}}) else n
-};
+end fun parse_age;
 ["42", "x", "-3"] | map(){s => try {ok:parse_age(s)} catch {e => {error:e.code, data:e.data}}}

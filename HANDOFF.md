@@ -1,4 +1,18 @@
-# Handoff: Kiroha 0.3.0 / Web1
+# Handoff: Kiroha 0.4.0 / Web1
+
+## Current 0.4 syntax revision
+
+The function syntax is now `fun fac(n) then ... end fun fac`. Both `fun` and
+`end` are reserved, the closing name must match exactly, and bodies are
+sequences in the parameter scope. Old bare definitions are parse errors.
+See [migration](docs/migration-0.4.md). The 51-function API and callback channel
+are retained. Local verification passes 83 PostgreSQL-enabled tests and
+175/175 embedded cases, including 30 new syntax/scope/tail-call cases.
+The compact card measures 2638/2618 tokens. The dated acceptance/audit and
+0.3.0 publication records below are baseline evidence, not a new independent
+audit of 0.4.
+
+## Completed 0.3 baseline
 
 The requested implementation of `spec.md`, comprehensive documentation and
 new language name are complete as of 2026-10-26. The working name changed because

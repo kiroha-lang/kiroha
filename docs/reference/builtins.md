@@ -1,6 +1,6 @@
 # Built-in reference
 
-Kiroha 0.3.0 / Web1 has exactly **51 callable prelude names** and **5 schema
+Kiroha 0.4.0 / Web1 has exactly **51 callable prelude names** and **5 schema
 atoms**. They are ordinary bindings: user code may shadow them. Normative text:
 [`spec.md`](../../spec.md) §7–§13.
 

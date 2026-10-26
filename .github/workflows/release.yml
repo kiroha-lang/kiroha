@@ -49,6 +49,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
           key: release-rust1.96-${{ matrix.runner }}-${{ matrix.target }}-${{ hashFiles('Cargo.lock', 'Cargo.toml') }}
+          restore-keys: release-rust1.96-${{ matrix.runner }}-${{ matrix.target }}-
       - name: Install build tools
         shell: bash
         run: |
@@ -115,7 +116,19 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cat > release-notes.md <<'EOF'
-          Kiroha 0.3.0 / Web1 reference implementation.
+          Kiroha 0.4.0 / Web1 reference implementation.
+
+          Named functions now use an explicit opening and matching named end:
+
+          ```text
+          fun fac(n) then
+            if n <= 1 then 1 else n * fac(n - 1)
+          end fun fac;
+          fac(5)
+          ```
+
+          This is a syntax change from 0.3.0. See
+          https://github.com/kiroha-lang/kiroha/blob/main/docs/migration-0.4.md.
 
           Install the latest verified binary (Linux/WSL or macOS, x86_64/ARM64):
 
@@ -124,7 +137,7 @@ jobs:
           ```
 
           The installer verifies SHA-256 and defaults to `~/.local/bin`.
-          Pin a version with `bash -s -- --version 0.3.0`, or set `KIROHA_INSTALL_DIR`.
+          Pin a version with `bash -s -- --version 0.4.0`, or set `KIROHA_INSTALL_DIR`.
           Linux binaries require glibc 2.35+; macOS binaries target macOS 13+.
           See the repository's installation and language documentation for details.
           EOF

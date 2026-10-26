@@ -1,5 +1,18 @@
 # Conformance report
 
+## 0.4.0 named-function update — 2026-10-26
+
+Local release tests pass **83/83** with PostgreSQL enabled and no ignored
+tests. Embedded conformance is **175/175**, adding 30 cases for named
+delimiters, rejected legacy definitions, empty/sequential/nested bodies,
+parameter/slot scope, capture and 100,000-call tail recursion. A parser unit
+test checks malformed delimiters and the mismatched closing name's byte span.
+The generation card measures 2638 tokens in o200k_base and 2618 in cl100k_base.
+See [migration](migration-0.4.md) and [acceptance](completion.md).
+
+The following environment, independent audit and original publication details
+are the dated **0.3.0 baseline**, not a fresh independent audit of 0.4.
+
 Implementation report required by spec §15.3. Token measurements
 (`measurement.json`) are a separate artifact and are not part of this report.
 

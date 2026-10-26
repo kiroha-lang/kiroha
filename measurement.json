@@ -1,6 +1,6 @@
 {
   "format": "kiroha-measurement/2",
-  "language": "0.3.0/Web1",
+  "language": "0.4.0/Web1",
   "status": "tokenization_only",
   "runtime_execution_evidence": null,
   "generation_evaluation_evidence": null,
@@ -26,21 +26,21 @@
   "documents": {
     "full_markdown": {
       "file": "spec.md",
-      "sha256": "1494e48dbeaeb7f46aea593c94560da38a7759059f4491d330755b5b1208687f",
-      "unicode_code_points": 206598,
-      "utf8_bytes": 206702,
+      "sha256": "3e22b0d33de34bfec86bdeb1a55c5ece44948b85338d0f454ef66001112158b6",
+      "unicode_code_points": 212125,
+      "utf8_bytes": 212229,
       "tokens": {
-        "o200k_base": 50527,
-        "cl100k_base": 50085
+        "o200k_base": 52083,
+        "cl100k_base": 51631
       }
     },
     "generation_card": {
-      "sha256": "3d1e74e1a5179b516e13e121e6a0fefb4e63d893d6e7b2b5207858e4cb5b5d33",
-      "unicode_code_points": 11093,
-      "utf8_bytes": 11093,
+      "sha256": "f4c2d6a65a1354fcc9247546b9af9a120e7ac8eac5e8ee46cea646e4191fa3c6",
+      "unicode_code_points": 11266,
+      "utf8_bytes": 11266,
       "tokens": {
-        "o200k_base": 2600,
-        "cl100k_base": 2580
+        "o200k_base": 2638,
+        "cl100k_base": 2618
       },
       "target_tokens_each_encoding": 4096,
       "within_target": true
@@ -48,34 +48,34 @@
   },
   "embedded_blocks": {
     "generation_card": {
-      "sha256": "3d1e74e1a5179b516e13e121e6a0fefb4e63d893d6e7b2b5207858e4cb5b5d33",
-      "unicode_code_points": 11093,
-      "utf8_bytes": 11093,
+      "sha256": "f4c2d6a65a1354fcc9247546b9af9a120e7ac8eac5e8ee46cea646e4191fa3c6",
+      "unicode_code_points": 11266,
+      "utf8_bytes": 11266,
       "tokens": {
-        "o200k_base": 2600,
-        "cl100k_base": 2580
+        "o200k_base": 2638,
+        "cl100k_base": 2618
       }
     },
     "conformance": {
-      "sha256": "d02c553a15451e07549ed50beef3ea8299a9c06c70864fd9c2d64fa2225dbd27",
-      "unicode_code_points": 52399,
-      "utf8_bytes": 52455,
+      "sha256": "f9b1a2fffbadca86636c7b0d55914d7752cb54bddcc3f3d779da9fac52eeb123",
+      "unicode_code_points": 56781,
+      "utf8_bytes": 56837,
       "tokens": {
-        "o200k_base": 16511,
-        "cl100k_base": 16261
+        "o200k_base": 17809,
+        "cl100k_base": 17548
       }
     },
     "measurement_corpus": {
-      "sha256": "e10e563c4bb18d1165e2278df515f166906bc595dc6542e8d1fad71afd003edf",
-      "unicode_code_points": 2347,
-      "utf8_bytes": 2347,
+      "sha256": "b864b321aad010ab0bddbdcd0685282f3f85030d8329432f58ac3860745a2a0a",
+      "unicode_code_points": 2370,
+      "utf8_bytes": 2370,
       "tokens": {
-        "o200k_base": 703,
-        "cl100k_base": 701
+        "o200k_base": 709,
+        "cl100k_base": 707
       }
     },
     "measurement_script": {
-      "sha256": "1bdadef75d46565ec7895628dc696a572b8dc2d3cf52df68ecfb39a78da3e10e",
+      "sha256": "62f99df05ca8b982920f2eb5969dcd884f768b0fc7640b5579e2b687b55fb944",
       "unicode_code_points": 8949,
       "utf8_bytes": 8949,
       "tokens": {
@@ -146,14 +146,14 @@
       "bool",
       "json"
     ],
-    "conformance_case_count": 145,
+    "conformance_case_count": 175,
     "expected_case_phases": {
       "abort": 6,
-      "check": 7,
+      "check": 11,
       "lex": 8,
-      "parse": 14,
+      "parse": 28,
       "runtime": 35,
-      "value": 75
+      "value": 87
     },
     "conformance_execution": "not run by this script"
   },
@@ -313,13 +313,13 @@
       }
     },
     {
-      "source": "apply(x){f}=f(x); apply(10){v=>v+1}",
-      "sha256": "0011d8ea75e256e90813c49a898e4911789d62aef5b47103c817991aca33fc94",
-      "unicode_code_points": 35,
-      "utf8_bytes": 35,
+      "source": "fun apply(x){f} then f(x) end fun apply; apply(10){v=>v+1}",
+      "sha256": "75df0a8a97bf74d8ab3aa854daf244c58d62948c70c14c94196aa64b05375c37",
+      "unicode_code_points": 58,
+      "utf8_bytes": 58,
       "tokens": {
-        "o200k_base": 18,
-        "cl100k_base": 18
+        "o200k_base": 24,
+        "cl100k_base": 24
       }
     }
   ],

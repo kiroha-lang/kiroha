@@ -65,7 +65,7 @@ impl BinOp {
     }
 }
 
-/// Body of a named function (an expression) or lambda (a sequence).
+/// Function body. Named functions and lambdas both use sequences.
 #[derive(Clone, Debug)]
 pub enum Body {
     Expr(NodeId),

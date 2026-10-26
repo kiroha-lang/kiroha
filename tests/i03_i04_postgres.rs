@@ -133,7 +133,7 @@ fn i04_transactions_and_pool_hygiene() {
     assert_eq!(result(&r), r#"["db","23505"]"#);
     assert_eq!(admin("select count(*) from kiroha_t where v=200"), vec![vec![Some("0".into())]]);
     // tx timeout aborts a pure loop and pending work, then rolls back
-    let r = pg(r#"d=db("main");spin()=spin();try tx(d,{timeout:200}){t=>sql(t,q`insert into kiroha_t(v) values (300)`);spin()} catch {e=>[e.code,e.data.operation]}"#);
+    let r = pg(r#"d=db("main");fun spin() then spin() end fun spin;try tx(d,{timeout:200}){t=>sql(t,q`insert into kiroha_t(v) values (300)`);spin()} catch {e=>[e.code,e.data.operation]}"#);
     assert_eq!(result(&r), r#"["timeout","tx"]"#);
     assert_eq!(admin("select count(*) from kiroha_t where v=300"), vec![vec![Some("0".into())]]);
     // tx timeout during a running statement cancels it server-side, so the

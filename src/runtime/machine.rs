@@ -216,7 +216,7 @@ impl<H: Host> Runtime<H> {
             SeqOwner::Program => &prog.items,
             SeqOwner::Node(id) => match prog.node(id) {
                 Node::Do { items } | Node::Try { items, .. } => items,
-                Node::Lambda(f) => match &f.body {
+                Node::Lambda(f) | Node::Define(f) => match &f.body {
                     Body::Seq(items) => items,
                     Body::Expr(_) => unreachable!(),
                 },

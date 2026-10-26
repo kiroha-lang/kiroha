@@ -1,6 +1,6 @@
 # Architecture
 
-This document describes how this implementation realizes the Kiroha 0.3.0 /
+This document describes how this implementation realizes the Kiroha 0.4.0 /
 Web1 contract. Language-visible behavior is fixed by [`spec.md`](../spec.md);
 everything here is an engineering choice.
 
@@ -43,8 +43,10 @@ nested queries inside holes work). The parser parses each hole as a complete
 `Expr`.
 
 The parser is hand-written recursive descent following the EBNF levels. The
-non-context-free rules are implemented directly: definition/binding detection
-by token lookahead, lambda-vs-record by checking for a lambda head followed by
+non-context-free rules are implemented directly: definitions start with `fun`
+and require a matching `end fun name`; bindings use IDENT/`=` lookahead.
+Named functions use the same sequence execution path as lambdas. Other rules
+include lambda-vs-record by checking for a lambda head followed by
 `=>`, the "at most one comparison" rule by tracking whether each operand of
 `==`/`!=` already contains an ungrouped comparison, the positional-lambda ban
 by stripping `Group` nodes from each argument, and duplicate decoded record

@@ -1,6 +1,6 @@
 # Kiroha language guide
 
-This guide teaches Kiroha 0.3.0 / Web1 by example. The normative definition is
+This guide teaches Kiroha 0.4.0 / Web1 by example. The normative definition is
 [`spec.md`](../spec.md); the [built-in reference](reference/builtins.md) lists
 every function. Examples show the result after `//`.
 
@@ -45,7 +45,7 @@ that never executes is still an error.
   terminators. Use `;` between sequence items.
 - Comments: `// to end of line`. There are no block comments.
 - Identifiers: `[A-Za-z_][A-Za-z0-9_]*`, case-sensitive.
-- Reserved words: `null true false if then else do try catch`.
+- Reserved words: `null true false if then else do try catch fun end`.
 - Numbers use JSON syntax without a sign: `0`, `12`, `1.5`, `2e-3`.
   `01`, `.5`, `1.`, `1abc` are lexical errors. `-1` is unary minus applied to `1`.
 - Strings use double quotes and JSON escapes (`\n`, `\"`, `\u00e9`, surrogate
@@ -85,31 +85,45 @@ a parse error. See [values and numbers](reference/values-and-numbers.md).
 
 ## 4. Sequences, bindings and functions
 
-Three places hold sequences: the top level, `do { ... }`, and lambda bodies.
+Sequences appear at the top level, in `do { ... }`, and in named-function,
+lambda and catch-handler bodies.
 
 ```kiroha
 total = 1 + 2;              // binding
-double(n) = n * 2;          // function definition
+fun double(n) then         // function definition
+  n * 2
+end fun double;
 double(total)               // 6
 ```
 
+Every named definition starts with `fun name(parameters) then` and ends with
+`end fun name`. Repeat the exact, case-sensitive opening name at the end;
+omitting it or closing a different function is a parse error. The body is a
+sequence: write local bindings and nested definitions directly, separated by
+semicolons. `fun` and `end` are reserved, but are still legal record keys.
+The old `double(n)=n*2` spelling is invalid in 0.4.0. See the
+[0.3 → 0.4 migration guide](migration-0.4.md).
+
 Rules worth remembering:
 
-- **No hoisting.** A name is visible only after its binding. `f()=g(); g()=1`
+- **No hoisting.** A name is visible only after its binding. `fun f() then g() end fun f; fun g() then 1 end fun g`
   is a check error.
 - **Named recursion only.** A definition can call itself:
-  `fac(n) = if n<=1 then 1 else n*fac(n-1)`.
+  `fun fac(n) then if n<=1 then 1 else n*fac(n-1) end fun fac`.
 - **No rebinding in one scope.** `x=1; x=2` is a `duplicate_binding` error, but
   inner scopes may shadow: `x=1; do { x=2; x }` is `2`, and the outer `x` is
   still `1`.
-- **Closures capture lexically.** `x=1; f()=x; do { x=2; f() }` is `1`.
+- **Closures capture lexically.** `x=1; fun f() then x end fun f; do { x=2; f() }` is `1`.
 - **Sequence value.** The final expression is the value; an empty sequence or
   one ending in a binding/definition is `null`. A trailing `;` changes nothing:
   `do { 1; }` is `1`, `do { x=1; }` is `null`.
 - **Proper tail calls.** Tail-recursive loops run in constant space:
 
 ```kiroha
-count(n, acc) = if n == 0 then acc else count(n - 1, acc + 1);
+fun count(n, acc) then
+  next = acc + 1;
+  if n == 0 then acc else count(n - 1, next)
+end fun count;
 count(100000, 0)            // 100000
 ```
 
@@ -140,7 +154,7 @@ fold([1, 2, 3], 0){(acc, x) => acc + x}   // 6
 A user function declares the callback slot after its parameters:
 
 ```kiroha
-apply(x){f} = f(x);
+fun apply(x){f} then f(x) end fun apply;
 apply(10){v => v + 1}           // 11
 ```
 
@@ -155,7 +169,7 @@ apply(10){g}               parse error: the trailing callback must be a lambda l
 
 To pass an existing function, wrap it: `apply(10){v => g(v)}`. Functions can
 still be ordinary data — stored in records, arrays, or passed to parameters
-that expect them: `invoke(f, x) = f(x); invoke(g, 2)`.
+that expect them: `fun invoke(f, x)  then  f(x) end fun invoke; invoke(g, 2)`.
 
 Parentheses are always required, even for no arguments: `now()`, `f(){x=>x}`.
 
@@ -204,7 +218,7 @@ Precedence, highest first:
 - `??` replaces only `null`: `0 ?? 7` is `0`, `null ?? 7` is `7`.
 
 ```kiroha
-grade(n) = if n >= 90 then "A" else if n >= 80 then "B" else "C";
+fun grade(n)  then  if n >= 90 then "A" else if n >= 80 then "B" else "C" end fun grade;
 grade(85)                       // "B"
 ```
 
@@ -235,14 +249,14 @@ Ordinary runtime failures are records `{code, message, data}` and can be
 caught:
 
 ```kiroha
-safe_div(a, b) = try a / b catch {e => e.code};
+fun safe_div(a, b)  then  try a / b catch {e => e.code} end fun safe_div;
 [safe_div(1, 4), safe_div(1, 0)]       // [0.25,"number"]
 ```
 
 Raise your own with `fail`:
 
 ```kiroha
-check_age(n) = if n < 0 then fail({code:"bad_age", message:"negative", data:{n}}) else n;
+fun check_age(n)  then  if n < 0 then fail({code:"bad_age", message:"negative", data:{n}}) else n end fun check_age;
 try check_age(-1) catch {e => e.data}  // {"n":-1}
 ```
 

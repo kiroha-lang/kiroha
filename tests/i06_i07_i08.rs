@@ -105,7 +105,7 @@ fn i07_cpu_bound_cancellation_and_bounded_parallelism() {
     // A pure infinite tail loop is stopped by the root deadline.
     let t = Instant::now();
     let r = run(
-        r#"go()=go(); try go() catch {e=>"caught"}"#,
+        r#"fun go() then go() end fun go; try go() catch {e=>"caught"}"#,
         Some(r#"{"format":"kiroha-host/1","limits":{"deadline_ms":200,"eval_steps":1000000000000}}"#),
     );
     assert_eq!(r.code, 3);
@@ -113,7 +113,7 @@ fn i07_cpu_bound_cancellation_and_bounded_parallelism() {
     assert!(t.elapsed().as_millis() < 3000);
     // A finite builtin may legitimately finish before a wall-clock deadline
     // on a fast host. Repeat the work so success cannot race the assertion.
-    let repeat = |src: &str| format!("again()=do{{{src};again()}};again()");
+    let repeat = |src: &str| format!("fun again() then {src};again() end fun again;again()");
     // Long builtin work (JSON, equality, schema checks) observes the deadline.
     for src in [
         "x=dump(range(0,3000000));len(parse(x))",
@@ -145,7 +145,7 @@ fn i07_cpu_bound_cancellation_and_bounded_parallelism() {
     // JSON escaping, URL encoding, hashing/equality of huge shared strings.
     let big = "s=fold(range(0,24),\"x\"){(a,i)=>a+a};";
     for src in [
-        "d(x,n)=if n==0 then x else d({a:x,b:x},n-1); check(1,maybe(d(json,26)))".to_string(),
+        "fun d(x,n) then if n==0 then x else d({a:x,b:x},n-1) end fun d; check(1,maybe(d(json,26)))".to_string(),
         format!("{big} sort(map(range(0,3000)){{i=>s}})"),
         "c=fold(range(0,26),\"\\u0001\"){(a,i)=>a+a}; len(dump(c))".to_string(),
         format!("{big} len(url(\"https://a.example\",[replace(s,\"x\",\" \")]))"),
@@ -184,14 +184,14 @@ fn i07_cpu_bound_cancellation_and_bounded_parallelism() {
     // Huge exponent spellings are rejected without quadratic parsing.
     let t = Instant::now();
     let r = run(
-        "d(n,a)=if n==0 then a else d(n-1,a+a); number(\"1e\"+d(22,\"1\"))",
+        "fun d(n,a) then if n==0 then a else d(n-1,a+a) end fun d; number(\"1e\"+d(22,\"1\"))",
         Some(r#"{"format":"kiroha-host/1","limits":{"memory_bytes":4000000000}}"#),
     );
     assert!(r.stdout.contains("\"resource\":\"number\""), "{}", r.stdout);
     assert!(t.elapsed().as_millis() < 3000);
     // Converting a huge (shared) result for the CLI honours the memory quota.
     let r = run(
-        "d(x,n)=if n==0 then x else d([x,x],n-1); d(1,22)",
+        "fun d(x,n) then if n==0 then x else d([x,x],n-1) end fun d; d(1,22)",
         Some(r#"{"format":"kiroha-host/1","limits":{"memory_bytes":100000000}}"#),
     );
     assert_eq!(r.code, 3, "{}", r.stdout);
@@ -212,10 +212,10 @@ fn i07_cpu_bound_cancellation_and_bounded_parallelism() {
     }
     // memory_bytes is enforced before large allocations (+, dump, encode)
     for src in [
-        "d(n,a)=if n==0 then a else d(n-1,a+a); len(d(40,[1]))",
-        "d(n,a)=if n==0 then a else d(n-1,a+a); len(d(40,\"x\"))",
-        "d(n,a)=if n==0 then a else d(n-1,a+a); x=d(20,\"x\"); len(dump(map(range(0,500)){i=>x}))",
-        "d(n,a)=if n==0 then a else d(n-1,a+a); x=d(26,\"x\"); len(encode(x))+len(encode(x))",
+        "fun d(n,a) then if n==0 then a else d(n-1,a+a) end fun d; len(d(40,[1]))",
+        "fun d(n,a) then if n==0 then a else d(n-1,a+a) end fun d; len(d(40,\"x\"))",
+        "fun d(n,a) then if n==0 then a else d(n-1,a+a) end fun d; x=d(20,\"x\"); len(dump(map(range(0,500)){i=>x}))",
+        "fun d(n,a) then if n==0 then a else d(n-1,a+a) end fun d; x=d(26,\"x\"); len(encode(x))+len(encode(x))",
     ] {
         let r = run(src, Some(r#"{"format":"kiroha-host/1","limits":{"memory_bytes":50000000,"eval_steps":100000000000}}"#));
         assert_eq!(r.code, 3, "{src}: {}", r.stdout);
@@ -225,7 +225,7 @@ fn i07_cpu_bound_cancellation_and_bounded_parallelism() {
     // monopolizing the evaluator.
     let t = Instant::now();
     let r = run(
-        "d(n,a)=if n==0 then a else d(n-1,a+a); number(d(21,\"1\"))",
+        "fun d(n,a) then if n==0 then a else d(n-1,a+a) end fun d; number(d(21,\"1\"))",
         Some(r#"{"format":"kiroha-host/1","limits":{"memory_bytes":4000000000,"deadline_ms":300}}"#),
     );
     assert_eq!(r.code, 3, "{}", r.stdout);
@@ -242,11 +242,11 @@ fn i07_cpu_bound_cancellation_and_bounded_parallelism() {
     let r = run(r#"parallel([1,2],2){x=>if x==1 then do{sleep(5000);1} else fail({code:"x",message:"",data:{}})}"#, None);
     assert_eq!(error_code(&r), "x");
     // Step budget exhaustion is a resource abort.
-    let r = run("go(n)=go(n+1);go(0)", Some(r#"{"format":"kiroha-host/1","limits":{"eval_steps":1000}}"#));
+    let r = run("fun go(n) then go(n+1) end fun go;go(0)", Some(r#"{"format":"kiroha-host/1","limits":{"eval_steps":1000}}"#));
     assert!(r.stdout.contains("\"reason\":\"resource\""));
     // A million-iteration tail loop runs in bounded space under a sufficient budget.
     let r = run(
-        "go(n,a)=if n==0 then a else go(n-1,a+1);go(1000000,0)",
+        "fun go(n,a) then if n==0 then a else go(n-1,a+1) end fun go;go(1000000,0)",
         Some(r#"{"format":"kiroha-host/1","limits":{"eval_steps":100000000}}"#),
     );
     assert_eq!(result(&r), "1000000");
@@ -306,7 +306,7 @@ fn i08_cli_protocol() {
     assert_eq!(result(&out), r#"[1,"a"]"#);
     // spec card and version
     let out = finish(kiroha().args(["spec", "--compact"]).output().unwrap());
-    assert!(out.stdout.starts_with("Kiroha 0.3.0 / Web1\n") && out.stdout.ends_with("do not infer absent APIs.\n"));
+    assert!(out.stdout.starts_with("Kiroha 0.4.0 / Web1\n") && out.stdout.ends_with("do not infer absent APIs.\n"));
     let out = finish(kiroha().arg("--version").output().unwrap());
     assert!(out.stdout.contains("\"cli\":\"kiroha-cli/1\""));
     // conformance corpus passes

@@ -1,5 +1,20 @@
 # Web1 acceptance record
 
+## 0.4.0 named-function revision (2026-10-26)
+
+Named functions now use `fun name(params) then sequence end fun name`.
+The parser requires the exact closing name, rejects old bare definitions,
+and executes named bodies through the common sequence path. Specification,
+generation card, fixtures, examples and current guides use the new syntax.
+See [migration](migration-0.4.md).
+
+Local verification: **83 PostgreSQL-enabled tests**, **175/175 conformance
+cases**, including 30 new function cases and a parser delimiter/span
+regression. The compact card measures **2638/2618 tokens**, within 4096.
+The dated 0.3 audit and publication evidence below remains historical.
+
+## 0.3 baseline acceptance
+
 Date: 2026-10-26. Implementation source: `7b79e8e5316f2825af4629f182dc4b815d83ffbb`.
 The local checkout is `/home/mizushima/dev/kiri`; the language is **Kiroha**.
 Final independent audit: **audit 23 completed with 0 confirmed violations**.
