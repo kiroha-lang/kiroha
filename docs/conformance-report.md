@@ -10,6 +10,11 @@ test checks malformed delimiters and the mismatched closing name's byte span.
 The generation card measures 2638 tokens in o200k_base and 2618 in cl100k_base.
 See [migration](migration-0.4.md) and [acceptance](completion.md).
 
+The [v0.4.0 release CI](https://github.com/kiroha-lang/kiroha/actions/runs/40271474229)
+also passed these gates and the four native builds on source `b8314f3`.
+Public latest/pinned installations both passed 175/175 cases and executed
+the new named-end factorial definition. See the [publication evidence](completion.md#040-named-function-revision-2026-10-26).
+
 The following environment, independent audit and original publication details
 are the dated **0.3.0 baseline**, not a fresh independent audit of 0.4.
 

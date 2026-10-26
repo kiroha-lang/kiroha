@@ -13,6 +13,22 @@ cases**, including 30 new function cases and a parser delimiter/span
 regression. The compact card measures **2638/2618 tokens**, within 4096.
 The dated 0.3 audit and publication evidence below remains historical.
 
+[v0.4.0](https://github.com/kiroha-lang/kiroha/releases/tag/v0.4.0) was published
+from `b8314f3c4f1bb2825a8d62fede3502d3fbc7c952` after the
+[release CI](https://github.com/kiroha-lang/kiroha/actions/runs/40271474229)
+passed the full PostgreSQL-backed 83 tests, 8 installer tests, 175 cases,
+Clippy, TLC and exact measurement reproduction. Each of the four native
+Linux/macOS × x86_64/ARM64 builds passed all 175 cases, exact arithmetic and
+system-Bash installer tests. All five release checksums match GitHub's stored
+asset digests.
+
+Public latest and pinned `curl | bash` installs into paths containing spaces
+both reported `kiroha-rs/0.4.0`, evaluated the new `fun fac(n) then ... end fun fac`
+definition at 20 as exact `2432902008176640000`, passed 175/175 cases, and
+rejected bare definitions, mismatched end names and missing end markers.
+Both installed Linux x86_64 binaries have SHA-256
+`b7e94d60315471f0d00afbb09d57bea76abf8b7e2249eb2587e76ea223e264e6`.
+
 ## 0.3 baseline acceptance
 
 Date: 2026-10-26. Implementation source: `7b79e8e5316f2825af4629f182dc4b815d83ffbb`.

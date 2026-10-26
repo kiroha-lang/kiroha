@@ -12,6 +12,12 @@ The compact card measures 2638/2618 tokens. The dated acceptance/audit and
 0.3.0 publication records below are baseline evidence, not a new independent
 audit of 0.4.
 
+[v0.4.0 is public](https://github.com/kiroha-lang/kiroha/releases/tag/v0.4.0),
+source `b8314f3`. The [full release CI](https://github.com/kiroha-lang/kiroha/actions/runs/40271474229)
+passed all gates and four native builds. Public latest/pinned installers were
+executed; both installed 0.4.0 binaries passed 175/175 cases, factorial,
+exact-decimal execution, and rejection of legacy/malformed definitions.
+
 ## Completed 0.3 baseline
 
 The requested implementation of `spec.md`, comprehensive documentation and
@@ -20,7 +26,7 @@ new language name are complete as of 2026-10-26. The working name changed becaus
 [docs/naming.md](docs/naming.md) for the migration and dated account lookup.
 The checkout remains `/home/mizushima/dev/kiri`.
 
-## Current state
+## 0.3 baseline state
 
 - Audits 1–22 are fixed. The recent boundary findings and fixes
   are recorded in [the conformance report](docs/conformance-report.md).

@@ -86,5 +86,9 @@ and installed Linux binary checksum.
 
 The 0.4.0 language revision adds explicit named-function delimiters; see the
 [migration guide](migration-0.4.md) before running 0.3 source on 0.4.
+[v0.4.0](https://github.com/kiroha-lang/kiroha/releases/tag/v0.4.0) passed its
+[four-platform release CI](https://github.com/kiroha-lang/kiroha/actions/runs/40271474229).
+Public latest and pinned installers both installed 0.4.0 successfully, and
+the installed binaries passed 175/175 cases and the named-end factorial example.
 
 To remove a default installation, delete `~/.local/bin/kiroha`.
