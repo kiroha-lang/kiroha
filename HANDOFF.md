@@ -16,7 +16,13 @@ canceled handshakes, session reset, lost COMMIT acknowledgment and mixed
 aliases with PostgreSQL 16.4. All 104 release tests pass without skips, alongside 253 conformance cases,
 Clippy, both TLC models, 8 installer tests, docs/examples and plugin installation
 with Codex 0.164.0. TLS verifies the trusted CA and rejects bad chains/identities.
-Hosted checks and publication still need to finish. The original uncommitted handoff is
+PR6 is merged at `8f52d533fb16f4f8d9099de9e705b7d7174e899c` and the
+immutable `v0.7.0` tag points there. PR checks passed. Publication is waiting
+for native builds. macOS 14 runner retirement caused long ARM queues; the
+release workflow migration uses macOS 15 with Xcode 16.2 on both architectures.
+An optional `release_tag` dispatch input checks out and verifies the existing
+tag in all jobs, allowing recovery with a repaired workflow without retagging.
+Do not publish until the dispatched verification and all four builds pass. The original uncommitted handoff is
 preserved in `HANDOFF-codex.md`; its configuration/testing claims are
 historical and the current tree/test output is authoritative.
 
