@@ -89,7 +89,7 @@ root/request scope with `resource`. See
 
 ## Independent audits
 
-Twelve independent read-and-execute audits of sections 2–15 were run against the
+Thirteen independent read-and-execute audits of sections 2–15 were run against the
 code (each walked the normative rules section by section and confirmed every
 finding by running programs or custom fixture manifests).
 
@@ -117,6 +117,8 @@ finding by running programs or custom fixture manifests).
 | 11 (full, §2–§15) | 2 (§8.3): `sql` result decoding not bounded by the operation timeout (and the adapter converted huge numeric cells without yielding); checkpoints too sparse when JSON/CLI output contains many huge numbers | Fixed: decoding is armed with min(operation, scope deadlines) and expires as an ordinary `sql` timeout; the adapter yields after large cells; number checkpoints are weighted by coefficient size in `dump`, `parse` and wire output. Regressions in `tests/i03_i04_postgres.rs` and `tests/i06_i07_i08.rs`. All normal results re-verified correct; every other subsection "verified, no violation" |
 
 | 12 (full, §2–§15) | 1 (low): `reply` accepted a syntactically invalid custom Content-Type parameter for Bytes bodies | Fixed: media types validated per RFC 9110 §8.3.1 (`token "=" (token / quoted-string)` parameters). Regressions in `src/builtins/headers.rs` unit tests and `tests/prose_regressions.rs`. Every other subsection of §2–§15 "verified, no violation", including normal results, interruptibility, memory quotas, deep nesting, scheduler step counts and PostgreSQL 16 behaviour |
+
+| 13 (full, §2–§15, incl. RFC syntax) | 3 (low–medium): empty media-type parameters (`application/json;`) rejected; http/get/post header and body rules checked after `timeout`/`max_bytes`; malformed chunked trailer fields accepted by the server | Fixed: RFC 9110 §5.6.6 empty parameters accepted; option rules validated in table order; trailer fields validated (RFC 9112 §7.1.2). Regressions in `tests/prose_regressions.rs`, `tests/i05_server.rs`, header unit tests. Every other subsection "verified, no violation" |
 
 Audit 2 recorded "no new violations" for §2, §3, §4, §5, §6, §7, §8, §9,
 §10 (apart from the fixture header checks), §11 (apart from the two SQL

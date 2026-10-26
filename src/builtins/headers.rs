@@ -77,7 +77,8 @@ pub fn is_json_media(v: &str) -> bool {
     if !mt.eq_ignore_ascii_case("application/json") {
         return false;
     }
-    let params: Vec<&str> = parts.collect();
+    // RFC 9110 §5.6.6: `*( OWS ";" OWS [ parameter ] )` — empty parameters are legal.
+    let params: Vec<&str> = parts.filter(|p| !p.trim_matches(|c| c == ' ' || c == '\t').is_empty()).collect();
     match params.len() {
         0 => true,
         1 => {
@@ -134,6 +135,9 @@ pub fn is_media_type(v: &str) -> bool {
     ok_type
         && parts[1..].iter().all(|p| {
             let p = ows(p);
+            if p.is_empty() {
+                return true; // empty parameter (RFC 9110 §5.6.6)
+            }
             match p.split_once('=') {
                 Some((k, val)) => {
                     is_token(k)
@@ -204,5 +208,10 @@ mod tests {
         assert!(!is_media_type("text/plain; a="));
         assert!(!is_media_type("text/plain; a=\"open"));
         assert!(!is_media_type("text"));
+        assert!(is_media_type("text/plain;"));
+        assert!(is_media_type("text/plain; ; charset=x;"));
+        assert!(is_json_media("application/json;"));
+        assert!(is_json_media("application/json; charset=utf-8;"));
+        assert!(!is_json_media("application/json; charset=utf-8; a=b"));
     }
 }

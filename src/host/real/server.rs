@@ -324,6 +324,17 @@ async fn read_chunked(rd: &mut OwnedReadHalf, mut buf: Vec<u8>, max_body: u64) -
                 if t.is_empty() {
                     return Ok(out);
                 }
+                // trailer-section = *( field-line CRLF ) (RFC 9112 §7.1.2)
+                let ok = match t.iter().position(|&c| c == b':') {
+                    Some(i) => {
+                        let name = std::str::from_utf8(&t[..i]).unwrap_or("");
+                        crate::builtins::headers::valid_field(name, &t[i + 1..])
+                    }
+                    None => false,
+                };
+                if !ok {
+                    return Err(BodyFault::BadFraming);
+                }
             }
         }
         if size > max_body || out.len() as u64 + size > max_body {

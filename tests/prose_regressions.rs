@@ -98,7 +98,14 @@ const MANIFEST: &str = r#"{
    "expect":{"phase":"value","json":"[7,true]"}},
   {"id":"reply-custom-content-type-must-be-valid",
    "source":"[(try do {reply(200,encode(\"x\"),{\"Content-Type\":\"text/plain; q\"}); \"ok\"} catch {e=>e.code}),(try do {reply(200,encode(\"x\"),{\"Content-Type\":\"text/plain; charset=utf-8\"}); \"ok\"} catch {e=>e.code})]",
-   "expect":{"phase":"value","json":"[\"argument\",\"ok\"]"}}
+   "expect":{"phase":"value","json":"[\"argument\",\"ok\"]"}},
+  {"id":"empty-media-type-parameters-are-legal",
+   "source":"r(h)={method:\"POST\",path:\"/\",params:{},query:{},headers:{\"content-type\":[h]},body:encode(\"1\")};[do {reply(200,encode(\"x\"),{\"Content-Type\":\"text/plain;\"}); \"ok\"},do {reply(200,{a:1},{\"Content-Type\":\"application/json;\"}); \"ok\"},input(r(\"application/json;\")),input(r(\"application/json; charset=utf-8;\"))]",
+   "expect":{"phase":"value","json":"[\"ok\",\"ok\",1,1]"}},
+  {"id":"http-options-validated-in-table-order",
+   "source":"u=\"https://f.invalid/\";[(try get(u,{headers:{\"accept-encoding\":\"br\"},timeout:null}) catch {e=>e.code}),(try post(u,{a:1},{headers:{\"content-type\":\"text/plain\"},timeout:\"x\"}) catch {e=>e.code}),(try http(\"GET\",u,{body:encode(\"x\"),timeout:\"x\"}) catch {e=>e.code}),(try http(\"HEAD\",u,{body:encode(\"\"),max_bytes:\"big\"}) catch {e=>e.code})]",
+   "host":{"capabilities":{"http":["https://f.invalid"]}},
+   "expect":{"phase":"value","json":"[\"argument\",\"argument\",\"argument\",\"argument\"]"}}
  ]}"#;
 
 #[test]

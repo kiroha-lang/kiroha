@@ -111,6 +111,15 @@ fn routing_framing_limits_and_shutdown() {
     }
     let r = send(port, b"GET /a/fixed HTTP/1.1\r\nHost: x\r\n\r\n");
     assert_eq!(status(&r), "200");
+    // Malformed chunked trailer fields are framing errors.
+    for raw in [
+        &b"POST /in HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\n\r\n7\r\n{\"n\":1}\r\n0\r\nBad Trailer\r\n\r\n"[..],
+        b"POST /in HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\n\r\n7\r\n{\"n\":1}\r\n0\r\nX: \x01\r\n\r\n",
+    ] {
+        assert_eq!(status(&send(port, raw)), "400");
+    }
+    let r = send(port, b"POST /in HTTP/1.1\r\nHost: x\r\nContent-Type: application/json; charset=utf-8;\r\nTransfer-Encoding: chunked\r\n\r\n7\r\n{\"n\":3}\r\n0\r\nX-T: ok\r\n\r\n");
+    assert_eq!(body(&r), r#"{"n":3}"#);
     // Many small header fields within header_bytes are fine.
     let mut many = b"GET /a/fixed HTTP/1.1\r\nHost: x\r\n".to_vec();
     for i in 0..300 {

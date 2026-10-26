@@ -179,31 +179,7 @@ impl<H: Host> Runtime<H> {
             Some(h) => headers::outbound(op, h, None)?,
             None => Vec::new(),
         };
-        if let Some(q) = field(o, "query") {
-            let pairs = url::query_pairs(op, q, None)?;
-            url::append_query(&mut url, &pairs);
-        }
-        let mut body = None;
-        if kind == HttpKind::Raw {
-            if let Some(bv) = field(o, "body") {
-                match bv {
-                    Value::Bytes(bb) => body = Some(bb.to_vec()),
-                    other => return Err(opt_type_err(op, "body", "bytes", other)),
-                }
-            }
-        }
-        let timeout = match field(o, "timeout") {
-            Some(v) => opt_int(op, "timeout", v, 1)?,
-            None => 10000,
-        };
-        let max_bytes = match field(o, "max_bytes") {
-            Some(v) => opt_int(op, "max_bytes", v, 0)?,
-            None => 8_388_608,
-        };
-        reject_unknown(op, o, known)?;
-        if (method == "GET" || method == "HEAD") && body.is_some() {
-            return Err(arg_err(op, "GET and HEAD requests cannot carry a body"));
-        }
+        // Header-field rules belong to the `headers` option (validated first).
         if let Some(ae) = headers::get(&hdrs, "accept-encoding") {
             let ok = ae.split(',').all(|tok| {
                 let coding = tok.split(';').next().unwrap_or("").trim();
@@ -224,6 +200,33 @@ impl<H: Host> Runtime<H> {
             if !headers::identity_coding(headers::get(&hdrs, "content-encoding")) {
                 return Err(arg_err(op, "post Content-Encoding must be identity"));
             }
+        }
+        if let Some(q) = field(o, "query") {
+            let pairs = url::query_pairs(op, q, None)?;
+            url::append_query(&mut url, &pairs);
+        }
+        let mut body = None;
+        if kind == HttpKind::Raw {
+            if let Some(bv) = field(o, "body") {
+                match bv {
+                    Value::Bytes(bb) => body = Some(bb.to_vec()),
+                    other => return Err(opt_type_err(op, "body", "bytes", other)),
+                }
+            }
+        }
+        if (method == "GET" || method == "HEAD") && body.is_some() {
+            return Err(arg_err(op, "GET and HEAD requests cannot carry a body"));
+        }
+        let timeout = match field(o, "timeout") {
+            Some(v) => opt_int(op, "timeout", v, 1)?,
+            None => 10000,
+        };
+        let max_bytes = match field(o, "max_bytes") {
+            Some(v) => opt_int(op, "max_bytes", v, 0)?,
+            None => 8_388_608,
+        };
+        reject_unknown(op, o, known)?;
+        if kind == HttpKind::Post {
             body = post_body;
         }
         if !self.config.capabilities.http.contains(&url.origin()) {
