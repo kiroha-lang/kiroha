@@ -85,7 +85,7 @@ type Item = {name:str, price:num};
 ```
 
 `get` reads the response as JSON. `check` makes sure it is a list of items
-with the expected fields. `map` selects each name. In a second terminal, run:
+with the expected fields. `map` selects each name. In a second terminal, open the same folder and run:
 
 ```sh
 kiroha run fetch.kiroha --json --host local.host.json
