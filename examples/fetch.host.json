@@ -1,1 +1,1 @@
-{"format": "kiri-host/1", "capabilities": {"http": ["https://api.github.com"]}}
+{"format": "kiroha-host/1", "capabilities": {"http": ["https://api.github.com"]}}

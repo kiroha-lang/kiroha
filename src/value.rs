@@ -274,6 +274,10 @@ impl Value {
         Value::num(Decimal::from_i64(i))
     }
 
+    pub fn uint(i: u64) -> Value {
+        Value::num(Decimal::from_u64(i))
+    }
+
     pub fn array(v: Vec<Value>) -> Value {
         Value::Array(Rc::new(v))
     }

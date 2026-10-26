@@ -41,7 +41,7 @@ coefficients to 100,000 decimal digits as a host resource quota (exceeding it
 is a `resource` abort, never rounding) and exponents to about ±2.3×10^18. "Integer" means a number with no
 fractional part; there is no separate integer type.
 
-```kiri
+```kiroha
 [0.1+0.2, 1/3, 2/3, -5%2, 5%-2, 1e100*1e-100]
 // [0.3,0.3333333333333333333333333333333333,0.6666666666666666666666666666666667,-1,1,1]
 ```

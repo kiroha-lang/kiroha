@@ -1,5 +1,5 @@
 {
-  "format": "kiri-host/1",
+  "format": "kiroha-host/1",
   "capabilities": {"databases": ["main"]},
-  "database_pools": {"main": {"dsn_env": "KIRI_PG_MAIN"}}
+  "database_pools": {"main": {"dsn_env": "KIROHA_PG_MAIN"}}
 }

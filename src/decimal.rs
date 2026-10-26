@@ -42,7 +42,7 @@ pub struct Decimal {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Overflow;
 
-/// Arithmetic failure: either a Kiri-level division by zero or a resource abort.
+/// Arithmetic failure: either a Kiroha-level division by zero or a resource abort.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DivError {
     DivisionByZero,

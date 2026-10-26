@@ -407,8 +407,8 @@ impl<H: Host> Runtime<H> {
                     format!("pagination stopped: {reason}"),
                     vec![
                         ("reason", Value::str(reason)),
-                        ("pages", Value::int(pages as i64)),
-                        ("items", Value::int(items as i64)),
+                        ("pages", Value::uint(pages)),
+                        ("items", Value::uint(items)),
                     ],
                 ))
             };

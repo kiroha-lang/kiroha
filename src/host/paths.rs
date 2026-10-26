@@ -11,7 +11,7 @@ pub enum PathError {
     Invalid(&'static str),
 }
 
-/// Resolve a Kiri path against the filesystem root. Returns the normalized
+/// Resolve a Kiroha path against the filesystem root. Returns the normalized
 /// absolute path of a regular-file target.
 pub fn resolve(root: &str, path: &str) -> Result<String, PathError> {
     if path.is_empty() {

@@ -1,0 +1,45 @@
+name: Verify Web1
+
+on: [push, pull_request, workflow_dispatch]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: kiroha
+          POSTGRES_DB: postgres
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U kiroha -d postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      KIROHA_TEST_PG_DSN: host=127.0.0.1 port=55432 user=kiroha dbname=postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.96.0
+        with:
+          components: clippy
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - run: sudo apt-get update && sudo apt-get install -y libclang-dev
+      - run: cargo build --release --locked
+      - run: cargo test --release --locked
+      - run: timeout 60 target/release/kiroha conformance spec.md --json
+      - run: cargo clippy --release --all-targets --locked -- -D warnings
+      - run: timeout 60 ./formal/check.sh
+      - run: python -m pip install tiktoken==0.14.0
+      - run: python scripts/measure.py --check

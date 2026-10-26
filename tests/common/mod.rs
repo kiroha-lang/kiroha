@@ -1,21 +1,21 @@
 //! Shared helpers for the integration scenarios (spec §15.3 I01–I08).
 #![allow(dead_code)]
 
-use kiri::value::Value;
+use kiroha::value::Value;
 use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::path::PathBuf;
 use std::process::{Command, Output, Stdio};
 
-pub fn kiri() -> Command {
-    Command::new(env!("CARGO_BIN_EXE_kiri"))
+pub fn kiroha() -> Command {
+    Command::new(env!("CARGO_BIN_EXE_kiroha"))
 }
 
 static COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
 pub fn tempdir(name: &str) -> PathBuf {
     let n = COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-    let d = std::env::temp_dir().join(format!("kiri-it-{}-{}-{}", name, std::process::id(), n));
+    let d = std::env::temp_dir().join(format!("kiroha-it-{}-{}-{}", name, std::process::id(), n));
     let _ = std::fs::remove_dir_all(&d);
     std::fs::create_dir_all(&d).unwrap();
     d
@@ -31,20 +31,20 @@ pub struct Run {
 pub fn finish(out: Output) -> Run {
     let stdout = String::from_utf8(out.stdout).unwrap();
     let stderr = String::from_utf8(out.stderr).unwrap();
-    let json = kiri::json::parse(stdout.trim_end()).unwrap_or(Value::Null);
+    let json = kiroha::json::parse(stdout.trim_end()).unwrap_or(Value::Null);
     Run { json, stdout, stderr, code: out.status.code().unwrap_or(-1) }
 }
 
-/// Run a Kiri program with a host configuration JSON text.
+/// Run a Kiroha program with a host configuration JSON text.
 pub fn run(src: &str, host: Option<&str>) -> Run {
     run_env(src, host, &[])
 }
 
 pub fn run_env(src: &str, host: Option<&str>, env: &[(&str, &str)]) -> Run {
     let dir = tempdir("run");
-    let sp = dir.join("main.kiri");
+    let sp = dir.join("main.kiroha");
     std::fs::write(&sp, src).unwrap();
-    let mut c = kiri();
+    let mut c = kiroha();
     c.arg("run").arg(&sp).arg("--json");
     if let Some(h) = host {
         let hp = dir.join("host.json");
@@ -64,9 +64,9 @@ pub fn plain(w: &Value) -> String {
         let t = r.get("t").unwrap().as_str().unwrap();
         match t {
             "null" => "null".into(),
-            "bool" => kiri::json::dump(r.get("v").unwrap()),
+            "bool" => kiroha::json::dump(r.get("v").unwrap()),
             "number" => r.get("v").unwrap().as_str().unwrap().to_string(),
-            "string" => kiri::json::dump(r.get("v").unwrap()),
+            "string" => kiroha::json::dump(r.get("v").unwrap()),
             "bytes" => format!("b64:{}", r.get("base64").unwrap().as_str().unwrap()),
             "array" => format!("[{}]", r.get("v").unwrap().as_array().unwrap().iter().map(go).collect::<Vec<_>>().join(",")),
             "record" => format!(
@@ -78,7 +78,7 @@ pub fn plain(w: &Value) -> String {
                     .iter()
                     .map(|p| {
                         let p = p.as_array().unwrap();
-                        format!("{}:{}", kiri::json::dump(&p[0]), go(&p[1]))
+                        format!("{}:{}", kiroha::json::dump(&p[0]), go(&p[1]))
                     })
                     .collect::<Vec<_>>()
                     .join(",")

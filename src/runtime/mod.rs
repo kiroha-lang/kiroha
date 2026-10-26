@@ -1,7 +1,7 @@
 //! Task engine: scheduler, abort scopes, deadlines, budgets and effect
 //! plumbing (spec §8, §9, §14, §16.3).
 //!
-//! Every Kiri task is an explicit-continuation machine (`Task::stack` +
+//! Every Kiroha task is an explicit-continuation machine (`Task::stack` +
 //! `Task::ctl`). The scheduler runs ready tasks FIFO for at most
 //! [`QUANTUM`] semantic steps, then requeues them. When no task is ready it
 //! waits for the next host event or runtime timer.
@@ -208,7 +208,7 @@ pub enum RootOutcome {
     Value(Value),
     Error { error: Value, span: Option<Span> },
     Abort { reason: &'static str, data: Value },
-    /// A conformance-harness failure outside Kiri semantics.
+    /// A conformance-harness failure outside Kiroha semantics.
     Harness(String),
 }
 
@@ -909,7 +909,7 @@ pub fn abort_data(sig: &AbortSig) -> Value {
 }
 
 pub fn timeout_error(op: &str, ms: u64, outcome: Option<&str>) -> Value {
-    let mut data = vec![("operation", Value::str(op)), ("timeout", Value::int(ms as i64))];
+    let mut data = vec![("operation", Value::str(op)), ("timeout", Value::uint(ms))];
     if let Some(o) = outcome {
         data.push(("outcome", Value::str(o)));
     }

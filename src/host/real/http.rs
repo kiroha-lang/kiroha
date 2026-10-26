@@ -216,7 +216,7 @@ where
             }
             match buf.windows(2).position(|w| w == b"\r\n") {
                 None if buf.len() > STATUS_LINE_MAX => return net("framing", "unknown"),
-                Some(le) if buf.len() - (le + 2) > limit as usize + 4 => return EffOutcome::Resource("header_bytes".into()),
+                Some(le) if (buf.len() - (le + 2)) as u64 > limit.saturating_add(4) => return EffOutcome::Resource("header_bytes".into()),
                 _ => {}
             }
             if !read_more(&mut io, &mut buf).await {

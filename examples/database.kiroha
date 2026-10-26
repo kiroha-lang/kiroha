@@ -1,0 +1,11 @@
+// PostgreSQL: parameterized queries and a transaction.
+// export KIROHA_PG_MAIN="host=127.0.0.1 port=5432 user=app dbname=app"
+// kiroha run examples/database.kiroha --json --host examples/database.host.json
+d = db("main");
+sql(d, q`select 1 as ready`);
+created = tx(d){t =>
+  row = sql(t, q`insert into kiroha_demo(name, meta) values (${"ada"}, ${{tags:["x"]}}) returning id`).rows | one();
+  sql(t, q`insert into kiroha_demo_audit(demo_id) values (${row.id})`);
+  row
+};
+{created, rows: sql(d, q`select id, name, meta from kiroha_demo order by id`).rows}

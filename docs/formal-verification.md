@@ -1,6 +1,6 @@
 # Formal verification
 
-Tests show behavior on the inputs they try. Two parts of Kiri are verified
+Tests show behavior on the inputs they try. Two parts of Kiroha are verified
 more strongly: the concurrency and transaction state machines are
 **model-checked** in TLA+ over every interleaving of a bounded model, and the
 exact-decimal and JSON cores are checked with **property-based tests against

@@ -11,8 +11,8 @@ use std::collections::HashSet;
 /// Extract a marked fenced block (whole-line markers, exact fence).
 pub fn extract_block(text: &str, name: &str, lang: &str) -> Result<String, String> {
     let lines: Vec<&str> = text.split('\n').collect();
-    let begin = format!("<!-- KIRI_{name}_BEGIN -->");
-    let end = format!("<!-- KIRI_{name}_END -->");
+    let begin = format!("<!-- KIROHA_{name}_BEGIN -->");
+    let end = format!("<!-- KIROHA_{name}_END -->");
     let starts: Vec<usize> = lines.iter().enumerate().filter(|(_, l)| **l == begin).map(|(i, _)| i).collect();
     let stops: Vec<usize> = lines.iter().enumerate().filter(|(_, l)| **l == end).map(|(i, _)| i).collect();
     if starts.len() != 1 || stops.len() != 1 {
@@ -164,11 +164,13 @@ fn parse_fixtures(v: &Value) -> H<Vec<Fixture>> {
         }
         let matcher = r.get("match").ok_or("fixture.match required")?.clone();
         matcher.as_record().ok_or("fixture.match must be a record")?;
+        VirtualHost::validate_match(&op, &matcher)?;
         let n = ["ok", "error", "hold"].iter().filter(|k| r.contains(k)).count();
         if n != 1 {
             return Err("fixture needs exactly one of ok, error, hold".into());
         }
         let result = if let Some(v) = r.get("ok") {
+            VirtualHost::convert_ok(&op, v)?;
             FixtureResult::Ok(v.clone())
         } else if let Some(e) = r.get("error") {
             crate::builtins::pure::validate_error_record("fixture", e).map_err(|_| "fixture error must be {code,message,data}")?;
@@ -240,7 +242,7 @@ pub fn parse_manifest(payload: &str) -> H<Vec<Case>> {
         return Err("manifest root keys must be exactly format, language, scheduler, cases".into());
     }
     closed(r, &["format", "language", "scheduler", "cases"], "manifest")?;
-    if req_str(r, "format", "manifest")? != "kiri-conformance/1"
+    if req_str(r, "format", "manifest")? != "kiroha-conformance/1"
         || req_str(r, "language", "manifest")? != "0.3.0/Web1"
         || req_str(r, "scheduler", "manifest")? != "virtual-fifo/1"
     {
@@ -516,7 +518,7 @@ fn observed_value(obs: &Observed) -> Value {
     if !obs.starts.is_empty() {
         let mut r = Record::new();
         for (k, v) in &obs.starts {
-            r.push(k, Value::int(*v as i64));
+            r.push(k, Value::uint(*v));
         }
         fields.push(("starts", Value::record(r)));
     }
@@ -569,7 +571,7 @@ pub fn run_all(cases: &[Case]) -> (Value, bool) {
     }
     let total = cases.len();
     let report = Value::rec(vec![
-        ("protocol", Value::str("kiri-conformance/1")),
+        ("protocol", Value::str("kiroha-conformance/1")),
         ("total", Value::int(total as i64)),
         ("passed", Value::int(passed as i64)),
         ("failed", Value::int((total - passed) as i64)),

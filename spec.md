@@ -1,11 +1,11 @@
-# Kiri 0.3.0 — Web1 Language and Runtime Specification
+# Kiroha 0.3.0 — Web1 Language and Runtime Specification
 
 **Revision:** 0.3.0 · **Profile:** Web1 · **Date:** 2026-10-25  
 **Deliverables:** this self-contained implementation specification and `measurement.json`.
 
-Kiri is a small, strict, immutable expression language for LLM-generated programs that manipulate JSON, call web services, serve APIs and use PostgreSQL. Its single canonical callback syntax is a mandatory trailing lambda, with a matching declaration-side callback slot:
+Kiroha is a small, strict, immutable expression language for LLM-generated programs that manipulate JSON, call web services, serve APIs and use PostgreSQL. Its single canonical callback syntax is a mandatory trailing lambda, with a matching declaration-side callback slot:
 
-```kiri
+```kiroha
 apply(x){f}=f(x);
 apply(10){v=>v+1};
 
@@ -43,13 +43,13 @@ The declaration and call both have an ordinary argument channel and a separate c
 
 Sections 2–16 are the normative implementation contract. MUST/MUST NOT express conformance requirements. SHOULD is used only for explicitly optional engineering advice. Examples and test expectations must agree with the normative rules; an implementation may not silently choose a different behavior to match its host language.
 
-This file replaces the earlier compact Kiri 0.2 text as the implementation authority. It defines lexical/syntactic rules, static resolution, values, evaluation, all 51 standard functions, external effects, host configuration, a CLI and an embedded conformance corpus. No prior chat, hidden design document, skill, existing implementation or unstated API is needed to determine Kiri semantics.
+This file replaces the earlier compact Kiroha 0.2 text as the implementation authority. It defines lexical/syntactic rules, static resolution, values, evaluation, all 51 standard functions, external effects, host configuration, a CLI and an embedded conformance corpus. No prior chat, hidden design document, skill, existing implementation or unstated API is needed to determine Kiroha semantics.
 
-This is a **specified, not yet implemented**, language revision. Embedded cases are acceptance requirements, not recorded execution passes. Token measurements report document/source length only. Finite review and tests do not prove that every future implementation will be bug-free.
+This revision has a Rust reference implementation in this repository. Embedded cases remain normative acceptance requirements; recorded execution results are in `docs/conformance-report.md`. Token measurements report document/source length only. Finite review and tests do not prove that every future implementation will be bug-free.
 
 ### 0.2 Two distinct sizes
 
-The full Markdown is the implementation handoff. Section 1 is a compact **generation card** for an agent writing Kiri against an already-conforming runtime. The card deliberately omits parser/adapter/test engineering detail; it does not replace the full implementation contract. Both sizes are measured separately in measurement.json.
+The full Markdown is the implementation handoff. Section 1 is a compact **generation card** for an agent writing Kiroha against an already-conforming runtime. The card deliberately omits parser/adapter/test engineering detail; it does not replace the full implementation contract. Both sizes are measured separately in measurement.json.
 
 The generation surface is small because common work has explicit runtime/library support. This specification does not claim that its large implementation contract itself fits a tiny system prompt. The target for the extracted generation card is at most 4096 tokens in each of the two named measurement encodings; measured counts, not a promise about an arbitrary model tokenizer, determine whether that target is met.
 
@@ -72,17 +72,17 @@ The generation surface is small because common work has explicit runtime/library
 
 ### 0.4 Agent build instruction
 
-Read the entire document before choosing implementation architecture. Use Section 15's dependency order and Section 16's acceptance protocol. Reuse mature HTTP/TLS/PostgreSQL/decimal primitives only where they satisfy the defined contract; add adapters where their defaults differ. Do not translate Kiri into unchecked host-language eval. Do not replace exact numbers with host floats, callbacks with positional syntax, or cancellation with catchable ordinary errors.
+Read the entire document before choosing implementation architecture. Use Section 15's dependency order and Section 16's acceptance protocol. Reuse mature HTTP/TLS/PostgreSQL/decimal primitives only where they satisfy the defined contract; add adapters where their defaults differ. Do not translate Kiroha into unchecked host-language eval. Do not replace exact numbers with host floats, callbacks with positional syntax, or cancellation with catchable ordinary errors.
 
-The implementation language, parser algorithm, VM/AST/backend design, native libraries and package layout are engineering choices. Language-visible behavior is already fixed. External protocol/dialect references at the end define dependency boundaries, not missing Kiri syntax.
+The implementation language, parser algorithm, VM/AST/backend design, native libraries and package layout are engineering choices. Language-visible behavior is already fixed. External protocol/dialect references at the end define dependency boundaries, not missing Kiroha syntax.
 
 ## 1. Compact generation card
 
-The exact text between the text fence below is extracted by `kiri spec --compact` and measured independently. The marker lines and fence delimiters are excluded from the card's token count.
+The exact text between the text fence below is extracted by `kiroha spec --compact` and measured independently. The marker lines and fence delimiters are excluded from the card's token count.
 
-<!-- KIRI_GENERATION_CARD_BEGIN -->
+<!-- KIROHA_GENERATION_CARD_BEGIN -->
 ```text
-Kiri 0.3.0 / Web1
+Kiroha 0.3.0 / Web1
 Write only this language/API. No imports, host escape, invented methods or implicit variables. Task URLs, credentials, DB schemas and requirements are separate input.
 
 CORE
@@ -165,7 +165,7 @@ read(path): Bytes; write(path,Bytes): atomic replacement/null,preserve0777,new06
 now(): UTC YYYY-MM-DDTHH:mm:ss.sssZ; uuid(): randomUUIDv4; log(v): dump(v)+LF stderr/null. Explicit secrets are not redacted.
 These are the complete51 callable names. Use task-provided bindings/schemas; do not infer absent APIs.
 ```
-<!-- KIRI_GENERATION_CARD_END -->
+<!-- KIROHA_GENERATION_CARD_END -->
 
 ## 2. Source text, tokens, and grammar
 
@@ -282,17 +282,17 @@ Query(literalSegments, holeExpressions)
 Group(expression)                               // may be erased after restrictions
 ```
 
-Both `Define` and `Call` have a distinct callback field. A compiler may lower this representation internally after validating the source contract. It MUST NOT accept a positional-callback spelling or print one as canonical Kiri.
+Both `Define` and `Call` have a distinct callback field. A compiler may lower this representation internally after validating the source contract. It MUST NOT accept a positional-callback spelling or print one as canonical Kiroha.
 
 ### 2.4 Query lexing
 
-`q` followed by an opening backtick begins literal SQL text. An unescaped backtick ends it. Unescaped `${` starts a Kiri Expr, ending at the matching top-level `}`. Query holes use the full Kiri lexer/parser, including strings, records, comments, nested queries, and balanced delimiters. An empty hole is invalid. SQL quotes do not suppress Kiri interpolation.
+`q` followed by an opening backtick begins literal SQL text. An unescaped backtick ends it. Unescaped `${` starts a Kiroha Expr, ending at the matching top-level `}`. Query holes use the full Kiroha lexer/parser, including strings, records, comments, nested queries, and balanced delimiters. An empty hole is invalid. SQL quotes do not suppress Kiroha interpolation.
 
-Inside literal query text, the only escapes are `\\` for a backslash, `\` followed by a backtick for a literal backtick, and `\${` for the literal two-character sequence `${`. Every other backslash escape is a lexical error. Newlines are preserved as written. SQL comments are literal SQL text, not Kiri comments.
+Inside literal query text, the only escapes are `\\` for a backslash, `\` followed by a backtick for a literal backtick, and `\${` for the literal two-character sequence `${`. Every other backslash escape is a lexical error. Newlines are preserved as written. SQL comments are literal SQL text, not Kiroha comments.
 
 For example:
 
-```kiri
+```kiroha
 q`select ${user.id}::numeric, ${user.name}::text`
 q`select ${do { x=2; x+1 }}`
 ```
@@ -357,7 +357,7 @@ For nonzero normalized c,e, let digits be the decimal digits of |c|, n their cou
 - Emit a leading minus only for negative values. Never emit a trailing fractional zero, an unnecessary decimal point, or negative zero.
 - Zero is exactly `0`.
 
-Examples: `1.2300=>1.23`; `1e20=>100000000000000000000`; `1e21=>1e21`; `1e-6=>0.000001`; `1e-7=>1e-7`; `-0.0=>0`. This choice is a Kiri formatting rule, not a promise that other JSON tools use the same spelling.
+Examples: `1.2300=>1.23`; `1e20=>100000000000000000000`; `1e21=>1e21`; `1e-6=>0.000001`; `1e-7=>1e-7`; `-0.0=>0`. This choice is a Kiroha formatting rule, not a promise that other JSON tools use the same spelling.
 
 ### 3.4 Strings, Bytes, and JSON
 
@@ -367,7 +367,7 @@ A strict JSON parse accepts exactly one JSON value with surrounding space/tab/CR
 
 Canonical JSON serialization emits no insignificant whitespace. Object keys are emitted in insertion order. Strings use `\"` and `\\`, the short escapes for backspace/form-feed/newline/CR/tab, and lowercase `\u00hh` for other U+0000..U+001F characters. All other scalar values, including slash, U+2028/U+2029 and non-ASCII characters, are emitted literally in UTF-8. There is no ASCII-only mode.
 
-`dump` recursively rejects any non-JSON kind with a type error before returning a partial string. `parse(dump(v))==v` for every JSON v within host quotas. Serialization does not preserve the original numeric spelling. RFC 8259 supplies the interchange baseline; Kiri deliberately tightens duplicate-key and scalar-value handling.[J]
+`dump` recursively rejects any non-JSON kind with a type error before returning a partial string. `parse(dump(v))==v` for every JSON v within host quotas. Serialization does not preserve the original numeric spelling. RFC 8259 supplies the interchange baseline; Kiroha deliberately tightens duplicate-key and scalar-value handling.[J]
 
 ### 3.5 Equality and ordering
 
@@ -400,7 +400,7 @@ No name may be declared twice in one scope, including parameters and callback sl
 
 Examples:
 
-```kiri
+```kiroha
 x=1; f()=x; do { x=2; f() }       // 1
 x=7; do { y=x; x=9; y }          // 7
 fac(n)=if n<=1 then 1 else n*fac(n-1); fac(5)
@@ -443,7 +443,7 @@ These ordering rules apply even if the callee is not callable. An argument's err
 
 The following distinctions are normative:
 
-```kiri
+```kiroha
 apply(x){f}=f(x);
 g={v=>v+1};
 apply(10){v=>g(v)}       // valid; 11
@@ -498,7 +498,7 @@ Optional access first evaluates its receiver. If null, return null without evalu
 
 ### 5.5 Try, errors and tail calls
 
-`try e catch {err=>sequence}` evaluates e. On a catchable runtime error, pop that try handler, bind the error record as err in a new scope, and evaluate the handler sequence. The handler does not catch its own failures. Static errors, ancestor cancellation and host termination bypass all Kiri catch handlers.
+`try e catch {err=>sequence}` evaluates e. On a catchable runtime error, pop that try handler, bind the error record as err in a new scope, and evaluate the handler sequence. The handler does not catch its own failures. Static errors, ancestor cancellation and host termination bypass all Kiroha catch handlers.
 
 Proper tail calls MUST use bounded continuation space, excluding space retained by program values. Tail positions are: a function/lambda result; the final expression of a tail-position sequence/do; either selected branch of a tail-position if; the right operand of a tail-position `??`; the final invocation of a tail-position pipe; and the result of the catch handler of a tail-position try after its handled frame is popped.
 
@@ -508,7 +508,7 @@ Calls in a protected try expression are not tail calls because a handler remains
 
 Observable effects include network/DB/file operations, log, time/random reads, waits, server lifecycle, cancellation, and order of callback execution. An implementation may fuse pure work or choose an interpreter, VM, compiler, JIT, or host-language backend only if values, errors, permitted event order, deadlines, and capability checks remain conformant.
 
-There is no promise of transactional effect rollback, exactly-once delivery to a remote service, deterministic real-world scheduling, or replay. Kiri's sequential call syntax suspends the current task during asynchronous host operations; it MUST NOT block unrelated live runtime tasks merely because the source omits async/await.
+There is no promise of transactional effect rollback, exactly-once delivery to a remote service, deterministic real-world scheduling, or replay. Kiroha's sequential call syntax suspends the current task during asynchronous host operations; it MUST NOT block unrelated live runtime tasks merely because the source omits async/await.
 
 ## 6. Schemas
 
@@ -653,9 +653,9 @@ All text operations use literal scalar sequences, with no regex or locale behavi
 
 Each evaluation has one of these outcomes:
 
-| Outcome | Catchable by Kiri try? | Representation |
+| Outcome | Catchable by Kiroha try? | Representation |
 | --- | --- | --- |
-| Normal result | Not applicable | A Kiri value |
+| Normal result | Not applicable | A Kiroha value |
 | Ordinary failure | Yes | JSON error record `{code,message,data}` |
 | Abort | No | Host/runtime control outcome with a reason |
 
@@ -707,7 +707,7 @@ All durations exposed by Web1 are nonnegative integer milliseconds. Timeouts mus
 
 The runtime distinguishes:
 
-- **Root/request/task abort:** ancestor cancellation, request deadline, process shutdown, host memory/work quota, or host deadline. This bypasses every Kiri try in that scope and descendants.
+- **Root/request/task abort:** ancestor cancellation, request deadline, process shutdown, host memory/work quota, or host deadline. This bypasses every Kiroha try in that scope and descendants.
 - **Operation timeout:** a live caller's http/sql operation expires. It returns an ordinary timeout after cleanup.
 - **Transaction scope timeout:** a tx deadline aborts its entire callback scope, including pure computation and nested catch handlers. Only the tx boundary converts this abort to an ordinary timeout if its enclosing task is still live.
 - **Cleanup scope:** a runtime-only, non-user-code scope with a fresh bounded cancellation/deadline budget.
@@ -800,7 +800,7 @@ Only null is terminal. 0, false, empty string, [], {} and an empty items array d
 
 ### 10.1 HTTP transport profile
 
-Web1 requires HTTP/1.1 client and server transport; implementations may also negotiate HTTP/2/3 only with the same Kiri-visible contract. HTTP framing/TLS implementations may be dependencies. Kiri-visible rules here take precedence over framework conveniences. HTTP semantic definitions follow RFC 9110.[H]
+Web1 requires HTTP/1.1 client and server transport; implementations may also negotiate HTTP/2/3 only with the same Kiroha-visible contract. HTTP framing/TLS implementations may be dependencies. Kiroha-visible rules here take precedence over framework conveniences. HTTP semantic definitions follow RFC 9110.[H]
 
 http accepts an uppercase ASCII HTTP method token: token characters are letters, digits and `!#$%&'*+-.^_` plus backtick, pipe and tilde; every alphabetic character must be uppercase. CONNECT is rejected with argument because Web1 has no tunnel mode. There is no automatic HEAD/OPTIONS substitution. Informational responses are consumed internally; 101/upgrade and a response without a valid final 200..599 status are network errors. No automatic redirects, authentication negotiation, retries, cookies, proxy discovery or response cache.
 
@@ -818,12 +818,12 @@ If segments is empty, preserve the base path unchanged. Otherwise remove at most
 
 Query construction uses input record insertion order. Values are strings/numbers/bools/null or one-level arrays of those scalars. null omits an occurrence; an empty array emits nothing. Strings are unchanged before encoding; other emitted scalars use text. Encode names and values using the same unreserved-only encoding, including always encoding space as %20. Join as `name=value` pairs with `&`. Append pairs after existing query text with one & when nonempty; an empty existing query uses only ?. No new pairs means the existing query is unchanged. Nested arrays/records raise type.
 
-```kiri
+```kiroha
 url("https://api.example/base?old=1",["a/b","x y"],{q:["a b",null,true],n:0})
 // "https://api.example/base/a%2Fb/x%20y?old=1&q=a%20b&q=true&n=0"
 ```
 
-This constructor never changes origin. URI component and percent-encoding concepts follow RFC 3986; the joining/preservation policy above is the stricter Kiri contract.[U]
+This constructor never changes origin. URI component and percent-encoding concepts follow RFC 3986; the joining/preservation policy above is the stricter Kiroha contract.[U]
 
 ### 10.3 Headers
 
@@ -881,7 +881,7 @@ No ordinary error is proof that a remote mutation was rolled back. This is an ob
 
 ### 11.1 Connection and dialect boundary
 
-Web1's reference database dialect is **PostgreSQL 16**. A conforming adapter must pass the required integration cases against PostgreSQL 16; newer servers may be used only while preserving this profile. Kiri is not a SQL implementation. A PostgreSQL driver and a PostgreSQL-aware statement parser are permitted dependencies. The external server defines SQL results, SQL errors, privileges, triggers and read-committed isolation.[P][I]
+Web1's reference database dialect is **PostgreSQL 16**. A conforming adapter must pass the required integration cases against PostgreSQL 16; newer servers may be used only while preserving this profile. Kiroha is not a SQL implementation. A PostgreSQL driver and a PostgreSQL-aware statement parser are permitted dependencies. The external server defines SQL results, SQL errors, privileges, triggers and read-committed isolation.[P][I]
 
 `db(name)` accepts a string alias in the host configuration. Check permission before lookup; an authorized but unavailable configured pool raises db with phase pool. It returns a reusable borrowed database handle. It neither creates a user-owned pool per call nor reserves a connection. Repeated db(name) uses the same configured pool. There is no source-level close.
 
@@ -902,13 +902,13 @@ Translate holes to distinct PostgreSQL positional value parameters in encounter 
 
 Reject violations before dispatch with db, phase `prepare`, outcome `not_sent`, and a reason identifying `statement`, `multiple_statements`, `hole_context` or `literal_parameter`. On a pool handle, all Query/statement/options/parameter validation completes before acquiring a connection; an earlier db(name) pool lookup is a separate call. Do not implement statement validation with a semicolon split or keyword regex. A semicolon in a SQL string/comment/dollar-quoted literal is not a second statement.
 
-A Query whose literal text places a Kiri hole inside SQL quotes is invalid when sql consumes it, even though query construction succeeded. Unknown/unsupported parameter values fail at binding, not by interpolating their text. This statement filter does not prevent side effects through SQL functions or triggers; the configured database role controls those privileges.
+A Query whose literal text places a Kiroha hole inside SQL quotes is invalid when sql consumes it, even though query construction succeeded. Unknown/unsupported parameter values fail at binding, not by interpolating their text. This statement filter does not prevent side effects through SQL functions or triggers; the configured database role controls those privileges.
 
 ### 11.3 Parameters and results
 
 The adapter preserves exact values at the driver boundary:
 
-| Kiri parameter | Wire binding |
+| Kiroha parameter | Wire binding |
 | --- | --- |
 | null | SQL NULL, unspecified type OID 0 for contextual inference |
 | bool | PostgreSQL boolean, OID 16 |
@@ -922,7 +922,7 @@ No parameter is a native SQL array. Explicit SQL casts can request another compa
 
 Result metadata is an ordered column sequence. Supported **reported base type OIDs** are:
 
-| PostgreSQL types / OIDs | Kiri result |
+| PostgreSQL types / OIDs | Kiroha result |
 | --- | --- |
 | int2 21, int4 23, int8 20, numeric 1700 | Exact number; reject NaN/Infinity numeric |
 | text 25, varchar 1043, bpchar 1042, uuid 2950 | String; do not trim bpchar beyond the server's transmitted representation |
@@ -931,7 +931,7 @@ Result metadata is an ordered column sequence. Supported **reported base type OI
 | json 114, jsonb 3802 | Strict parsed JSON, exact numbers |
 | SQL NULL in a supported column | null |
 
-Validate all column names for decoded-string uniqueness and all reported type OIDs before exposing any rows, including a zero-row result. Unsupported OIDs, native SQL arrays, enums, domains reported under distinct OIDs, date/time/timestamp, float4/float8 and other types raise db/phase decode. Use an explicit SQL conversion such as `to_jsonb(array_column)`, `date_column::text` or a deliberate numeric cast when needed. A server JSON value still must satisfy Kiri's duplicate-key, finite-decimal and Unicode rules.
+Validate all column names for decoded-string uniqueness and all reported type OIDs before exposing any rows, including a zero-row result. Unsupported OIDs, native SQL arrays, enums, domains reported under distinct OIDs, date/time/timestamp, float4/float8 and other types raise db/phase decode. Use an explicit SQL conversion such as `to_jsonb(array_column)`, `date_column::text` or a deliberate numeric cast when needed. A server JSON value still must satisfy Kiroha's duplicate-key, finite-decimal and Unicode rules.
 
 A row is a record in server column order; columns are never renamed or overwritten. The adapter retains raw exact representations until conversion succeeds.
 
@@ -944,7 +944,7 @@ A row is a record in server column order; columns are never renamed or overwritt
 
 sql returns exactly `{rows:[record],count:int}`. rows=[] for no returned rows. count is the server command tag's affected/returned row count, not necessarily len(rows): DML without RETURNING can have count>0 and no rows. For SELECT, it is the returned row count. A missing/invalid command count is db/decode.
 
-Outside a transaction, each sql executes with autocommit. max_rows bounds result rows, not affected rows; exceeding it raises limit, never truncates success. A result decoding/size failure can happen after the server committed an autocommit statement. Such failure MUST NOT claim rollback. HTTP/file effects of a SQL function likewise are outside Kiri rollback guarantees.
+Outside a transaction, each sql executes with autocommit. max_rows bounds result rows, not affected rows; exceeding it raises limit, never truncates success. A result decoding/size failure can happen after the server committed an autocommit statement. Such failure MUST NOT claim rollback. HTTP/file effects of a SQL function likewise are outside Kiroha rollback guarantees.
 
 All database-related remote errors add outcome:
 
@@ -1096,7 +1096,7 @@ A request deadline response uses a cleanup-only send budget because the handler 
 
 `uuid()` obtains 16 octets from cryptographically secure host randomness, sets byte 6 to `(byte6 & 15) | 64` and byte 8 to `(byte8 & 63) | 128` (zero-based indices), then formats the 16 bytes in order as lowercase hexadecimal in 8-4-4-4-12 form. These are UUID version 4 and the RFC variant bits.[V] It does not promise collision-free identifiers or reproducible output. Lack of a suitable random source is io; it never substitutes a predictable PRNG silently.
 
-`log(v)` first serializes all of v with dump, then emits the UTF-8 text and one LF as an indivisible line relative to other Kiri log calls. It returns null. A non-JSON value fails before any log bytes are emitted. Output goes to stderr for the CLI, never its result channel. Explicitly logged secrets are not redacted. Sink failure raises io; automatic internal diagnostics remain best-effort.
+`log(v)` first serializes all of v with dump, then emits the UTF-8 text and one LF as an indivisible line relative to other Kiroha log calls. It returns null. A non-JSON value fails before any log bytes are emitted. Output goes to stderr for the CLI, never its result channel. Explicitly logged secrets are not redacted. Sink failure raises io; automatic internal diagnostics remain best-effort.
 
 ### 13.2 Filesystem profile
 
@@ -1124,11 +1124,11 @@ Concurrent writers are ordered at replacement points; the last replacement wins.
 
 ### 14.1 Closed host configuration
 
-The CLI host file is UTF-8 JSON using the strict Kiri JSON rules. It is host configuration, not a Kiri value injected into lexical scope. Its root fields are closed:
+The CLI host file is UTF-8 JSON using the strict Kiroha JSON rules. It is host configuration, not a Kiroha value injected into lexical scope. Its root fields are closed:
 
 ```json
 {
-  "format": "kiri-host/1",
+  "format": "kiroha-host/1",
   "filesystem_root": "/absolute/task/root",
   "capabilities": {
     "http": ["https://api.example"],
@@ -1143,7 +1143,7 @@ The CLI host file is UTF-8 JSON using the strict Kiri JSON rules. It is host con
   },
   "environment": {"TOKEN":"example-only"},
   "database_pools": {
-    "main": {"dsn_env":"KIRI_PG_MAIN","max_connections":4}
+    "main": {"dsn_env":"KIROHA_PG_MAIN","max_connections":4}
   },
   "limits": {
     "source_bytes":1048576,
@@ -1162,7 +1162,7 @@ The example's values are illustrative inputs, not automatically enabled permissi
 
 Capability arrays default to []; booleans default to false. http entries are exact normalized http/https origins, with no wildcard/path/query/userinfo. listen entries are exact host/port pairs. database and env entries are exact case-sensitive aliases/names. read/write entries are absolute permitted **directory** roots, including descendants by path components. Duplicate capability entries are configuration errors.
 
-Environment values are strings; allowing an env name does not require it to exist, so absent names can raise env. Database-pool entries have exactly dsn_env and optional max_connections (default 4, positive integer). dsn_env names a launch-process environment variable read only by the host connector; its value is not automatically exposed to Kiri env. Unknown/missing pool configuration is reported when db is called. Database credentials, connection TLS policy and native driver connection parameters are encoded in that trusted DSN; they are outside the source language and must not appear in errors.
+Environment values are strings; allowing an env name does not require it to exist, so absent names can raise env. Database-pool entries have exactly dsn_env and optional max_connections (default 4, positive integer). dsn_env names a launch-process environment variable read only by the host connector; its value is not automatically exposed to Kiroha env. Unknown/missing pool configuration is reported when db is called. Database credentials, connection TLS policy and native driver connection parameters are encoded in that trusted DSN; they are outside the source language and must not appear in errors.
 
 | Limit | Default | Domain / semantics |
 | --- | --- | --- |
@@ -1189,7 +1189,7 @@ No configured capability grants another one: database permission does not grant 
 
 ### 14.2 Adapter interface
 
-The interface below is normative in **behavior**, not source-language ABI. It is implementable with futures, coroutines, threads, callbacks or a VM. No host API name is exposed as an extra Kiri function.
+The interface below is normative in **behavior**, not source-language ABI. It is implementable with futures, coroutines, threads, callbacks or a VM. No host API name is exposed as an extra Kiroha function.
 
 ```text
 Context = {
@@ -1241,23 +1241,23 @@ No freedom is granted for grammar, lexical lookup, decimal math, JSON representa
 
 ### 15.1 Required commands
 
-A complete Web1 implementation ships an executable named kiri with these commands. SOURCE is a file path; `-` means stdin. The commands accept the options in any order, reject duplicate/unknown options, and use exit 2 for usage/configuration/source-read failure. CLI reading of source/config is a launcher action, not a Kiri read capability.
+A complete Web1 implementation ships an executable named kiroha with these commands. SOURCE is a file path; `-` means stdin. The commands accept the options in any order, reject duplicate/unknown options, and use exit 2 for usage/configuration/source-read failure. CLI reading of source/config is a launcher action, not a Kiroha read capability.
 
 | Command | Behavior |
 | --- | --- |
-| `kiri --version` | One compact JSON line with implementation, language, profile and protocol versions |
-| `kiri check SOURCE --json` | Lex, parse and resolve only; no program evaluation or effect |
-| `kiri run SOURCE --json [--host HOST.json]` | Evaluate with explicit/default host; one result/error/abort envelope |
-| `kiri spec --compact` | Print exactly the embedded generation-card payload, followed by its existing final LF |
-| `kiri conformance spec.md --json` | Extract and run the embedded conformance manifest with the deterministic fixture host |
+| `kiroha --version` | One compact JSON line with implementation, language, profile and protocol versions |
+| `kiroha check SOURCE --json` | Lex, parse and resolve only; no program evaluation or effect |
+| `kiroha run SOURCE --json [--host HOST.json]` | Evaluate with explicit/default host; one result/error/abort envelope |
+| `kiroha spec --compact` | Print exactly the embedded generation-card payload, followed by its existing final LF |
+| `kiroha conformance spec.md --json` | Extract and run the embedded conformance manifest with the deterministic fixture host |
 
 The --json flag is mandatory for check/run/conformance in this version; a human-oriented mode is an optional separate extension and cannot change this protocol. `fmt`, a REPL, debugger, package manager and language server are optional future tools, not required or advertised as implemented by this specification.
 
---version has fields `{"implementation":"<name/version>","language":"0.3.0","profile":"Web1","cli":"kiri-cli/1","conformance":"kiri-conformance/1"}`. check success is `{"protocol":"kiri-cli/1","ok":true,"phase":"check"}`.
+--version has fields `{"implementation":"<name/version>","language":"0.3.0","profile":"Web1","cli":"kiroha-cli/1","conformance":"kiroha-conformance/1"}`. check success is `{"protocol":"kiroha-cli/1","ok":true,"phase":"check"}`.
 
-run success is `{"protocol":"kiri-cli/1","ok":true,"result":WireValue}`. An ordinary/runtime or frontend failure is `{"protocol":"kiri-cli/1","ok":false,"phase":Phase,"error":Error,"span":SpanOrNull}`. Frontend phases are lex/parse/check; runtime is runtime. A source span has byte offsets `{start,end,line,column}` with end exclusive. Span can be null for host-originated runtime failures, not for frontend diagnostics. Static error records use the same outer code/message/data shape.
+run success is `{"protocol":"kiroha-cli/1","ok":true,"result":WireValue}`. An ordinary/runtime or frontend failure is `{"protocol":"kiroha-cli/1","ok":false,"phase":Phase,"error":Error,"span":SpanOrNull}`. Frontend phases are lex/parse/check; runtime is runtime. A source span has byte offsets `{start,end,line,column}` with end exclusive. Span can be null for host-originated runtime failures, not for frontend diagnostics. Static error records use the same outer code/message/data shape.
 
-An abort is `{"protocol":"kiri-cli/1","ok":false,"phase":"abort","reason":"cancelled|deadline|resource","data":{...}}`, with the reason field holding one listed string, not the literal pipe-separated text. data identifies the exhausted resource or cancellation scope without secrets. Process signals that allow cleanup (SIGINT/SIGTERM) request a cancelled abort; forced OS termination cannot promise an envelope.
+An abort is `{"protocol":"kiroha-cli/1","ok":false,"phase":"abort","reason":"cancelled|deadline|resource","data":{...}}`, with the reason field holding one listed string, not the literal pipe-separated text. data identifies the exhausted resource or cancellation scope without secrets. Process signals that allow cleanup (SIGINT/SIGTERM) request a cancelled abort; forced OS termination cannot promise an envelope.
 
 Exit statuses: 0 for success/all conformance cases passed; 1 for frontend/runtime failure or a failed conformance case; 2 for CLI/config/file/harness-format failure; 3 for root abort. In JSON modes, an exit-2 error emits the same failure envelope with phase cli, span null and code usage, configuration, source_io, source_limit or harness_format as applicable. Its data is a JSON record; no stack trace/secret is exposed. check uses the default source_bytes limit; run reads/validates host configuration first, then applies its source_bytes limit. Invalid source UTF-8 is a lex failure (exit1), while inability to read the source is source_io (exit2). Outside a recognized JSON mode, usage errors go to stderr and stdout stays empty.
 
@@ -1278,9 +1278,9 @@ record     {"t":"record","v":[["key",WireValue],...]}
 opaque     {"t":"opaque","kind":"function|schema|query|database|transaction|reply"}
 ```
 
-For opaque, kind is one actual kind string. The descriptor reveals no closure source, credentials, SQL values or host IDs. Container encoding is recursive, so a record containing a function can be returned through the CLI without becoming a JSON value **inside Kiri**. Base64 uses the standard alphabet and mandatory padding, with no whitespace.
+For opaque, kind is one actual kind string. The descriptor reveals no closure source, credentials, SQL values or host IDs. Container encoding is recursive, so a record containing a function can be returned through the CLI without becoming a JSON value **inside Kiroha**. Base64 uses the standard alphabet and mandatory padding, with no whitespace.
 
-Error.data is guaranteed JSON. To preserve arbitrary exact numbers there, CLI JSON is emitted by the Kiri serializer, not a lossy host serializer. Consumers wanting lossless error data must parse exact decimals too.
+Error.data is guaranteed JSON. To preserve arbitrary exact numbers there, CLI JSON is emitted by the Kiroha serializer, not a lossy host serializer. Consumers wanting lossless error data must parse exact decimals too.
 
 ### 15.3 Implementation stages and acceptance
 
@@ -1319,13 +1319,13 @@ The implementation report identifies runtime/compiler/OS/dependency versions, Po
 
 The corpus below is normative test input, with **no execution result asserted by this document**. A runner validates its complete structure before executing cases. Each case runs in a fresh runtime, lexical prelude, fixture host, virtual clock and resource budget. No case has access to the real network, process environment, filesystem, database or random source.
 
-The manifest is the single JSON fence between standalone lines `<!-- KIRI_CONFORMANCE_BEGIN -->` and `<!-- KIRI_CONFORMANCE_END -->`. Match marker **whole lines**, not occurrences inside prose or the embedded extraction script. The generation card, measurement corpus and measurement script use the same extraction rule with their respective marker names. Require exactly one begin and end, correct order, exactly one fence with the declared language and no extra content inside the markers. Preserve the payload's final LF.
+The manifest is the single JSON fence between standalone lines `<!-- KIROHA_CONFORMANCE_BEGIN -->` and `<!-- KIROHA_CONFORMANCE_END -->`. Match marker **whole lines**, not occurrences inside prose or the embedded extraction script. The generation card, measurement corpus and measurement script use the same extraction rule with their respective marker names. Require exactly one begin and end, correct order, exactly one fence with the declared language and no extra content inside the markers. Preserve the payload's final LF.
 
-Manifest root keys are exactly `format`, `language`, `scheduler`, `cases`. Values are `kiri-conformance/1`, `0.3.0/Web1`, `virtual-fifo/1`, and a nonempty case array. IDs must be unique.
+Manifest root keys are exactly `format`, `language`, `scheduler`, `cases`. Values are `kiroha-conformance/1`, `0.3.0/Web1`, `virtual-fifo/1`, and a nonempty case array. IDs must be unique.
 
 ### 16.2 Case and expectation schema
 
-Each case has required id, source, expect and optional host, fixtures, server, abort_at_ms, abort_after_steps. Unknown keys are harness-format errors. id is a nonempty string; source is exact Kiri source text. host is an optional partial host configuration without format/filesystem_root/database_pools; permitted fields are capabilities, environment, limits with the Section 14 shapes/defaults. The fixture host supplies virtual pool identities through explicit fixtures, not real DSNs.
+Each case has required id, source, expect and optional host, fixtures, server, abort_at_ms, abort_after_steps. Unknown keys are harness-format errors. id is a nonempty string; source is exact Kiroha source text. host is an optional partial host configuration without format/filesystem_root/database_pools; permitted fields are capabilities, environment, limits with the Section 14 shapes/defaults. The fixture host supplies virtual pool identities through explicit fixtures, not real DSNs.
 
 expect has phase, plus the corresponding fields:
 
@@ -1347,7 +1347,7 @@ All expectation phases may additionally specify:
 
 An absent trace assertion does not permit unexpected effects. Every fixture and effect still follows the rules below. Error data subsets match recursively: object keys are required subsets; arrays/scalars must match exactly, numbers by exact value. Message wording and implementation-specific stack traces are never compared.
 
-A runner report has protocol kiri-conformance/1, total/passed/failed counts, and an ordered cases array of `{id,status,observed}`. status is pass/fail. observed contains phase/result-or-error/trace and relevant timing/response data. A harness-format error aborts the command with exit 2; a mismatch marks that case failed and continues the other cases. The command exits 0 only if all cases passed.
+A runner report has protocol kiroha-conformance/1, total/passed/failed counts, and an ordered cases array of `{id,status,observed}`. status is pass/fail. observed contains phase/result-or-error/trace and relevant timing/response data. A harness-format error aborts the command with exit 2; a mismatch marks that case failed and continues the other cases. The command exits 0 only if all cases passed.
 
 ### 16.3 Deterministic scheduler
 
@@ -1367,7 +1367,7 @@ At an effect dispatch, permissions and language validation have already occurred
 
 If the scope is aborted before completion, remove the ordinary completion, record `id:cancel`, then after cancel_ack_ms record `id:joined` and finish the aborted effect. A cancellation acknowledgment does not undo a previously simulated external mutation. Cleanup grace can cut short a nonresponding acknowledgment; I07 additionally checks real adapter isolation.
 
-An unmatched dispatched effect, a forbidden real I/O attempt, or an unconsumed fixture at case end is a **harness failure outside Kiri's catch channel**. Every listed fixture is required to start. This makes “no third request after parallel failure” testable by omitting a third fixture. A cancelled fixture counts as consumed. Host validation errors that prevent dispatch consume no fixture.
+An unmatched dispatched effect, a forbidden real I/O attempt, or an unconsumed fixture at case end is a **harness failure outside Kiroha's catch channel**. Every listed fixture is required to start. This makes “no third request after parallel failure” testable by omitting a third fixture. A cancelled fixture counts as consumed. Host validation errors that prevent dispatch consume no fixture.
 
 For environment lookups, host.environment is the value source of truth and fixtures assert/trace each authorized lookup. Every environment fixture must match a specific name. If the name is present in the map, its fixture must return the identical string; if absent, its fixture must return env with data.name equal to that name. A disagreement is a harness-format error before execution. A forbidden name still fails permission before consuming a fixture. Thus fixtures cannot inject an environment value absent from the map.
 
@@ -1392,9 +1392,9 @@ The following normalized operation argument/result formats are closed. Metadata 
 
 An execute parameter is exactly `{oid,value}`. value is null for SQL NULL, canonical decimal text for numeric, "true"/"false" for bool, decoded string for text, canonical padded base64 for bytea, and canonical JSON text for JSONB. The sql field is the translated SQL text with spaces around generated parameters as Section 11 specifies. An execute result cell is null or PostgreSQL text-format content: decimal text, t/f, raw text/UUID, bytea `\x` hexadecimal, or complete JSON text. count is a nonnegative integer string. outcome is committed for confirmed autocommit or unknown for an active transaction/unresolved result. Duplicate names/unsupported OIDs must be handled by the runtime, not hidden by the fixture host.
 
-An HTTP fixture's bytes already have valid transport framing removed. It can exercise gzip/content/JSON limits; corrupt wire framing belongs in I01. Fixture supplied headers still undergo Kiri normalization. It never performs real DNS/TLS. Protocol guarantees that require real wire behavior are not established by this mock result. Automatic runtime diagnostic logs are captured separately in the runner's diagnostic report and do not consume log_line fixtures; those fixtures represent source log(v) only.
+An HTTP fixture's bytes already have valid transport framing removed. It can exercise gzip/content/JSON limits; corrupt wire framing belongs in I01. Fixture supplied headers still undergo Kiroha normalization. It never performs real DNS/TLS. Protocol guarantees that require real wire behavior are not established by this mock result. Automatic runtime diagnostic logs are captured separately in the runner's diagnostic report and do not consume log_line fixtures; those fixtures represent source log(v) only.
 
-Pool/acquire/begin/execute/commit/rollback/release are all explicit fixtures, so omitted cleanup/extra COMMIT/automatic replay cannot pass. A production adapter may fuse these internals, but its fixture adapter must expose this normalized lifecycle or an equivalent trace. All fixture identity strings are internal, never Kiri strings supplied as a handle.
+Pool/acquire/begin/execute/commit/rollback/release are all explicit fixtures, so omitted cleanup/extra COMMIT/automatic replay cannot pass. A production adapter may fuse these internals, but its fixture adapter must expose this normalized lifecycle or an equivalent trace. All fixture identity strings are internal, never Kiroha strings supplied as a handle.
 
 ### 16.5 Virtual server requests
 
@@ -1408,10 +1408,10 @@ cancel_at_ms is relative to listener startup and requests root cancellation; aft
 
 All following cases are independent. A reference runtime is not included. Extract this JSON verbatim; do not reinterpret examples as optional suggestions.
 
-<!-- KIRI_CONFORMANCE_BEGIN -->
+<!-- KIROHA_CONFORMANCE_BEGIN -->
 ```json
 {
-  "format":"kiri-conformance/1",
+  "format":"kiroha-conformance/1",
   "language":"0.3.0/Web1",
   "scheduler":"virtual-fifo/1",
   "cases":[
@@ -1563,7 +1563,7 @@ All following cases are independent. A reference runtime is not included. Extrac
   ]
 }
 ```
-<!-- KIRI_CONFORMANCE_END -->
+<!-- KIROHA_CONFORMANCE_END -->
 
 ## 17. Measurements and reproducibility
 
@@ -1573,39 +1573,39 @@ measurement.json is generated from this exact Markdown file. It contains:
 
 - SHA-256, UTF-8 bytes, Unicode code points and token counts for the whole file.
 - Separate counts/hashes for the generation card, conformance corpus, measurement corpus and reproduction script.
-- The exact handwritten Kiri and proposed same-SDK TypeScript snippets, per-source hashes and counts.
+- The exact handwritten Kiroha and proposed same-SDK TypeScript snippets, per-source hashes and counts.
 - Per-case deltas and **weighted aggregate** savings (sum token counts before calculating a percentage).
 - Tokenizer package version and fingerprints of its pattern/rank/special-token tables.
 - The extracted API count, conformance case count and expected phase distribution.
 
 The named tokenizers are o200k_base and cl100k_base, using tiktoken 0.14.0's encode_ordinary. This is not a claim about any particular current model's tokenizer. Special-token-looking source text is counted as ordinary text. Chat framing, task prompts, tool results, repair attempts and hidden/model-internal tokens are outside this measurement.[T]
 
-The three comparison snippets are a small handwritten convenience sample. Both sides assume a proposed common SDK and exclude import/async harness setup symmetrically. The TypeScript binding has not been implemented or executed. Its exact-decimal/JSON values would need a compatible representation; native host floats do not automatically satisfy Kiri's semantics. These measurements do not establish runtime equivalence, generation reliability, total cost savings or general superiority over TypeScript.
+The three comparison snippets are a small handwritten convenience sample. Both sides assume a proposed common SDK and exclude import/async harness setup symmetrically. The TypeScript binding has not been implemented or executed. Its exact-decimal/JSON values would need a compatible representation; native host floats do not automatically satisfy Kiroha's semantics. These measurements do not establish runtime equivalence, generation reliability, total cost savings or general superiority over TypeScript.
 
 The generation-card target is checked mechanically. The full implementation file is intentionally larger and is never reported as if it were the generation prompt. No generated hash/count is copied back into this Markdown, which would create self-reference.
 
 ### 17.2 Reproduce with only this file
 
-This specification artifact uses UTF-8 without BOM and LF line endings. The following POSIX-shell commands create a temporary measurement environment, extract the script from this file and regenerate measurement.json. No Kiri runtime is needed.
+This specification artifact uses UTF-8 without BOM and LF line endings. The following POSIX-shell commands create a temporary measurement environment, extract the script from this file and regenerate measurement.json. No Kiroha runtime is needed.
 
 ```bash
-python3 -m venv .kiri-measure-env
-.kiri-measure-env/bin/python -m pip install tiktoken==0.14.0
-.kiri-measure-env/bin/python - <<'PY'
+python3 -m venv .kiroha-measure-env
+.kiroha-measure-env/bin/python -m pip install tiktoken==0.14.0
+.kiroha-measure-env/bin/python - <<'PY'
 from pathlib import Path
 import subprocess, sys, tempfile
 
 spec = Path("spec.md")
 lines = spec.read_bytes().decode("utf-8").split("\n")
-begin = "<!-- KIRI_" + "MEASUREMENT_SCRIPT_BEGIN -->"
-end = "<!-- KIRI_" + "MEASUREMENT_SCRIPT_END -->"
+begin = "<!-- KIROHA_" + "MEASUREMENT_SCRIPT_BEGIN -->"
+end = "<!-- KIROHA_" + "MEASUREMENT_SCRIPT_END -->"
 starts = [i for i, line in enumerate(lines) if line == begin]
 stops = [i for i, line in enumerate(lines) if line == end]
 assert len(starts) == len(stops) == 1, "ambiguous markers"
 a, b = starts[0], stops[0]
 assert a < b and lines[a+1] == "```python" and lines[b-1] == "```"
 payload = "\n".join(lines[a+2:b-1]) + "\n"
-with tempfile.TemporaryDirectory(prefix="kiri-measure-") as tmp:
+with tempfile.TemporaryDirectory(prefix="kiroha-measure-") as tmp:
     script = Path(tmp) / "measure.py"
     script.write_bytes(payload.encode("utf-8"))
     subprocess.run([sys.executable, str(script), str(spec),
@@ -1619,10 +1619,10 @@ The exact toolchain is recorded by the generated output. If the pinned package i
 
 The next block is source data, not executed conformance evidence.
 
-<!-- KIRI_MEASUREMENT_CORPUS_BEGIN -->
+<!-- KIROHA_MEASUREMENT_CORPUS_BEGIN -->
 ```json
 {
-  "format": "kiri-measurement-corpus/1",
+  "format": "kiroha-measurement-corpus/1",
   "language": "0.3.0/Web1",
   "status": "handwritten_sources_not_executed",
   "baseline": "TypeScript snippets using a proposed SDK with the same contracts; SDK/binding not implemented. Native array helpers are used only in the first case. An async expression harness supplies context. Imports and harness wrappers are excluded symmetrically. No executed-equivalence claim.",
@@ -1630,19 +1630,19 @@ The next block is source data, not executed conformance evidence.
     {
       "id": "example-1",
       "task": "HTTP JSON validation, filtering and projection",
-      "kiri": "User=open({id:int,name:str,active:bool});\nget(\"https://api.example/users\") | check([User]) | filter(){u=>u.active} | map(){u=>{id:u.id,name:u.name}}",
+      "kiroha": "User=open({id:int,name:str,active:bool});\nget(\"https://api.example/users\") | check([User]) | filter(){u=>u.active} | map(){u=>{id:u.id,name:u.name}}",
       "typescript_same_sdk": "const User=open({id:int,name:str,active:bool});\ncheck(await get(\"https://api.example/users\"),[User]).filter(u=>u.active).map(u=>({id:u.id,name:u.name}))"
     },
     {
       "id": "example-2",
       "task": "Cursor pagination with page validation",
-      "kiri": "Page=open({items:[json],next:maybe(str)});\npages(null){c=>\n  p=get(\"https://api.example/items\",{query:{cursor:c}}) | check(Page);\n  {items:p.items,next:p.next}\n}",
+      "kiroha": "Page=open({items:[json],next:maybe(str)});\npages(null){c=>\n  p=get(\"https://api.example/items\",{query:{cursor:c}}) | check(Page);\n  {items:p.items,next:p.next}\n}",
       "typescript_same_sdk": "const Page=open({items:[json],next:maybe(str)});\nawait pages(null,async c=>{\n  const p=check(await get(\"https://api.example/items\",{query:{cursor:c}}),Page);\n  return {items:p.items,next:p.next}\n})"
     },
     {
       "id": "example-3",
       "task": "JSON API with two-write transaction",
-      "kiri": "d=db(\"main\");\nserve({\"POST /users\":{r=>\n  u=input(r,{name:str,email:str});\n  tx(d){t=>\n    row=sql(t,q`insert into users(name,email) values (${u.name},${u.email}) returning id`).rows | one();\n    sql(t,q`insert into audit(user_id) values (${row.id})`);\n    reply(201,row)\n  }\n}})",
+      "kiroha": "d=db(\"main\");\nserve({\"POST /users\":{r=>\n  u=input(r,{name:str,email:str});\n  tx(d){t=>\n    row=sql(t,q`insert into users(name,email) values (${u.name},${u.email}) returning id`).rows | one();\n    sql(t,q`insert into audit(user_id) values (${row.id})`);\n    reply(201,row)\n  }\n}})",
       "typescript_same_sdk": "const d=db(\"main\");\nserve({\"POST /users\":async r=>{\n  const u=input(r,{name:str,email:str});\n  return tx(d,async t=>{\n    const row=one((await sql(t,q`insert into users(name,email) values (${u.name},${u.email}) returning id`)).rows);\n    await sql(t,q`insert into audit(user_id) values (${row.id})`);\n    return reply(201,row)\n  })\n}})"
     }
   ],
@@ -1653,16 +1653,16 @@ The next block is source data, not executed conformance evidence.
   ]
 }
 ```
-<!-- KIRI_MEASUREMENT_CORPUS_END -->
+<!-- KIROHA_MEASUREMENT_CORPUS_END -->
 
 ### 17.4 Reproduction script
 
-<!-- KIRI_MEASUREMENT_SCRIPT_BEGIN -->
+<!-- KIROHA_MEASUREMENT_SCRIPT_BEGIN -->
 ```python
 #!/usr/bin/env python3
-"""Reproduce measurement.json from the one-file Kiri specification.
+"""Reproduce measurement.json from the one-file Kiroha specification.
 Usage: python reproduce_measurements.py spec.md measurement.json
-Requires exactly tiktoken==0.14.0. This script does not execute Kiri or TypeScript.
+Requires exactly tiktoken==0.14.0. This script does not execute Kiroha or TypeScript.
 """
 import hashlib
 import json
@@ -1683,8 +1683,8 @@ def fail(message):
 def extract(document, name, language):
     # Split only LF: Unicode scalar separators may occur inside a JSON string.
     lines = document.split("\n")
-    begin = "<!-- KIRI_" + name + "_BEGIN -->"
-    end = "<!-- KIRI_" + name + "_END -->"
+    begin = "<!-- KIROHA_" + name + "_BEGIN -->"
+    end = "<!-- KIROHA_" + name + "_END -->"
     starts = [i for i, line in enumerate(lines) if line == begin]
     stops = [i for i, line in enumerate(lines) if line == end]
     if len(starts) != 1 or len(stops) != 1:
@@ -1744,9 +1744,9 @@ def main():
     }
     corpus = strict_json(payloads["measurement_corpus"])
     manifest = strict_json(payloads["conformance"])
-    if corpus.get("format") != "kiri-measurement-corpus/1" or corpus.get("language") != LANGUAGE:
+    if corpus.get("format") != "kiroha-measurement-corpus/1" or corpus.get("language") != LANGUAGE:
         fail("Wrong measurement corpus revision")
-    if manifest.get("format") != "kiri-conformance/1" or manifest.get("language") != LANGUAGE:
+    if manifest.get("format") != "kiroha-conformance/1" or manifest.get("language") != LANGUAGE:
         fail("Wrong conformance manifest revision")
     ids = [case["id"] for case in manifest["cases"]]
     if len(ids) != len(set(ids)):
@@ -1772,34 +1772,34 @@ def main():
 
     cases = []
     for case in corpus["cases"]:
-        kiri = measure(case["kiri"])
+        kiroha = measure(case["kiroha"])
         baseline = measure(case["typescript_same_sdk"])
         comparisons = {}
         for name in ENCODINGS:
-            k, t = kiri["tokens"][name], baseline["tokens"][name]
+            k, t = kiroha["tokens"][name], baseline["tokens"][name]
             comparisons[name] = {
-                "kiri_minus_baseline_tokens": k-t,
+                "kiroha_minus_baseline_tokens": k-t,
                 "savings_percent": round(100*(t-k)/t, 2),
             }
         cases.append({
             "id": case["id"], "task": case["task"],
-            "sources": {"kiri": case["kiri"],
+            "sources": {"kiroha": case["kiroha"],
                         "typescript_same_sdk": case["typescript_same_sdk"]},
-            "measurements": {"kiri": kiri, "typescript_same_sdk": baseline},
+            "measurements": {"kiroha": kiroha, "typescript_same_sdk": baseline},
             "comparison": comparisons,
         })
     aggregate = {}
     for name in ENCODINGS:
-        k = sum(c["measurements"]["kiri"]["tokens"][name] for c in cases)
+        k = sum(c["measurements"]["kiroha"]["tokens"][name] for c in cases)
         t = sum(c["measurements"]["typescript_same_sdk"]["tokens"][name] for c in cases)
         aggregate[name] = {
-            "kiri_tokens": k, "baseline_tokens": t,
-            "kiri_minus_baseline_tokens": k-t,
+            "kiroha_tokens": k, "baseline_tokens": t,
+            "kiroha_minus_baseline_tokens": k-t,
             "weighted_savings_percent": round(100*(t-k)/t, 2),
         }
     card = measure(payloads["generation_card"])
     result = {
-        "format": "kiri-measurement/2",
+        "format": "kiroha-measurement/2",
         "language": LANGUAGE,
         "status": "tokenization_only",
         "runtime_execution_evidence": None,
@@ -1816,7 +1816,7 @@ def main():
             "input": "Exact raw UTF-8 text; LF; no normalization or chat framing",
             "encoding": "encode_ordinary; special-token-looking strings count as ordinary text",
             "extraction": "Unique whole-line markers, matching fence, payload including final LF",
-            "percentage": "100*(baseline-kiri)/baseline, rounded to 2 decimals; aggregate sums tokens first",
+            "percentage": "100*(baseline-kiroha)/baseline, rounded to 2 decimals; aggregate sums tokens first",
             "model_claim": "Named tokenizers do not identify any current model tokenizer",
         },
         "documents": {
@@ -1866,16 +1866,16 @@ if __name__ == "__main__":
     main()
 
 ```
-<!-- KIRI_MEASUREMENT_SCRIPT_END -->
+<!-- KIROHA_MEASUREMENT_SCRIPT_END -->
 
 ## 18. External standards and dependency boundaries
 
-The Kiri-visible policies in Sections 2–16 are complete within the Web1 profile. Mature implementations of the following external formats/protocols may be reused. The protocol/dialect themselves remain external dependencies; implementing all of TLS or PostgreSQL inside the Kiri evaluator is not a requirement.
+The Kiroha-visible policies in Sections 2–16 are complete within the Web1 profile. Mature implementations of the following external formats/protocols may be reused. The protocol/dialect themselves remain external dependencies; implementing all of TLS or PostgreSQL inside the Kiroha evaluator is not a requirement.
 
 | Reference | Boundary |
 | --- | --- |
-| [RFC 8259 — JSON][J] | JSON interchange baseline; Kiri additionally rejects duplicate keys and non-scalar strings and preserves exact decimals |
-| [RFC 3986 — URI syntax][U] | URI components/percent encoding; Section 10 supplies Kiri's restricted accepted form and joining rules |
+| [RFC 8259 — JSON][J] | JSON interchange baseline; Kiroha additionally rejects duplicate keys and non-scalar strings and preserves exact decimals |
+| [RFC 3986 — URI syntax][U] | URI components/percent encoding; Section 10 supplies Kiroha's restricted accepted form and joining rules |
 | [RFC 9110 — HTTP semantics][H] | HTTP methods/status/field semantics |
 | [RFC 9112 — HTTP/1.1][F] | Message framing and connection handling; Web1 additionally fixes buffering/coding/limit behavior |
 | [RFC 9562 — UUID][V] | UUIDv4 bits and conventional hexadecimal form |

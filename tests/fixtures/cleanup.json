@@ -1,5 +1,5 @@
 {
-  "format": "kiri-conformance/1",
+  "format": "kiroha-conformance/1",
   "language": "0.3.0/Web1",
   "scheduler": "virtual-fifo/1",
   "cases": [

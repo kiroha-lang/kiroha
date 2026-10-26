@@ -1,4 +1,4 @@
-//! The `kiri` command-line protocol (spec §15.1).
+//! The `kiroha` command-line protocol (spec §15.1).
 
 use crate::diag::{LineIndex, Span};
 use crate::host::config::{parse_host_file, HostConfig};
@@ -26,7 +26,7 @@ fn line(v: &Value) -> String {
 fn cli_failure(json_mode: bool, code: &str, message: &str) -> Output {
     if json_mode {
         let env = Value::rec(vec![
-            ("protocol", Value::str("kiri-cli/1")),
+            ("protocol", Value::str("kiroha-cli/1")),
             ("ok", Value::Bool(false)),
             ("phase", Value::str("cli")),
             ("error", err::make(code, message, vec![])),
@@ -34,7 +34,7 @@ fn cli_failure(json_mode: bool, code: &str, message: &str) -> Output {
         ]);
         Output { stdout: line(&env), stderr: String::new(), code: 2 }
     } else {
-        Output { stdout: String::new(), stderr: format!("kiri: {message}\n"), code: 2 }
+        Output { stdout: String::new(), stderr: format!("kiroha: {message}\n"), code: 2 }
     }
 }
 
@@ -50,7 +50,7 @@ fn span_value(src: &str, s: Span) -> Value {
 
 fn failure_envelope(phase: &str, error: Value, span: Value) -> Value {
     Value::rec(vec![
-        ("protocol", Value::str("kiri-cli/1")),
+        ("protocol", Value::str("kiroha-cli/1")),
         ("ok", Value::Bool(false)),
         ("phase", Value::str(phase)),
         ("error", error),
@@ -153,14 +153,14 @@ pub fn main_with(args: &[String], stdin: &mut dyn Read) -> Output {
                 ("implementation", Value::str(crate::IMPLEMENTATION)),
                 ("language", Value::str("0.3.0")),
                 ("profile", Value::str("Web1")),
-                ("cli", Value::str("kiri-cli/1")),
-                ("conformance", Value::str("kiri-conformance/1")),
+                ("cli", Value::str("kiroha-cli/1")),
+                ("conformance", Value::str("kiroha-conformance/1")),
             ]);
             Output { stdout: line(&v), stderr: String::new(), code: 0 }
         }
         "spec" => {
             if !p.compact || p.json || p.host.is_some() || !p.positional.is_empty() {
-                return cli_failure(false, "usage", "usage: kiri spec --compact");
+                return cli_failure(false, "usage", "usage: kiroha spec --compact");
             }
             match crate::conformance::extract_block(SPEC, "GENERATION_CARD", "text") {
                 Ok(card) => Output { stdout: card, stderr: String::new(), code: 0 },
@@ -169,7 +169,7 @@ pub fn main_with(args: &[String], stdin: &mut dyn Read) -> Output {
         }
         "check" => {
             if !p.json || p.compact || p.host.is_some() || p.positional.len() != 1 {
-                return cli_failure(p.json, "usage", "usage: kiri check SOURCE --json");
+                return cli_failure(p.json, "usage", "usage: kiroha check SOURCE --json");
             }
             let bytes = match read_source(&p.positional[0], stdin) {
                 Ok(b) => b,
@@ -183,7 +183,7 @@ pub fn main_with(args: &[String], stdin: &mut dyn Read) -> Output {
         }
         "run" => {
             if !p.json || p.compact || p.positional.len() != 1 {
-                return cli_failure(p.json, "usage", "usage: kiri run SOURCE --json [--host HOST.json]");
+                return cli_failure(p.json, "usage", "usage: kiroha run SOURCE --json [--host HOST.json]");
             }
             let launch = std::env::current_dir().map(|d| d.to_string_lossy().to_string()).unwrap_or_else(|_| "/".into());
             let config = match &p.host {
@@ -218,7 +218,7 @@ pub fn main_with(args: &[String], stdin: &mut dyn Read) -> Output {
         }
         "conformance" => {
             if !p.json || p.compact || p.host.is_some() || p.positional.len() != 1 {
-                return cli_failure(p.json, "usage", "usage: kiri conformance spec.md --json");
+                return cli_failure(p.json, "usage", "usage: kiroha conformance spec.md --json");
             }
             let text = match std::fs::read(&p.positional[0]) {
                 Ok(b) => b,
@@ -239,7 +239,7 @@ pub fn main_with(args: &[String], stdin: &mut dyn Read) -> Output {
             let (report, all) = crate::conformance::run_all(&cases);
             Output { stdout: line(&report), stderr: String::new(), code: if all { 0 } else { 1 } }
         }
-        "" => cli_failure(false, "usage", "usage: kiri <check|run|spec|conformance|--version>"),
+        "" => cli_failure(false, "usage", "usage: kiroha <check|run|spec|conformance|--version>"),
         other => cli_failure(false, "usage", &format!("unknown command {other}")),
     }
 }
@@ -265,7 +265,7 @@ fn frontend(bytes: &[u8]) -> Result<(String, crate::ast::Program), Output> {
 pub fn check_source(bytes: &[u8]) -> Output {
     match frontend(bytes) {
         Ok(_) => {
-            let v = Value::rec(vec![("protocol", Value::str("kiri-cli/1")), ("ok", Value::Bool(true)), ("phase", Value::str("check"))]);
+            let v = Value::rec(vec![("protocol", Value::str("kiroha-cli/1")), ("ok", Value::Bool(true)), ("phase", Value::str("check"))]);
             Output { stdout: line(&v), stderr: String::new(), code: 0 }
         }
         Err(o) => o,
@@ -328,7 +328,7 @@ pub fn run_source(bytes: &[u8], config: HostConfig) -> Output {
             crate::interrupt::arm(at, Some((baseline, memory_limit)));
             let wire = crate::wire::to_wire(&v);
             let env =
-                Value::rec(vec![("protocol", Value::str("kiri-cli/1")), ("ok", Value::Bool(true)), ("result", wire)]);
+                Value::rec(vec![("protocol", Value::str("kiroha-cli/1")), ("ok", Value::Bool(true)), ("result", wire)]);
             let text = line(&env);
             match crate::interrupt::disarm() {
                 None => return Output { stdout: text, stderr: String::new(), code: 0 },
@@ -340,7 +340,7 @@ pub fn run_source(bytes: &[u8], config: HostConfig) -> Output {
                     };
                     (
                         Value::rec(vec![
-                            ("protocol", Value::str("kiri-cli/1")),
+                            ("protocol", Value::str("kiroha-cli/1")),
                             ("ok", Value::Bool(false)),
                             ("phase", Value::str("abort")),
                             ("reason", Value::str(reason)),
@@ -357,7 +357,7 @@ pub fn run_source(bytes: &[u8], config: HostConfig) -> Output {
         }
         RootOutcome::Abort { reason, data } => (
             Value::rec(vec![
-                ("protocol", Value::str("kiri-cli/1")),
+                ("protocol", Value::str("kiroha-cli/1")),
                 ("ok", Value::Bool(false)),
                 ("phase", Value::str("abort")),
                 ("reason", Value::str(reason)),

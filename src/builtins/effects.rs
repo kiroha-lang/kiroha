@@ -445,7 +445,8 @@ pub fn url_builtin(a: &[Value]) -> BResult {
 }
 
 /// Format unix milliseconds as `YYYY-MM-DDTHH:mm:ss.sssZ`.
-pub fn format_utc(ms: i64) -> Option<String> {
+pub fn format_utc(ms: i128) -> Option<String> {
+    let ms = i64::try_from(ms).ok()?;
     let days = ms.div_euclid(86_400_000);
     let rem = ms.rem_euclid(86_400_000);
     let (y, m, d) = civil_from_days(days);

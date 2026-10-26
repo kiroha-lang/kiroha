@@ -1,6 +1,6 @@
 // A small JSON API with an in-memory greeting and file-backed notes.
-// mkdir -p /tmp/kiri-notes/notes   # write() never creates parent directories
-// kiri run examples/server.kiri --json --host examples/server.host.json
+// mkdir -p /tmp/kiroha-notes/notes   # write() never creates parent directories
+// kiroha run examples/server.kiroha --json --host examples/server.host.json
 // curl localhost:8080/hello/ada ; curl -XPOST -H 'content-type: application/json' -d '{"text":"hi"}' localhost:8080/notes
 Note = {text:str};
 serve({

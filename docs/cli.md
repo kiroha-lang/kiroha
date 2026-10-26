@@ -1,4 +1,4 @@
-# The `kiri` command
+# The `kiroha` command
 
 Normative text: spec §15. Options may appear in any order; duplicates and
 unknown options are usage errors. `SOURCE` is a file path or `-` for stdin.
@@ -6,22 +6,22 @@ unknown options are usage errors. `SOURCE` is a file path or `-` for stdin.
 
 | Command | Behavior |
 | --- | --- |
-| `kiri --version` | One JSON line: `{"implementation","language":"0.3.0","profile":"Web1","cli":"kiri-cli/1","conformance":"kiri-conformance/1"}` |
-| `kiri check SOURCE --json` | Lex, parse and resolve only — no evaluation, no effects |
-| `kiri run SOURCE --json [--host HOST.json]` | Evaluate with the given (or default, deny-all) host |
-| `kiri spec --compact` | Print the embedded generation card exactly, with its final LF |
-| `kiri conformance spec.md --json` | Extract and run the embedded conformance manifest with the deterministic fixture host |
+| `kiroha --version` | One JSON line: `{"implementation","language":"0.3.0","profile":"Web1","cli":"kiroha-cli/1","conformance":"kiroha-conformance/1"}` |
+| `kiroha check SOURCE --json` | Lex, parse and resolve only — no evaluation, no effects |
+| `kiroha run SOURCE --json [--host HOST.json]` | Evaluate with the given (or default, deny-all) host |
+| `kiroha spec --compact` | Print the embedded generation card exactly, with its final LF |
+| `kiroha conformance spec.md --json` | Extract and run the embedded conformance manifest with the deterministic fixture host |
 
 ## Envelopes
 
 Exactly one JSON line is written to stdout; logs and diagnostics go to stderr.
 
 ```text
-check ok     {"protocol":"kiri-cli/1","ok":true,"phase":"check"}
-run ok       {"protocol":"kiri-cli/1","ok":true,"result":WireValue}
-failure      {"protocol":"kiri-cli/1","ok":false,"phase":"lex|parse|check|runtime","error":{code,message,data},"span":Span|null}
-abort        {"protocol":"kiri-cli/1","ok":false,"phase":"abort","reason":"cancelled|deadline|resource","data":{...}}
-cli failure  {"protocol":"kiri-cli/1","ok":false,"phase":"cli","error":{code,...},"span":null}
+check ok     {"protocol":"kiroha-cli/1","ok":true,"phase":"check"}
+run ok       {"protocol":"kiroha-cli/1","ok":true,"result":WireValue}
+failure      {"protocol":"kiroha-cli/1","ok":false,"phase":"lex|parse|check|runtime","error":{code,message,data},"span":Span|null}
+abort        {"protocol":"kiroha-cli/1","ok":false,"phase":"abort","reason":"cancelled|deadline|resource","data":{...}}
+cli failure  {"protocol":"kiroha-cli/1","ok":false,"phase":"cli","error":{code,...},"span":null}
 ```
 
 `Span` is `{start, end, line, column}` (UTF-8 byte offsets, end exclusive,
@@ -64,15 +64,15 @@ Results use tagged JSON so no precision, bytes or order is lost:
 {"t":"opaque","kind":"function|schema|query|database|transaction|reply"}
 ```
 
-Error `data` is always JSON and is printed with Kiri's exact serializer, so
+Error `data` is always JSON and is printed with Kiroha's exact serializer, so
 numbers in it must be parsed as exact decimals.
 
 ## Conformance report
 
-`kiri conformance spec.md --json` prints:
+`kiroha conformance spec.md --json` prints:
 
 ```text
-{"protocol":"kiri-conformance/1","total":N,"passed":P,"failed":F,
+{"protocol":"kiroha-conformance/1","total":N,"passed":P,"failed":F,
  "cases":[{"id":...,"status":"pass|fail","observed":{phase,result|error|reason,trace,...},"mismatch"?:...}]}
 ```
 

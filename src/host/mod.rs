@@ -107,7 +107,7 @@ pub enum EffValue {
     Null,
     Str(String),
     Bytes(Vec<u8>),
-    UnixMs(i64),
+    UnixMs(i128),
     Http(RawResponse),
     Rows(RawRows),
     /// Request body read result: Ok(bytes) or Err(reason) for an ingress fault.

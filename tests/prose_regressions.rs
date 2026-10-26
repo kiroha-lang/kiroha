@@ -1,10 +1,10 @@
 //! Normative prose rules not covered by the embedded corpus, checked with
 //! the deterministic fixture host through an extra conformance manifest.
 
-use kiri::conformance::{parse_manifest, run_all};
+use kiroha::conformance::{parse_manifest, run_all};
 
 const MANIFEST: &str = r#"{
- "format":"kiri-conformance/1","language":"0.3.0/Web1","scheduler":"virtual-fifo/1",
+ "format":"kiroha-conformance/1","language":"0.3.0/Web1","scheduler":"virtual-fifo/1",
  "cases":[
   {"id":"sql-holes-must-be-paramrefs",
    "source":"d=db(\"main\");[(try sql(d,q`select * from ${\"t\"}`) catch {e=>[e.data.phase,e.data.reason,e.data.outcome]}),(try sql(d,q`select ${1}${2}`) catch {e=>e.data.reason}),(try sql(d,q`select t.${1} from t`) catch {e=>e.data.reason}),(try sql(d,q`select 1 ${\"+\"} 2`) catch {e=>e.data.reason}),(try sql(d,q`select (1;2)`) catch {e=>e.data.reason}),(try sql(d,q`(delete from t)`) catch {e=>e.data.reason}),(try sql(d,q`table t`) catch {e=>e.data.reason})]",
@@ -119,24 +119,64 @@ const MANIFEST: &str = r#"{
 fn prose_rules_hold() {
     let cases = parse_manifest(MANIFEST).expect("manifest");
     let (report, all) = run_all(&cases);
-    assert!(all, "{}", kiri::json::dump(&report));
+    assert!(all, "{}", kiroha::json::dump(&report));
 }
 
 #[test]
 fn cleanup_uses_one_enclosing_deadline() {
     let cases = parse_manifest(include_str!("fixtures/cleanup.json")).expect("cleanup manifest");
     let (report, all) = run_all(&cases);
-    assert!(all, "{}", kiri::json::dump(&report));
+    assert!(all, "{}", kiroha::json::dump(&report));
+}
+
+#[test]
+fn unsigned_durations_and_observation_times_are_exact() {
+    let cases = parse_manifest(include_str!("fixtures/unsigned.json")).unwrap();
+    let (report, all) = run_all(&cases);
+    assert!(all, "{}", kiroha::json::dump(&report));
+    let entries = report.as_record().unwrap().get("cases").unwrap().as_array().unwrap();
+    let observed = entries[3].as_record().unwrap().get("observed").unwrap().as_record().unwrap();
+    let starts = observed.get("starts").unwrap().as_record().unwrap();
+    assert_eq!(kiroha::json::dump(starts.get("log").unwrap()), "18446744073709551615");
+    for (op, ok) in [
+        ("http", r#"{"status":65736,"headers":[],"body_base64":""}"#),
+        ("execute", r#"{"columns":[{"name":"x","oid":4294967319}],"rows":[["1"]],"count":"1","outcome":"committed"}"#),
+    ] {
+        let manifest = format!(r#"{{"format":"kiroha-conformance/1","language":"0.3.0/Web1","scheduler":"virtual-fifo/1","cases":[{{"id":"narrow","source":"null","fixtures":[{{"id":"f","op":"{op}","match":{{}},"ok":{ok}}}],"expect":{{"phase":"value","json":"null"}}}}]}}"#);
+        assert!(parse_manifest(&manifest).is_err(), "out-of-domain {op} metadata must fail before execution");
+    }
+}
+
+#[test]
+fn fixture_argument_and_result_records_are_closed() {
+    let manifest = |op: &str, matcher: &str, ok: &str| format!(r#"{{"format":"kiroha-conformance/1","language":"0.3.0/Web1","scheduler":"virtual-fifo/1","cases":[{{"id":"shape","source":"null","fixtures":[{{"id":"f","op":"{op}","match":{matcher},"ok":{ok}}}],"expect":{{"phase":"value","json":"null"}}}}]}}"#);
+    for (op, ok) in [
+        ("http", r#"{"status":200,"headers":[],"body_base64":""}"#),
+        ("read_regular", r#"{"bytes_base64":""}"#),
+        ("random_bytes", r#"{"bytes_base64":""}"#),
+        ("utc_now", r#"{"unix_ms":0}"#),
+        ("execute", r#"{"columns":[],"rows":[],"count":"0","outcome":"committed"}"#),
+    ] {
+        assert!(parse_manifest(&manifest(op, "{}", ok)).is_ok());
+        let extra = format!("{},\"extra\":1}}", &ok[..ok.len()-1]);
+        assert!(parse_manifest(&manifest(op, "{}", &extra)).is_err(), "unknown {op} result field");
+        assert!(parse_manifest(&manifest(op, r#"{"extra":1}"#, ok)).is_err(), "unknown {op} argument field");
+    }
+    let column = r#"{"columns":[{"name":"x","oid":23,"extra":1}],"rows":[["1"]],"count":"1","outcome":"committed"}"#;
+    assert!(parse_manifest(&manifest("execute", "{}", column)).is_err());
+    let args = r#"{"parameters":[{"oid":23,"value":"1","extra":1}]}"#;
+    let rows = r#"{"columns":[],"rows":[],"count":"0","outcome":"committed"}"#;
+    assert!(parse_manifest(&manifest("execute", args, rows)).is_err());
 }
 
 
 #[test]
 fn unmatched_effect_with_pending_timer_is_a_prompt_harness_failure() {
-    let m = r#"{"format":"kiri-conformance/1","language":"0.3.0/Web1","scheduler":"virtual-fifo/1","cases":[
+    let m = r#"{"format":"kiroha-conformance/1","language":"0.3.0/Web1","scheduler":"virtual-fifo/1","cases":[
       {"id":"x","source":"log(1)","host":{"capabilities":{"log":true},"limits":{"deadline_ms":1000}},"fixtures":[],"expect":{"phase":"value","json":"null"}}]}"#;
     let cases = parse_manifest(m).unwrap();
     let t = std::time::Instant::now();
-    let obs = kiri::conformance::run_case(&cases[0]);
+    let obs = kiroha::conformance::run_case(&cases[0]);
     assert!(obs.harness.as_deref().unwrap_or("").contains("unmatched log_line"), "{:?}", obs.harness);
     assert!(t.elapsed().as_secs() < 5);
 }

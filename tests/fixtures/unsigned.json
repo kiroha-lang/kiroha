@@ -1,0 +1,139 @@
+{
+  "format": "kiroha-conformance/1",
+  "language": "0.3.0/Web1",
+  "scheduler": "virtual-fifo/1",
+  "cases": [
+    {
+      "id": "huge-timeout",
+      "source": "try http(\"GET\",\"https://f.invalid/\",{timeout:18446744073709551615}) catch {e=>e.data.timeout}",
+      "host": {
+        "capabilities": {
+          "http": [
+            "https://f.invalid"
+          ]
+        }
+      },
+      "fixtures": [
+        {
+          "id": "h",
+          "op": "http",
+          "match": {},
+          "hold": true
+        }
+      ],
+      "expect": {
+        "phase": "value",
+        "json": "18446744073709551615"
+      }
+    },
+    {
+      "id": "huge-sql-timeout",
+      "source": "try sql(db(\"main\"),q`select 1`,{timeout:18446744073709551615}) catch {e=>e.data.timeout}",
+      "host": {
+        "capabilities": {
+          "databases": [
+            "main"
+          ]
+        }
+      },
+      "fixtures": [
+        {
+          "id": "pool",
+          "op": "pool",
+          "match": {
+            "alias": "main"
+          },
+          "ok": "p"
+        },
+        {
+          "id": "acq",
+          "op": "acquire",
+          "match": {},
+          "hold": true
+        }
+      ],
+      "expect": {
+        "phase": "value",
+        "json": "18446744073709551615"
+      }
+    },
+    {
+      "id": "huge-tx-timeout",
+      "source": "try tx(db(\"main\"),{timeout:18446744073709551615}){t=>1} catch {e=>e.data.timeout}",
+      "host": {
+        "capabilities": {
+          "databases": [
+            "main"
+          ]
+        }
+      },
+      "fixtures": [
+        {
+          "id": "pool",
+          "op": "pool",
+          "match": {
+            "alias": "main"
+          },
+          "ok": "p"
+        },
+        {
+          "id": "acq",
+          "op": "acquire",
+          "match": {},
+          "hold": true
+        }
+      ],
+      "expect": {
+        "phase": "value",
+        "json": "18446744073709551615"
+      }
+    },
+    {
+      "id": "huge-clock",
+      "source": "sleep(18446744073709551615);log(1)",
+      "host": {
+        "capabilities": {
+          "log": true
+        }
+      },
+      "fixtures": [
+        {
+          "id": "log",
+          "op": "log_line",
+          "match": {},
+          "ok": null
+        }
+      ],
+      "expect": {
+        "phase": "value",
+        "json": "null",
+        "starts": {
+          "log": 18446744073709551615
+        }
+      }
+    },
+    {
+      "id": "clock-range",
+      "source": "try now() catch {e=>e.code}",
+      "host": {
+        "capabilities": {
+          "clock": true
+        }
+      },
+      "fixtures": [
+        {
+          "id": "now",
+          "op": "utc_now",
+          "match": {},
+          "ok": {
+            "unix_ms": 18446744073709551616
+          }
+        }
+      ],
+      "expect": {
+        "phase": "value",
+        "json": "\"io\""
+      }
+    }
+  ]
+}

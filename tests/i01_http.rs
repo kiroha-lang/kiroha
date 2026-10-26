@@ -16,6 +16,26 @@ fn raw(status: &str, headers: &[&str], body: &[u8]) -> Vec<u8> {
     out
 }
 
+#[test]
+fn maximum_header_quota_accepts_fragmented_response() {
+    use std::io::{Read, Write};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let server = std::thread::spawn(move || {
+        let (mut socket, _) = listener.accept().unwrap();
+        socket.set_read_timeout(Some(std::time::Duration::from_secs(5))).unwrap();
+        let mut request = [0; 4096];
+        assert!(socket.read(&mut request).unwrap() > 0);
+        socket.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n").unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        let _ = socket.write_all(b"\r\n");
+    });
+    let h = format!(r#"{{"format":"kiroha-host/1","capabilities":{{"http":["http://127.0.0.1:{port}"]}},"limits":{{"header_bytes":18446744073709551615}}}}"#);
+    let r = run(&format!(r#"http("GET","http://127.0.0.1:{port}/").status"#), Some(&h));
+    server.join().unwrap();
+    assert_eq!(result(&r), "200");
+}
+
 fn server() -> (u16, std::sync::Arc<std::sync::Mutex<Vec<String>>>) {
     fixture_server(|path, _head| {
         let gz = gzip(br#"{"x":1}"#);
@@ -43,7 +63,7 @@ fn server() -> (u16, std::sync::Arc<std::sync::Mutex<Vec<String>>>) {
 }
 
 fn host(port: u16) -> String {
-    format!(r#"{{"format":"kiri-host/1","capabilities":{{"http":["http://127.0.0.1:{port}"]}}}}"#)
+    format!(r#"{{"format":"kiroha-host/1","capabilities":{{"http":["http://127.0.0.1:{port}"]}}}}"#)
 }
 
 #[test]
@@ -105,7 +125,7 @@ fn request_shape_body_and_query() {
 fn denied_origin_and_connection_refused() {
     let r = run(r#"try get("http://127.0.0.1:9/") catch {e=>[e.code,e.data.capability]}"#, None);
     assert_eq!(result(&r), r#"["permission","http"]"#);
-    let host = r#"{"format":"kiri-host/1","capabilities":{"http":["http://127.0.0.1:9"]}}"#;
+    let host = r#"{"format":"kiroha-host/1","capabilities":{"http":["http://127.0.0.1:9"]}}"#;
     let r = run(r#"try get("http://127.0.0.1:9/") catch {e=>[e.code,e.data.outcome]}"#, Some(host));
     assert_eq!(result(&r), r#"["network","not_sent"]"#);
 }
@@ -127,7 +147,7 @@ fn silent_server() -> u16 {
 fn timeout_outcome_reflects_whether_bytes_were_sent() {
     let port = silent_server();
     let host = format!(
-        r#"{{"format":"kiri-host/1","capabilities":{{"http":["http://127.0.0.1:{port}","https://127.0.0.1:{port}"]}}}}"#
+        r#"{{"format":"kiroha-host/1","capabilities":{{"http":["http://127.0.0.1:{port}","https://127.0.0.1:{port}"]}}}}"#
     );
     // Plain HTTP: the request is written, then no response -> unknown.
     // HTTPS: the TLS handshake never completes, no request bytes -> not_sent.
@@ -204,7 +224,7 @@ fn gzip_bomb_within_max_bytes_honours_memory_quota() {
         out
     });
     let host = format!(
-        r#"{{"format":"kiri-host/1","capabilities":{{"http":["http://127.0.0.1:{port}"]}},"limits":{{"memory_bytes":100000000}}}}"#
+        r#"{{"format":"kiroha-host/1","capabilities":{{"http":["http://127.0.0.1:{port}"]}},"limits":{{"memory_bytes":100000000}}}}"#
     );
     let r = run(&format!(r#"len(http("GET","http://127.0.0.1:{port}/",{{max_bytes:2000000000}}).body)"#), Some(&host));
     assert_eq!(r.code, 3, "{}", r.stdout);
@@ -251,7 +271,7 @@ fn strict_client_framing() {
     assert_eq!(result(&r), format!("[200,0,304,[7],[{}]]", [framing; 10].join(",")));
     // header_bytes counts raw field-section octets, including padding and trailers.
     let small = format!(
-        r#"{{"format":"kiri-host/1","capabilities":{{"http":["http://127.0.0.1:{port}"]}},"limits":{{"header_bytes":1000}}}}"#
+        r#"{{"format":"kiroha-host/1","capabilities":{{"http":["http://127.0.0.1:{port}"]}},"limits":{{"header_bytes":1000}}}}"#
     );
     for p in ["pad", "trailer"] {
         let r = run(&format!(r#"try http("GET","{b}/{p}") catch {{e=>e.code}}"#), Some(&small));

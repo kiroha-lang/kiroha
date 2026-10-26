@@ -1,13 +1,15 @@
-# Kiri
+# Kiroha
 
-Kiri is a small, strict, immutable expression language for programs that
+**Kiroha (きろは)** combines the original working name Kiri with *iroha*, the basics of a language. The executable and source extension are `kiroha` and `.kiroha`. See [the naming and migration note](docs/naming.md).
+
+Kiroha is a small, strict, immutable expression language for programs that
 manipulate JSON, call web services, serve HTTP APIs and use PostgreSQL. It was
 designed to be written by LLMs: the whole callable surface is 51 prelude
 functions, numbers are exact decimals, every effect is explicit and
 capability-checked, and there is exactly one way to pass a callback — a
 mandatory trailing lambda.
 
-```kiri
+```kiroha
 User = open({id:int, name:str, active:bool});
 
 get("https://api.example/users")
@@ -17,8 +19,8 @@ get("https://api.example/users")
 ```
 
 This repository is a complete Rust implementation of the
-**Kiri 0.3.0 / Web1** specification ([`spec.md`](spec.md)), including the
-`kiri` command-line tool, a deterministic conformance runner and production
+**Kiroha 0.3.0 / Web1** specification ([`spec.md`](spec.md)), including the
+`kiroha` command-line tool, a deterministic conformance runner and production
 adapters for HTTP/1.1 (+ verified TLS), PostgreSQL 16, an HTTP server and the
 local filesystem.
 
@@ -26,12 +28,12 @@ local filesystem.
 
 | Area | State |
 | --- | --- |
-| Embedded conformance corpus (spec §16) | **145 / 145 pass** (`kiri conformance spec.md --json`) |
+| Embedded conformance corpus (spec §16) | **145 / 145 pass** (`kiroha conformance spec.md --json`) |
 | Integration scenarios I01–I08 (spec §15.3) | All pass (`cargo test`, PostgreSQL 16.15 for I03/I04) |
 | Extra prose-rule regressions | Pass (`tests/prose_regressions.rs`) |
 | Formal verification | TLA+ models of `parallel` and `tx` model-checked with TLC; property-based tests of decimals and JSON against oracles ([details](docs/formal-verification.md)) |
 | 51 prelude functions + 5 schema atoms | Implemented; inventory matches the generation card |
-| CLI protocol `kiri-cli/1` | Implemented |
+| CLI protocol `kiroha-cli/1` | Implemented |
 
 Details, versions and known deviations are in
 [docs/conformance-report.md](docs/conformance-report.md).
@@ -44,17 +46,17 @@ found automatically).
 
 ```sh
 cargo build --release
-cp target/release/kiri ~/.local/bin/     # or anywhere on PATH
-kiri --version
+cp target/release/kiroha ~/.local/bin/     # or anywhere on PATH
+kiroha --version
 ```
 
 ## Quick start
 
 ```sh
-echo 'fac(n)=if n<=1 then 1 else n*fac(n-1); fac(20)' > fac.kiri
-kiri check fac.kiri --json      # lex, parse and resolve only
-kiri run fac.kiri --json        # evaluate
-# {"protocol":"kiri-cli/1","ok":true,"result":{"t":"number","v":"2432902008176640000"}}
+echo 'fac(n)=if n<=1 then 1 else n*fac(n-1); fac(20)' > fac.kiroha
+kiroha check fac.kiroha --json      # lex, parse and resolve only
+kiroha run fac.kiroha --json        # evaluate
+# {"protocol":"kiroha-cli/1","ok":true,"result":{"t":"number","v":"2432902008176640000"}}
 ```
 
 By default a program may compute and `sleep` but every external capability
@@ -63,7 +65,7 @@ is denied. Grant capabilities with a host file:
 
 ```json
 {
-  "format": "kiri-host/1",
+  "format": "kiroha-host/1",
   "capabilities": {
     "http": ["https://api.example"],
     "log": true
@@ -72,10 +74,10 @@ is denied. Grant capabilities with a host file:
 ```
 
 ```sh
-kiri run program.kiri --json --host host.json
+kiroha run program.kiroha --json --host host.json
 ```
 
-See [examples/](examples/) for runnable programs.
+See [the examples and their setup instructions](examples/README.md) for runnable programs.
 
 ## Documentation
 
@@ -86,21 +88,27 @@ See [examples/](examples/) for runnable programs.
 | [Values and numbers](docs/reference/values-and-numbers.md) | Value kinds, exact decimals, canonical spelling, JSON, equality |
 | [Errors and aborts](docs/reference/errors.md) | Error codes and data, aborts, precedence |
 | [CLI](docs/cli.md) | Commands, envelopes, wire values, exit codes |
-| [Host configuration](docs/host-config.md) | `kiri-host/1` capabilities, pools, limits |
+| [Host configuration](docs/host-config.md) | `kiroha-host/1` capabilities, pools, limits |
 | [Architecture](docs/architecture.md) | Implementation design: CEK machine, scheduler, adapters, memory accounting |
 | [Conformance report](docs/conformance-report.md) | Test results, environment, deviations |
 | [Formal verification](docs/formal-verification.md) | TLA+ models (scheduler, transactions) and property-based tests (decimals, JSON) |
-| [Specification](spec.md) | The normative Kiri 0.3.0 / Web1 contract |
+| [Specification](spec.md) | The normative Kiroha 0.3.0 / Web1 contract |
 | [Handoff](HANDOFF.md) | Current state, open work, verification and audit workflow for the next maintainer |
 
 ## Development
 
 ```sh
 cargo test                                  # unit + integration tests
-KIRI_TEST_PG_DSN="host=127.0.0.1 port=55432 user=kiri dbname=postgres" cargo test   # include PostgreSQL I03/I04
+KIROHA_TEST_PG_DSN="host=127.0.0.1 port=55432 user=kiroha dbname=postgres" cargo test   # include PostgreSQL I03/I04
 cargo run --release -- conformance spec.md --json
 ./formal/check.sh                           # TLA+ model checking (needs Java)
+python scripts/measure.py --check            # requires tiktoken==0.14.0
 ```
 
-Without `KIRI_TEST_PG_DSN` the PostgreSQL tests print `SKIP` and pass
+Without `KIROHA_TEST_PG_DSN` the PostgreSQL tests print `SKIP` and pass
 vacuously; the conformance report states which environment was used.
+
+The [verification workflow](.github/workflows/verify.yml) provisions PostgreSQL
+16 and runs the build, tests, conformance corpus, warning-free Clippy, TLC
+models and measurement check. Regenerate measurements after editing `spec.md`
+with `python scripts/measure.py`.

@@ -65,7 +65,7 @@ pub struct TxFrame {
     pub timeout_outcome: &'static str,
 }
 
-/// Bind a Kiri value as a PostgreSQL parameter (§11.3).
+/// Bind a Kiroha value as a PostgreSQL parameter (§11.3).
 pub fn bind_param(v: &Value) -> Result<SqlParam, Value> {
     let bind_err = || db_error("bind", "not_sent", vec![]);
     Ok(match v {
@@ -129,7 +129,7 @@ pub fn convert_rows(raw: &RawRows, max_rows: u64) -> Result<Value, Fail> {
             vec![
                 ("operation", Value::str("sql")),
                 ("limit", Value::str("max_rows")),
-                ("maximum", Value::int(max_rows as i64)),
+                ("maximum", Value::uint(max_rows)),
                 ("outcome", Value::str(outcome)),
             ],
         )));

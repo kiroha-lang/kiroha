@@ -67,7 +67,7 @@ fn tls_server(p: &Pki, drop_after_request: bool) -> u16 {
 }
 
 fn host(port: u16) -> String {
-    format!(r#"{{"format":"kiri-host/1","capabilities":{{"http":["https://localhost:{port}","https://127.0.0.1:{port}"]}}}}"#)
+    format!(r#"{{"format":"kiroha-host/1","capabilities":{{"http":["https://localhost:{port}","https://127.0.0.1:{port}"]}}}}"#)
 }
 
 #[test]

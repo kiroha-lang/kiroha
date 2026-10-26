@@ -2,9 +2,9 @@
 //! JSON (§3.4–3.5) against independent oracles, over randomly generated
 //! values including coefficients far beyond 64 bits.
 
-use kiri::decimal::{Decimal, DivError};
-use kiri::json;
-use kiri::value::{json_equal, Record, Value};
+use kiroha::decimal::{Decimal, DivError};
+use kiroha::json;
+use kiroha::value::{json_equal, Record, Value};
 use num_bigint::BigInt;
 use num_integer::Integer;
 use num_traits::{One, Signed, Zero};
@@ -248,9 +248,9 @@ proptest! {
         prop_assert!(json_equal(&v, &r));
         prop_assert_eq!(json_equal(&v, &w), json_equal(&w, &v));
         if json_equal(&v, &w) {
-            prop_assert_eq!(kiri::value::json_hash(&v), kiri::value::json_hash(&w));
+            prop_assert_eq!(kiroha::value::json_hash(&v), kiroha::value::json_hash(&w));
         }
-        prop_assert_eq!(kiri::value::json_hash(&v), kiri::value::json_hash(&r));
+        prop_assert_eq!(kiroha::value::json_hash(&v), kiroha::value::json_hash(&r));
     }
 
     // Strict parser rejects every truncation of a valid document.

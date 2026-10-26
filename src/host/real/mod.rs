@@ -151,7 +151,7 @@ impl Host for RealHost {
             }
             Effect::UtcNow => {
                 let out = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
-                    Ok(d) => EffOutcome::Ok(EffValue::UnixMs(d.as_millis() as i64)),
+                    Ok(d) => EffOutcome::Ok(EffValue::UnixMs(d.as_millis() as i128)),
                     Err(_) => EffOutcome::Err(io_err("now", "clock_out_of_range", "not_applied")),
                 };
                 self.done_now(id, out);

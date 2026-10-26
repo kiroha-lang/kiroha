@@ -7,7 +7,7 @@ use std::time::Instant;
 
 fn fs_host(root: &std::path::Path) -> String {
     let r = root.to_str().unwrap();
-    format!(r#"{{"format":"kiri-host/1","filesystem_root":"{r}","capabilities":{{"read":["{r}"],"write":["{r}"]}}}}"#)
+    format!(r#"{{"format":"kiroha-host/1","filesystem_root":"{r}","capabilities":{{"read":["{r}"],"write":["{r}"]}}}}"#)
 }
 
 #[test]
@@ -44,7 +44,7 @@ fn i06_quota_and_permission_by_component() {
     let root = tempdir("fsq");
     let r = root.to_str().unwrap();
     let host = format!(
-        r#"{{"format":"kiri-host/1","filesystem_root":"{r}","capabilities":{{"write":["{r}/out"]}},"limits":{{"max_file_bytes":2}}}}"#
+        r#"{{"format":"kiroha-host/1","filesystem_root":"{r}","capabilities":{{"write":["{r}/out"]}},"limits":{{"max_file_bytes":2}}}}"#
     );
     std::fs::create_dir_all(root.join("out")).unwrap();
     std::fs::create_dir_all(root.join("outx")).unwrap();
@@ -69,7 +69,7 @@ fn i06_cancelled_write_does_not_replace_target() {
     std::fs::write(out.join("race"), "OLD\n").unwrap();
     let r = root.to_str().unwrap();
     let host = format!(
-        r#"{{"format":"kiri-host/1","filesystem_root":"{r}","capabilities":{{"read":["{r}/out"],"write":["{r}/out"]}},"limits":{{"memory_bytes":4000000000,"max_file_bytes":300000000}}}}"#
+        r#"{{"format":"kiroha-host/1","filesystem_root":"{r}","capabilities":{{"read":["{r}/out"],"write":["{r}/out"]}},"limits":{{"memory_bytes":4000000000,"max_file_bytes":300000000}}}}"#
     );
     let src = r#"s=fold(range(0,27),"x"){(a,i)=>a+a}; b=encode(s);
       r=try parallel([1,2],2){x=>if x==1 then write("out/race",b) else do {sleep(1); fail({code:"boom",message:"m",data:{}})}} catch {e=>e.code};
@@ -88,7 +88,7 @@ fn i07_cpu_bound_cancellation_and_bounded_parallelism() {
     let t = Instant::now();
     let r = run(
         r#"go()=go(); try go() catch {e=>"caught"}"#,
-        Some(r#"{"format":"kiri-host/1","limits":{"deadline_ms":200,"eval_steps":1000000000000}}"#),
+        Some(r#"{"format":"kiroha-host/1","limits":{"deadline_ms":200,"eval_steps":1000000000000}}"#),
     );
     assert_eq!(r.code, 3);
     assert!(r.stdout.contains("\"reason\":\"deadline\""));
@@ -103,7 +103,7 @@ fn i07_cpu_bound_cancellation_and_bounded_parallelism() {
         "s=dump(range(0,3000000));len(replace(s+s+s+s,\"1\",\"aaaaaaaaaaaaaaaa\"))",
     ] {
         let t = Instant::now();
-        let r = run(src, Some(r#"{"format":"kiri-host/1","limits":{"deadline_ms":20,"eval_steps":100000000000,"memory_bytes":4000000000}}"#));
+        let r = run(src, Some(r#"{"format":"kiroha-host/1","limits":{"deadline_ms":20,"eval_steps":100000000000,"memory_bytes":4000000000}}"#));
         assert!(r.stdout.contains("\"reason\":\"deadline\""), "{src}: {}", r.stdout);
         assert!(t.elapsed().as_millis() < 1500, "{src}");
     }
@@ -115,7 +115,7 @@ fn i07_cpu_bound_cancellation_and_bounded_parallelism() {
         "z=fold(range(0,60),[1]){(a,i)=>[a,a]}; pages(z){c=>{items:[],next:null}}",
     ] {
         let t = Instant::now();
-        let r = run(src, Some(r#"{"format":"kiri-host/1","limits":{"deadline_ms":300}}"#));
+        let r = run(src, Some(r#"{"format":"kiroha-host/1","limits":{"deadline_ms":300}}"#));
         assert!(r.stdout.contains("\"reason\":\"deadline\""), "{src}: {}", r.stdout);
         assert!(t.elapsed().as_millis() < 3000, "{src}");
     }
@@ -132,7 +132,7 @@ fn i07_cpu_bound_cancellation_and_bounded_parallelism() {
         format!("{big} xs=map(range(0,3000)){{i=>s+\"\"}}; xs==map(xs){{x=>x+\"\"}}"),
     ] {
         let t = Instant::now();
-        let r = run(&src, Some(r#"{"format":"kiri-host/1","limits":{"deadline_ms":400,"eval_steps":100000000000,"memory_bytes":8000000000}}"#));
+        let r = run(&src, Some(r#"{"format":"kiroha-host/1","limits":{"deadline_ms":400,"eval_steps":100000000000,"memory_bytes":8000000000}}"#));
         assert!(r.stdout.contains("\"reason\":\"deadline\""), "{src}: {}", r.stdout);
         assert!(t.elapsed().as_millis() < 3500, "{src}: {:?}", t.elapsed());
     }
@@ -145,7 +145,7 @@ fn i07_cpu_bound_cancellation_and_bounded_parallelism() {
         ("try pick({}, map(range(0,150000)){i=>text(i)}) catch {e=>e.code}", "\"missing\""),
     ] {
         let t = Instant::now();
-        let r = run(src, Some(r#"{"format":"kiri-host/1","limits":{"eval_steps":100000000000}}"#));
+        let r = run(src, Some(r#"{"format":"kiroha-host/1","limits":{"eval_steps":100000000000}}"#));
         assert_eq!(result(&r), want, "{src}");
         assert!(t.elapsed().as_millis() < 5000, "{src}: {:?}", t.elapsed());
     }
@@ -156,7 +156,7 @@ fn i07_cpu_bound_cancellation_and_bounded_parallelism() {
         "xs=map(range(0,30)){i=>number(\"1e99990\")+i}; fold(range(0,6),xs){(a,i)=>a+a}",
     ] {
         let t = Instant::now();
-        let r = run(src, Some(r#"{"format":"kiri-host/1","limits":{"deadline_ms":1500,"eval_steps":100000000000,"memory_bytes":8000000000}}"#));
+        let r = run(src, Some(r#"{"format":"kiroha-host/1","limits":{"deadline_ms":1500,"eval_steps":100000000000,"memory_bytes":8000000000}}"#));
         assert!(r.stdout.contains("\"reason\":\"deadline\""), "{src}: {}", r.stdout);
         assert!(t.elapsed().as_millis() < 2600, "{src}: {:?}", t.elapsed());
     }
@@ -164,23 +164,23 @@ fn i07_cpu_bound_cancellation_and_bounded_parallelism() {
     let t = Instant::now();
     let r = run(
         "d(n,a)=if n==0 then a else d(n-1,a+a); number(\"1e\"+d(22,\"1\"))",
-        Some(r#"{"format":"kiri-host/1","limits":{"memory_bytes":4000000000}}"#),
+        Some(r#"{"format":"kiroha-host/1","limits":{"memory_bytes":4000000000}}"#),
     );
     assert!(r.stdout.contains("\"resource\":\"number\""), "{}", r.stdout);
     assert!(t.elapsed().as_millis() < 3000);
     // Converting a huge (shared) result for the CLI honours the memory quota.
     let r = run(
         "d(x,n)=if n==0 then x else d([x,x],n-1); d(1,22)",
-        Some(r#"{"format":"kiri-host/1","limits":{"memory_bytes":100000000}}"#),
+        Some(r#"{"format":"kiroha-host/1","limits":{"memory_bytes":100000000}}"#),
     );
     assert_eq!(r.code, 3, "{}", r.stdout);
     assert!(r.stdout.contains("\"resource\":\"memory\""), "{}", r.stdout);
     // SIGINT during long builtin work is observed (cancelled abort, exit 3).
     {
         let dir = tempdir("sig");
-        let p = dir.join("s.kiri");
+        let p = dir.join("s.kiroha");
         std::fs::write(&p, "z=fold(range(0,60),[1]){(a,i)=>[a,a]}; dump(z)").unwrap();
-        let child = kiri().arg("run").arg(&p).arg("--json").stdout(std::process::Stdio::piped()).spawn().unwrap();
+        let child = kiroha().arg("run").arg(&p).arg("--json").stdout(std::process::Stdio::piped()).spawn().unwrap();
         std::thread::sleep(std::time::Duration::from_millis(500));
         unsafe {
             libc::kill(child.id() as i32, libc::SIGINT);
@@ -196,7 +196,7 @@ fn i07_cpu_bound_cancellation_and_bounded_parallelism() {
         "d(n,a)=if n==0 then a else d(n-1,a+a); x=d(20,\"x\"); len(dump(map(range(0,500)){i=>x}))",
         "d(n,a)=if n==0 then a else d(n-1,a+a); x=d(26,\"x\"); len(encode(x))+len(encode(x))",
     ] {
-        let r = run(src, Some(r#"{"format":"kiri-host/1","limits":{"memory_bytes":50000000,"eval_steps":100000000000}}"#));
+        let r = run(src, Some(r#"{"format":"kiroha-host/1","limits":{"memory_bytes":50000000,"eval_steps":100000000000}}"#));
         assert_eq!(r.code, 3, "{src}: {}", r.stdout);
         assert!(r.stdout.contains("\"resource\":\"memory\""), "{src}: {}", r.stdout);
     }
@@ -205,7 +205,7 @@ fn i07_cpu_bound_cancellation_and_bounded_parallelism() {
     let t = Instant::now();
     let r = run(
         "d(n,a)=if n==0 then a else d(n-1,a+a); number(d(21,\"1\"))",
-        Some(r#"{"format":"kiri-host/1","limits":{"memory_bytes":4000000000,"deadline_ms":300}}"#),
+        Some(r#"{"format":"kiroha-host/1","limits":{"memory_bytes":4000000000,"deadline_ms":300}}"#),
     );
     assert_eq!(r.code, 3, "{}", r.stdout);
     assert!(t.elapsed().as_millis() < 2000);
@@ -221,12 +221,12 @@ fn i07_cpu_bound_cancellation_and_bounded_parallelism() {
     let r = run(r#"parallel([1,2],2){x=>if x==1 then do{sleep(5000);1} else fail({code:"x",message:"",data:{}})}"#, None);
     assert_eq!(error_code(&r), "x");
     // Step budget exhaustion is a resource abort.
-    let r = run("go(n)=go(n+1);go(0)", Some(r#"{"format":"kiri-host/1","limits":{"eval_steps":1000}}"#));
+    let r = run("go(n)=go(n+1);go(0)", Some(r#"{"format":"kiroha-host/1","limits":{"eval_steps":1000}}"#));
     assert!(r.stdout.contains("\"reason\":\"resource\""));
     // A million-iteration tail loop runs in bounded space under a sufficient budget.
     let r = run(
         "go(n,a)=if n==0 then a else go(n-1,a+1);go(1000000,0)",
-        Some(r#"{"format":"kiri-host/1","limits":{"eval_steps":100000000}}"#),
+        Some(r#"{"format":"kiroha-host/1","limits":{"eval_steps":100000000}}"#),
     );
     assert_eq!(result(&r), "1000000");
 }
@@ -235,58 +235,58 @@ fn i07_cpu_bound_cancellation_and_bounded_parallelism() {
 fn i08_cli_protocol() {
     let r = run(r#"{n:0.1+0.2,b:encode("é"),f:{x=>x},a:[db]}"#, None);
     assert_eq!(result(&r), r#"{"n":0.3,"b":b64:w6k=,"f":<function>,"a":[<function>]}"#);
-    let r = run(r#"log(1)"#, Some(r#"{"format":"kiri-host/1","capabilities":{"log":true}}"#));
+    let r = run(r#"log(1)"#, Some(r#"{"format":"kiroha-host/1","capabilities":{"log":true}}"#));
     assert_eq!(r.stderr, "1\n");
     assert!(!r.stdout.contains("\n1\n"));
     // exit codes
     assert_eq!(run("1+", None).code, 1);
     assert_eq!(run("fail({code:\"c\",message:\"\",data:{}})", None).code, 1);
     assert_eq!(run("x", Some("{\"format\":\"wrong\"}")).code, 2);
-    assert_eq!(run("1", Some(r#"{"format":"kiri-host/1","capabilities":{"read":["/a","/a/"]}}"#)).code, 2);
-    assert_eq!(run("1", Some(r#"{"format":"kiri-host/1","limits":{"eval_steps":99999999999999999999999999}}"#)).code, 0);
-    assert_eq!(run("1", Some(r#"{"format":"kiri-host/1","limits":{"source_bytes":0}}"#)).code, 2);
-    let r = run("1", Some(r#"{"format":"kiri-host/1","limits":{"source_bytes":1}}"#));
+    assert_eq!(run("1", Some(r#"{"format":"kiroha-host/1","capabilities":{"read":["/a","/a/"]}}"#)).code, 2);
+    assert_eq!(run("1", Some(r#"{"format":"kiroha-host/1","limits":{"eval_steps":99999999999999999999999999}}"#)).code, 0);
+    assert_eq!(run("1", Some(r#"{"format":"kiroha-host/1","limits":{"source_bytes":0}}"#)).code, 2);
+    let r = run("1", Some(r#"{"format":"kiroha-host/1","limits":{"source_bytes":1}}"#));
     assert_eq!(r.code, 0);
-    let r = run("12", Some(r#"{"format":"kiri-host/1","limits":{"source_bytes":1}}"#));
+    let r = run("12", Some(r#"{"format":"kiroha-host/1","limits":{"source_bytes":1}}"#));
     assert_eq!(r.code, 2);
     assert!(r.stdout.contains("source_limit"));
     // check performs no effects (log would write to stderr)
     let dir = tempdir("cli");
-    let p = dir.join("x.kiri");
+    let p = dir.join("x.kiroha");
     std::fs::write(&p, "log(1); if false then 1 else 2").unwrap();
-    let out = finish(kiri().arg("check").arg(&p).arg("--json").output().unwrap());
+    let out = finish(kiroha().arg("check").arg(&p).arg("--json").output().unwrap());
     assert_eq!((out.code, out.stderr.as_str()), (0, ""));
-    let out = finish(kiri().arg("check").arg(dir.join("missing.kiri")).arg("--json").output().unwrap());
+    let out = finish(kiroha().arg("check").arg(dir.join("missing.kiroha")).arg("--json").output().unwrap());
     assert_eq!(out.code, 2);
     assert!(out.stdout.contains("source_io"));
     std::fs::write(&p, [0xffu8, 0xfe]).unwrap();
-    let out = finish(kiri().arg("check").arg(&p).arg("--json").output().unwrap());
+    let out = finish(kiroha().arg("check").arg(&p).arg("--json").output().unwrap());
     assert_eq!(out.code, 1);
     assert!(out.stdout.contains("\"phase\":\"lex\""));
     // usage errors
-    let out = finish(kiri().arg("run").arg(&p).arg("--json").arg("--json").output().unwrap());
+    let out = finish(kiroha().arg("run").arg(&p).arg("--json").arg("--json").output().unwrap());
     assert_eq!(out.code, 2);
     for args in [&["spec", "--compact", "--json"][..], &["--version", "--json"], &["foo", "--json"]] {
-        let out = finish(kiri().args(args).output().unwrap());
+        let out = finish(kiroha().args(args).output().unwrap());
         assert_eq!((out.code, out.stdout.as_str()), (2, ""), "{args:?}");
         assert!(!out.stderr.is_empty());
     }
-    let out = finish(kiri().arg("frobnicate").output().unwrap());
+    let out = finish(kiroha().arg("frobnicate").output().unwrap());
     assert_eq!((out.code, out.stdout.as_str()), (2, ""));
     // stdin source
-    let mut c = kiri().args(["run", "-", "--json"]).stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).spawn().unwrap();
+    let mut c = kiroha().args(["run", "-", "--json"]).stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).spawn().unwrap();
     use std::io::Write;
     c.stdin.take().unwrap().write_all(b"[1,\"a\"]").unwrap();
     let out = finish(c.wait_with_output().unwrap());
     assert_eq!(result(&out), r#"[1,"a"]"#);
     // spec card and version
-    let out = finish(kiri().args(["spec", "--compact"]).output().unwrap());
-    assert!(out.stdout.starts_with("Kiri 0.3.0 / Web1\n") && out.stdout.ends_with("do not infer absent APIs.\n"));
-    let out = finish(kiri().arg("--version").output().unwrap());
-    assert!(out.stdout.contains("\"cli\":\"kiri-cli/1\""));
+    let out = finish(kiroha().args(["spec", "--compact"]).output().unwrap());
+    assert!(out.stdout.starts_with("Kiroha 0.3.0 / Web1\n") && out.stdout.ends_with("do not infer absent APIs.\n"));
+    let out = finish(kiroha().arg("--version").output().unwrap());
+    assert!(out.stdout.contains("\"cli\":\"kiroha-cli/1\""));
     // conformance corpus passes
     let spec = concat!(env!("CARGO_MANIFEST_DIR"), "/spec.md");
-    let out = finish(kiri().args(["conformance", spec, "--json"]).output().unwrap());
+    let out = finish(kiroha().args(["conformance", spec, "--json"]).output().unwrap());
     assert_eq!(out.code, 0);
     assert!(out.stdout.contains("\"failed\":0"));
 }

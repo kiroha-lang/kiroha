@@ -31,7 +31,7 @@ pub fn to_wire(v: &Value) -> Value {
     }
 }
 
-/// Serialize a JSON value with the exact Kiri serializer, falling back to the
+/// Serialize a JSON value with the exact Kiroha serializer, falling back to the
 /// wire form for non-JSON values.
 pub fn encode_json_lossless(v: &Value) -> String {
     if v.is_json() {

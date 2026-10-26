@@ -574,7 +574,7 @@ mod tests {
         assert!(translate(&s(&["select 1 as \u{3000}$1"])).is_ok());
         assert!(translate(&s(&["with U&\"d!0061\" UESCAPE '!' as (select 1) select 1"])).is_ok());
         assert!(translate(&s(&["with a as (select 1 as x) select x from a union all table a"])).is_ok());
-        assert_eq!(translate(&s(&["select 1 as x into kiri_t union select 2"])), Err(Reject::Statement));
+        assert_eq!(translate(&s(&["select 1 as x into kiroha_t union select 2"])), Err(Reject::Statement));
         assert_eq!(translate(&s(&["with a as (select 1) select 1 into t union select 2"])), Err(Reject::Statement));
         assert_eq!(translate(&s(&["select 1 as x;;"])), Err(Reject::MultipleStatements));
         assert_eq!(translate(&s(&["select 1; ;"])), Err(Reject::MultipleStatements));

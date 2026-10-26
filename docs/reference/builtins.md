@@ -1,6 +1,6 @@
 # Built-in reference
 
-Kiri 0.3.0 / Web1 has exactly **51 callable prelude names** and **5 schema
+Kiroha 0.3.0 / Web1 has exactly **51 callable prelude names** and **5 schema
 atoms**. They are ordinary bindings: user code may shadow them. Normative text:
 [`spec.md`](../../spec.md) §7–§13.
 
@@ -45,7 +45,7 @@ unchanged.
 | `unique(xs)[{f}]` | First item per JSON-equal key | As `group` |
 | `sum(xs)` | Exact sum; `[]` → 0 | All items numbers (`type`) |
 
-```kiri
+```kiroha
 [range(5, 0, -2), sort([{n:2},{n:1}]){x => x.n}, unique([1, 1.0, {a:1,b:2}, {b:2,a:1}])]
 // [[5,3,1],[{"n":1},{"n":2}],[1,{"a":1,"b":2}]]
 ```
@@ -183,7 +183,7 @@ space → `%20`, `+` → `%2B`) after removing at most one trailing slash from t
 base path, then appends query pairs. `"."`/`".."` segments → `argument`.
 Origin and existing query are preserved.
 
-```kiri
+```kiroha
 url("https://api.example/base?old=1", ["a/b","x y"], {q:["a b",null,true], n:0})
 // "https://api.example/base/a%2Fb/x%20y?old=1&q=a%20b&q=true&n=0"
 ```

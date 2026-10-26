@@ -230,7 +230,7 @@ pub fn encode_component(s: &str) -> String {
     out
 }
 
-/// Append query pairs from a Kiri record per §10.2. Returns type errors.
+/// Append query pairs from a Kiroha record per §10.2. Returns type errors.
 /// `arg_index`: Some(i) when the query is the i-th positional argument (`url`),
 /// None when it is the `query` option of http/get/post.
 pub fn query_pairs(op: &str, q: &Value, arg_index: Option<usize>) -> Result<Vec<(String, String)>, Value> {

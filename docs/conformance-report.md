@@ -7,8 +7,8 @@ Implementation report required by spec §15.3. Token measurements
 
 | Item | Value |
 | --- | --- |
-| Implementation | `kiri-rs/0.3.0` (this repository) |
-| Language / profile | Kiri 0.3.0 / Web1, CLI `kiri-cli/1`, conformance `kiri-conformance/1` |
+| Implementation | `kiroha-rs/0.3.0` (this repository) |
+| Language / profile | Kiroha 0.3.0 / Web1, CLI `kiroha-cli/1`, conformance `kiroha-conformance/1` |
 | Compiler | rustc 1.96.0 (2026-05-25), release profile |
 | OS | Linux 6.18.54.1-microsoft-standard-WSL2 (x86_64) |
 | PostgreSQL server | PostgreSQL 16.15 (Homebrew build), local, C locale, UTF8 |
@@ -16,7 +16,7 @@ Implementation report required by spec §15.3. Token measurements
 
 ## Embedded conformance corpus (§16)
 
-Command: `kiri conformance spec.md --json`
+Command: `kiroha conformance spec.md --json`
 
 | Total | Passed | Failed | Skipped |
 | --- | --- | --- | --- |
@@ -31,16 +31,16 @@ run; there are no skips. Per-case results are in the JSON report.
 Command:
 
 ```sh
-KIRI_TEST_PG_DSN="host=127.0.0.1 port=55432 user=kiri dbname=postgres" cargo test --release
+KIROHA_TEST_PG_DSN="host=127.0.0.1 port=55432 user=kiri dbname=postgres" cargo test --release --locked
 ```
 
 | ID | Test | Status | What is exercised |
 | --- | --- | --- | --- |
-| I01 | `tests/i01_http.rs` (5 tests) | pass | Local raw HTTP fixture: GET/DELETE/POST, 4xx/5xx as data, repeated headers and `set-cookie`, 204/205/304, explicit HEAD with unsupported coding, gzip and decoded `max_bytes`, chunked framing, invalid chunked framing, invalid UTF-8/JSON, 302 not followed, one request per call (no retries), no cookies sent, query/header encoding, connection refused → `not_sent` |
+| I01 | `tests/i01_http.rs` (11 tests) | pass | Local raw HTTP fixture: GET/DELETE/POST, 4xx/5xx as data, repeated headers and `set-cookie`, 204/205/304, explicit HEAD with unsupported coding, gzip and decoded `max_bytes`, chunked framing, invalid chunked framing, invalid UTF-8/JSON, 302 not followed, one request per call (no retries), no cookies sent, query/header encoding, connection refused → `not_sent` |
 | I02 | `tests/i02_tls.rs` (2 tests) | pass | rcgen CA + rustls server: valid chain/hostname succeeds; wrong hostname and untrusted chain fail with `tls`/`not_sent`; server that drops after receiving the request → `network`/`unknown` |
-| I03 | `tests/i03_i04_postgres.rs::i03_*` | pass | PostgreSQL 16: every parameter kind, all supported result OIDs (int2/4/8, numeric with 39 digits, text, varchar, bpchar padding, uuid, bool, bytea, json, jsonb with `1e30`), NULL, hostile text as data, duplicate column names, unsupported types (date, float8, array, NaN numeric), DDL/multi-statement rejection, server SQLSTATE, U+0000 bind rejection, explicit conversions |
+| I03 | `tests/i03_i04_postgres.rs::i03_*`, `cancelled_connection_setup_returns_pool_slot` | pass | PostgreSQL 16: every parameter kind, all supported result OIDs (int2/4/8, numeric with 39 digits, text, varchar, bpchar padding, uuid, bool, bytea, json, jsonb with `1e30`), NULL, hostile text as data, duplicate column names, unsupported types (date, float8, array, NaN numeric), DDL/multi-statement rejection, server SQLSTATE, U+0000 bind rejection, explicit conversions |
 | I04 | `tests/i03_i04_postgres.rs::i04_*` | pass | Commit with verified table state, callback-failure rollback, caught poison stays primary (23505) with rollback, tx timeout interrupting a pure loop, `sql` timeout on `pg_sleep`, task confinement and nested-tx ownership, independent autocommit inside a rolled-back tx, `DISCARD ALL` reset before pooled reuse |
-| I05 | `tests/i05_server.rs` | pass | Raw-socket requests: literal-over-parameter precedence, encoded slash, plus/query decoding, explicit HEAD (no body) and OPTIONS, implicit HEAD → 405 + Allow, JSON input, 415, 413 by Content-Length, chunked request body, 504, 500 for bare bytes, absolute-form target 400, 503 at `max_inflight`, client disconnect freeing the slot, SIGINT shutdown (exit 3) and closed listener |
+| I05 | `tests/i05_server.rs` (3 tests) | pass | Raw-socket requests: literal-over-parameter precedence, encoded slash, plus/query decoding, explicit HEAD (no body) and OPTIONS, implicit HEAD → 405 + Allow, JSON input, 415, 413 by Content-Length, chunked request body, 504, 500 for bare bytes, absolute-form target 400, 503 at `max_inflight`, client disconnect freeing the slot, SIGINT shutdown (exit 3) and closed listener |
 | I06 | `tests/i06_i07_i08.rs::i06_*` | pass | Mode preservation (0640 kept), new files 0600, no parent creation, symlink target and symlinked directory refused, outside file untouched, `..` rejected, missing file `not_found`, no temp files left, component-based permission, `max_file_bytes` abort |
 | I07 | `tests/i06_i07_i08.rs::i07_*` | pass | Pure infinite loop stopped by `deadline_ms` within the deadline (try handler not run), bounded parallelism timing, first failure cancelling a sleeping sibling, `eval_steps` exhaustion, 1,000,000-iteration tail loop |
 | I08 | `tests/i06_i07_i08.rs::i08_*` | pass | Tagged numbers/bytes/opaque containers, stderr isolation of `log`, exit codes 0/1/2/3, configuration and `source_bytes` limits, `check` without effects, unreadable and invalid-UTF-8 sources, duplicate/unknown options, stdin source, `spec --compact`, `--version`, conformance run |
@@ -48,10 +48,10 @@ KIRI_TEST_PG_DSN="host=127.0.0.1 port=55432 user=kiri dbname=postgres" cargo tes
 Additional prose-rule regressions (`tests/prose_regressions.rs`) cover rules
 the corpus does not: holes as ParamRefs only, valid WITH … SEARCH/CYCLE and
 sibling data-modifying CTEs, stacked content codings and 205 coding checks,
-JSON content type on pre-admission errors, strict route escapes, `fail`
+JSON content type on pre-admission errors, strict route escapes, unsigned duration/clock metadata and closed fixture formats, one enclosing cleanup deadline across joins/rollback/release, `fail`
 raising its record unchanged, and left-to-right argument validation.
 
-Without `KIRI_TEST_PG_DSN`, I03/I04 print `SKIP: KIRI_TEST_PG_DSN not set`
+Without `KIROHA_TEST_PG_DSN`, I03/I04 print `SKIP: KIROHA_TEST_PG_DSN not set`
 and do not assert; the results above were obtained **with** PostgreSQL 16.15.
 
 ## Formal verification
@@ -66,8 +66,8 @@ injected defect. See [formal verification](formal-verification.md).
 
 - Real HTTPS: `example.com` succeeds; `wrong.host.badssl.com` and
   `self-signed.badssl.com` fail with `tls`/`certificate`/`not_sent`.
-- `examples/fetch.kiri` against the GitHub API, `examples/database.kiri`
-  against PostgreSQL 16, `examples/server.kiri`-style server with `curl`.
+- `examples/fetch.kiroha` against the GitHub API, `examples/database.kiroha`
+  against a temporary PostgreSQL 16 database (demo and audit state verified), and `examples/server.kiroha` with an isolated notes directory/port (greeting, save/read note, file content and SIGINT shutdown). All six examples pass `check`; the three pure examples also pass `run`.
 - PostgreSQL `sslmode=require` against a non-TLS server fails at `db`/`pool`.
 
 ## Memory accounting strategy
@@ -82,14 +82,14 @@ root/request scope with `resource`. See
 
 | Item | Resolution |
 | --- | --- |
-| Lost COMMIT acknowledgment against a real server | `i04_lost_commit_acknowledgment_is_unknown_without_replay`: a TCP proxy forwards `COMMIT` to PostgreSQL 16 and drops the acknowledgment; Kiri reports `db`/`commit`/`unknown`, discards the connection and does not replay (≤ 1 row). |
+| Lost COMMIT acknowledgment against a real server | `i04_lost_commit_acknowledgment_is_unknown_without_replay`: a TCP proxy forwards `COMMIT` to PostgreSQL 16 and drops the acknowledgment; Kiroha reports `db`/`commit`/`unknown`, discards the connection and does not replay (≤ 1 row). |
 | HTTP timeout outcome precision | `timeout_outcome_reflects_whether_bytes_were_sent`: a timeout during an unfinished TLS handshake reports `not_sent`; a timeout after the request was written reports `unknown`. |
 | Statement grammar | Validation uses libpg_query built from PostgreSQL 16 (`PG_MAJORVERSION 16`), the reference dialect. |
 | Fresh audit after fixes | See "Independent audits" below. |
 
 ## Independent audits
 
-Sixteen independent read-and-execute audits of sections 2–15 were run against the
+Seventeen independent read-and-execute audits of sections 2–15 were run against the
 code (each walked the normative rules section by section and confirmed every
 finding by running programs or custom fixture manifests).
 
@@ -126,6 +126,8 @@ finding by running programs or custom fixture manifests).
 
 | 16 (full, §2–§15) | 6: HTTP header budget reset across head/trailers and interim responses; empty Transfer-Encoding treated as absent; admitted trailer quota mapped to 400; max_file_bytes=u64::MAX wrapped the read bound; cancelled pool acquisition leaked capacity; cleanup_ms restarted for each cleanup effect | Fixed: shared field budgets and framing presence checks; request quota abort maps to 503; saturating file bound; RAII pool slots across connection setup/reset cancellation; enclosing cleanup deadlines cover cancellation joins, rollback and release. Regressions in I01/I03/I05/I06 and `tests/fixtures/cleanup.json`; all four cleanup timing cases fail on the audit-16 baseline. |
 
+| 17 (full, §2–§16) | 4: unsigned timeout/clock-report values narrowed to negative i64; u64::MAX header quota overflow on fragmented client/server heads; fixture clock/OID/status numeric narrowing; closed fixture argument/result records accepted unknown fields | Fixed: exact unsigned values; saturating head bounds with fragmented-wire regressions; checked fixture metadata and wide clock values; pre-execution validation of closed normalized fixture schemas. Regressions in I01/I05 and `tests/prose_regressions.rs` / `tests/fixtures/unsigned.json`. |
+
 Audit 2 recorded "no new violations" for §2, §3, §4, §5, §6, §7, §8, §9,
 §10 (apart from the fixture header checks), §11 (apart from the two SQL
 items), §12, §13, §14.1 and §15, and confirmed 8 of the 9 audit-1 fixes
@@ -141,7 +143,7 @@ documentation snippets and claims as accurate.
 | --- | --- |
 | HTTP client connections | One connection per request; no pooling, so no hidden session state (§10.1 permits reuse but does not require it). |
 | Server connections | One request per connection with `connection: close`, a valid HTTP/1.1 behavior; HTTP/2 is not offered (optional in §10.1). |
-| Client half-close | Kiri 0.3.0 does not define half-close; §12.2 requires that a "client disconnect aborts its task". TCP offers no way to tell a half-close from a full close before a response is written (both arrive as FIN/EOF), so honouring §12.2 requires treating EOF during handler execution as a disconnect — the same rule Go's net/http applies. A client that shuts down its sending side before the response therefore receives none. This is the conforming reading of §12.2, not a deviation. |
+| Client half-close | Kiroha 0.3.0 does not define half-close; §12.2 requires that a "client disconnect aborts its task". TCP offers no way to tell a half-close from a full close before a response is written (both arrive as FIN/EOF), so honouring §12.2 requires treating EOF during handler execution as a disconnect — the same rule Go's net/http applies. A client that shuts down its sending side before the response therefore receives none. This is the conforming reading of §12.2, not a deviation. |
 | Number size | Coefficients (significant digits, excluding a spelling's leading/trailing zeros) are limited to 100,000 decimal digits (operands and results), and exponents to about ±2.3×10^18; exceeding it is a `resource` abort with `{resource:"number"}`. §3.2 allows coefficient limits only as host resource termination; the quota bounds the cost of a single uninterruptible arbitrary-precision operation to tens of milliseconds, so deadlines and other tasks are not starved. |
 | Memory quota | Process live-heap measurement at checkpoints (published strategy above); a single huge allocation may complete before it is observed, which §14.1 leaves implementation-dependent. |
 | Build requirement | `pg_query` needs a C compiler and libclang at build time. |

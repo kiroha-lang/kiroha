@@ -170,44 +170,86 @@ impl VirtualHost {
         }
     }
 
-    fn convert_ok(op: &str, v: &Value) -> Result<EffValue, String> {
-        let rec = |v: &Value| v.as_record().cloned().ok_or_else(|| format!("{op} fixture ok must be a record"));
+    pub(crate) fn validate_match(op: &str, v: &Value) -> Result<(), String> {
+        let keys: &[&str] = match op {
+            "http" => &["method", "url", "headers", "body_base64"],
+            "environment" => &["name"],
+            "read_regular" => &["path"],
+            "replace_regular" => &["path", "bytes_base64"],
+            "log_line" => &["line"],
+            "utc_now" => &[],
+            "random_bytes" => &["count"],
+            "pool" => &["alias"],
+            "acquire" => &["pool"],
+            "begin" => &["connection", "isolation"],
+            "execute" => &["connection", "sql", "parameters"],
+            "commit" | "rollback" => &["connection"],
+            "release" => &["connection", "disposition"],
+            _ => return Err("unknown fixture operation".into()),
+        };
+        let r = v.as_record().ok_or("fixture match must be a record")?;
+        closed_fields(r, keys)?;
+        if op == "execute" {
+            if let Some(parameters) = r.get("parameters") {
+                for p in parameters.as_array().ok_or("parameters must be an array")?.iter() {
+                    closed_fields(p.as_record().ok_or("parameter must be a record")?, &["oid", "value"])?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn convert_ok(op: &str, v: &Value) -> Result<EffValue, String> {
+        let rec = |v: &Value, keys: &[&str]| {
+            let r = v.as_record().cloned().ok_or_else(|| format!("{op} fixture ok must be a record"))?;
+            closed_fields(&r, keys)?;
+            Ok::<_, String>(r)
+        };
         let b64field = |r: &Record, k: &str| -> Result<Vec<u8>, String> {
             let s = r.get(k).and_then(|x| x.as_str()).ok_or_else(|| format!("{op} fixture needs {k}"))?;
             b64().decode(s).map_err(|_| format!("{op} fixture {k} is not base64"))
         };
         Ok(match op {
             "http" => {
-                let r = rec(v)?;
-                let status = r.get("status").and_then(|s| s.as_num()).and_then(|d| d.to_u64()).ok_or("http status")? as u16;
+                let r = rec(v, &["status", "headers", "body_base64"])?;
+                let status = r.get("status").and_then(|s| s.as_num()).and_then(|d| d.to_u64())
+                    .and_then(|n| u16::try_from(n).ok()).ok_or("http status out of range")?;
                 let mut headers = Vec::new();
                 for h in r.get("headers").and_then(|h| h.as_array()).ok_or("http headers")?.iter() {
                     let pair = h.as_array().ok_or("header pair")?;
+                    if pair.len() != 2 { return Err("header pair must have two strings".into()); }
                     let n = pair.first().and_then(|x| x.as_str()).ok_or("header name")?;
                     let val = pair.get(1).and_then(|x| x.as_str()).ok_or("header value")?;
+                    if val.chars().any(|c| c as u32 > 255) { return Err("header value must represent octets".into()); }
                     headers.push((n.to_string(), val.chars().map(|c| c as u32 as u8).collect()));
                 }
                 EffValue::Http(RawResponse { status, headers, body: b64field(&r, "body_base64")? })
             }
-            "environment" | "pool" | "acquire" => EffValue::Str(v.as_str().ok_or("fixture ok must be a string")?.to_string()),
-            "read_regular" | "random_bytes" => EffValue::Bytes(b64field(&rec(v)?, "bytes_base64")?),
+            "environment" | "pool" | "acquire" => {
+                let s = v.as_str().ok_or("fixture ok must be a string")?;
+                if op != "environment" && s.is_empty() { return Err("fixture identity must be nonempty".into()); }
+                EffValue::Str(s.to_string())
+            }
+            "read_regular" | "random_bytes" => EffValue::Bytes(b64field(&rec(v, &["bytes_base64"])?, "bytes_base64")?),
             "utc_now" => {
-                let r = rec(v)?;
+                let r = rec(v, &["unix_ms"])?;
                 let ms = r.get("unix_ms").and_then(|x| x.as_num()).and_then(|d| d.to_i128()).ok_or("unix_ms")?;
-                EffValue::UnixMs(ms as i64)
+                EffValue::UnixMs(ms)
             }
             "execute" => {
-                let r = rec(v)?;
+                let r = rec(v, &["columns", "rows", "count", "outcome"])?;
                 let mut columns = Vec::new();
                 for c in r.get("columns").and_then(|c| c.as_array()).ok_or("columns")?.iter() {
                     let cr = c.as_record().ok_or("column")?;
+                    closed_fields(cr, &["name", "oid"])?;
                     let name = cr.get("name").and_then(|x| x.as_str()).ok_or("column name")?;
                     let oid = cr.get("oid").and_then(|x| x.as_num()).and_then(|d| d.to_u64()).ok_or("column oid")?;
-                    columns.push((name.to_string(), oid as u32));
+                    columns.push((name.to_string(), u32::try_from(oid).map_err(|_| "column oid out of range")?));
                 }
                 let mut rows = Vec::new();
                 for row in r.get("rows").and_then(|x| x.as_array()).ok_or("rows")?.iter() {
                     let cells = row.as_array().ok_or("row")?;
+                    if cells.len() != columns.len() { return Err("row width differs from columns".into()); }
                     rows.push(
                         cells
                             .iter()
@@ -221,9 +263,14 @@ impl VirtualHost {
                 }
                 let count = r.get("count").and_then(|x| x.as_str()).ok_or("count")?.to_string();
                 let outcome = r.get("outcome").and_then(|x| x.as_str()).ok_or("outcome")?.to_string();
+                if count.is_empty() || !count.bytes().all(|b| b.is_ascii_digit()) { return Err("count must be a nonnegative integer string".into()); }
+                if !matches!(outcome.as_str(), "committed" | "unknown") { return Err("invalid execute outcome".into()); }
                 EffValue::Rows(RawRows { columns, rows, count, outcome })
             }
-            _ => EffValue::Null,
+            _ => {
+                if !matches!(v, Value::Null) { return Err(format!("{op} fixture ok must be null")); }
+                EffValue::Null
+            }
         })
     }
 
@@ -275,6 +322,13 @@ impl VirtualHost {
     pub fn unconsumed(&self) -> Vec<String> {
         self.fixtures.iter().filter(|f| !f.consumed).map(|f| f.id.clone()).collect()
     }
+}
+
+fn closed_fields(r: &Record, keys: &[&str]) -> Result<(), String> {
+    for (key, _) in r.iter() {
+        if !keys.contains(&key.as_ref()) { return Err(format!("unknown fixture field {key:?}")); }
+    }
+    Ok(())
 }
 
 impl Host for VirtualHost {

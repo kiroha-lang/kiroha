@@ -1,11 +1,11 @@
 {
-  "format": "kiri-measurement/2",
+  "format": "kiroha-measurement/2",
   "language": "0.3.0/Web1",
   "status": "tokenization_only",
   "runtime_execution_evidence": null,
   "generation_evaluation_evidence": null,
   "toolchain": {
-    "python": "3.12.14",
+    "python": "3.14.2",
     "tiktoken": "0.14.0",
     "encodings": {
       "o200k_base": {
@@ -20,27 +20,27 @@
     "input": "Exact raw UTF-8 text; LF; no normalization or chat framing",
     "encoding": "encode_ordinary; special-token-looking strings count as ordinary text",
     "extraction": "Unique whole-line markers, matching fence, payload including final LF",
-    "percentage": "100*(baseline-kiri)/baseline, rounded to 2 decimals; aggregate sums tokens first",
+    "percentage": "100*(baseline-kiroha)/baseline, rounded to 2 decimals; aggregate sums tokens first",
     "model_claim": "Named tokenizers do not identify any current model tokenizer"
   },
   "documents": {
     "full_markdown": {
       "file": "spec.md",
-      "sha256": "3df664286cc0f4297c24e9004bf7579107dc2dc62ae0ac7d638060f48c9dc1b2",
-      "unicode_code_points": 206327,
-      "utf8_bytes": 206431,
+      "sha256": "1494e48dbeaeb7f46aea593c94560da38a7759059f4491d330755b5b1208687f",
+      "unicode_code_points": 206598,
+      "utf8_bytes": 206702,
       "tokens": {
-        "o200k_base": 50403,
-        "cl100k_base": 49982
+        "o200k_base": 50527,
+        "cl100k_base": 50085
       }
     },
     "generation_card": {
-      "sha256": "47c19c242fd5d96ae29776d14d3ff5c80755c4bc677f34d0a25a131501735089",
-      "unicode_code_points": 11091,
-      "utf8_bytes": 11091,
+      "sha256": "3d1e74e1a5179b516e13e121e6a0fefb4e63d893d6e7b2b5207858e4cb5b5d33",
+      "unicode_code_points": 11093,
+      "utf8_bytes": 11093,
       "tokens": {
-        "o200k_base": 2599,
-        "cl100k_base": 2579
+        "o200k_base": 2600,
+        "cl100k_base": 2580
       },
       "target_tokens_each_encoding": 4096,
       "within_target": true
@@ -48,39 +48,39 @@
   },
   "embedded_blocks": {
     "generation_card": {
-      "sha256": "47c19c242fd5d96ae29776d14d3ff5c80755c4bc677f34d0a25a131501735089",
-      "unicode_code_points": 11091,
-      "utf8_bytes": 11091,
+      "sha256": "3d1e74e1a5179b516e13e121e6a0fefb4e63d893d6e7b2b5207858e4cb5b5d33",
+      "unicode_code_points": 11093,
+      "utf8_bytes": 11093,
       "tokens": {
-        "o200k_base": 2599,
-        "cl100k_base": 2579
+        "o200k_base": 2600,
+        "cl100k_base": 2580
       }
     },
     "conformance": {
-      "sha256": "72a524d47f5c2433213921bcf428df1d5d3f041316c704bf3ffdd9ef3fa19aeb",
-      "unicode_code_points": 52397,
-      "utf8_bytes": 52453,
+      "sha256": "d02c553a15451e07549ed50beef3ea8299a9c06c70864fd9c2d64fa2225dbd27",
+      "unicode_code_points": 52399,
+      "utf8_bytes": 52455,
       "tokens": {
-        "o200k_base": 16510,
-        "cl100k_base": 16260
+        "o200k_base": 16511,
+        "cl100k_base": 16261
       }
     },
     "measurement_corpus": {
-      "sha256": "e7e226982416f2b8cd0d40f409ef51c3d1e4413e4bdf6197a07eb9e5295f3cfd",
-      "unicode_code_points": 2339,
-      "utf8_bytes": 2339,
+      "sha256": "e10e563c4bb18d1165e2278df515f166906bc595dc6542e8d1fad71afd003edf",
+      "unicode_code_points": 2347,
+      "utf8_bytes": 2347,
       "tokens": {
-        "o200k_base": 699,
-        "cl100k_base": 697
+        "o200k_base": 703,
+        "cl100k_base": 701
       }
     },
     "measurement_script": {
-      "sha256": "93cf2c1c33cd325d2c5b8167037da09af0ce422681d5c6d8162ac8220b9faf99",
-      "unicode_code_points": 8911,
-      "utf8_bytes": 8911,
+      "sha256": "1bdadef75d46565ec7895628dc696a572b8dc2d3cf52df68ecfb39a78da3e10e",
+      "unicode_code_points": 8949,
+      "utf8_bytes": 8949,
       "tokens": {
-        "o200k_base": 2117,
-        "cl100k_base": 2094
+        "o200k_base": 2140,
+        "cl100k_base": 2112
       }
     }
   },
@@ -165,11 +165,11 @@
         "id": "example-1",
         "task": "HTTP JSON validation, filtering and projection",
         "sources": {
-          "kiri": "User=open({id:int,name:str,active:bool});\nget(\"https://api.example/users\") | check([User]) | filter(){u=>u.active} | map(){u=>{id:u.id,name:u.name}}",
+          "kiroha": "User=open({id:int,name:str,active:bool});\nget(\"https://api.example/users\") | check([User]) | filter(){u=>u.active} | map(){u=>{id:u.id,name:u.name}}",
           "typescript_same_sdk": "const User=open({id:int,name:str,active:bool});\ncheck(await get(\"https://api.example/users\"),[User]).filter(u=>u.active).map(u=>({id:u.id,name:u.name}))"
         },
         "measurements": {
-          "kiri": {
+          "kiroha": {
             "sha256": "f44fa82aab07c67fb33684cd0f14ad6a55572ee171e8edfa7bc425f3f2fe3074",
             "unicode_code_points": 148,
             "utf8_bytes": 148,
@@ -190,11 +190,11 @@
         },
         "comparison": {
           "o200k_base": {
-            "kiri_minus_baseline_tokens": 3,
+            "kiroha_minus_baseline_tokens": 3,
             "savings_percent": -6.98
           },
           "cl100k_base": {
-            "kiri_minus_baseline_tokens": 3,
+            "kiroha_minus_baseline_tokens": 3,
             "savings_percent": -6.67
           }
         }
@@ -203,11 +203,11 @@
         "id": "example-2",
         "task": "Cursor pagination with page validation",
         "sources": {
-          "kiri": "Page=open({items:[json],next:maybe(str)});\npages(null){c=>\n  p=get(\"https://api.example/items\",{query:{cursor:c}}) | check(Page);\n  {items:p.items,next:p.next}\n}",
+          "kiroha": "Page=open({items:[json],next:maybe(str)});\npages(null){c=>\n  p=get(\"https://api.example/items\",{query:{cursor:c}}) | check(Page);\n  {items:p.items,next:p.next}\n}",
           "typescript_same_sdk": "const Page=open({items:[json],next:maybe(str)});\nawait pages(null,async c=>{\n  const p=check(await get(\"https://api.example/items\",{query:{cursor:c}}),Page);\n  return {items:p.items,next:p.next}\n})"
         },
         "measurements": {
-          "kiri": {
+          "kiroha": {
             "sha256": "d73302baa7dd17d4018dfee78721c137008c90ea070574e3bd4107872e31c836",
             "unicode_code_points": 161,
             "utf8_bytes": 161,
@@ -228,11 +228,11 @@
         },
         "comparison": {
           "o200k_base": {
-            "kiri_minus_baseline_tokens": -5,
+            "kiroha_minus_baseline_tokens": -5,
             "savings_percent": 9.43
           },
           "cl100k_base": {
-            "kiri_minus_baseline_tokens": -5,
+            "kiroha_minus_baseline_tokens": -5,
             "savings_percent": 9.43
           }
         }
@@ -241,11 +241,11 @@
         "id": "example-3",
         "task": "JSON API with two-write transaction",
         "sources": {
-          "kiri": "d=db(\"main\");\nserve({\"POST /users\":{r=>\n  u=input(r,{name:str,email:str});\n  tx(d){t=>\n    row=sql(t,q`insert into users(name,email) values (${u.name},${u.email}) returning id`).rows | one();\n    sql(t,q`insert into audit(user_id) values (${row.id})`);\n    reply(201,row)\n  }\n}})",
+          "kiroha": "d=db(\"main\");\nserve({\"POST /users\":{r=>\n  u=input(r,{name:str,email:str});\n  tx(d){t=>\n    row=sql(t,q`insert into users(name,email) values (${u.name},${u.email}) returning id`).rows | one();\n    sql(t,q`insert into audit(user_id) values (${row.id})`);\n    reply(201,row)\n  }\n}})",
           "typescript_same_sdk": "const d=db(\"main\");\nserve({\"POST /users\":async r=>{\n  const u=input(r,{name:str,email:str});\n  return tx(d,async t=>{\n    const row=one((await sql(t,q`insert into users(name,email) values (${u.name},${u.email}) returning id`)).rows);\n    await sql(t,q`insert into audit(user_id) values (${row.id})`);\n    return reply(201,row)\n  })\n}})"
         },
         "measurements": {
-          "kiri": {
+          "kiroha": {
             "sha256": "f138cced58aac35dabadad1ee02c2f0663d729386152ed72de0121389dd5d829",
             "unicode_code_points": 279,
             "utf8_bytes": 279,
@@ -266,11 +266,11 @@
         },
         "comparison": {
           "o200k_base": {
-            "kiri_minus_baseline_tokens": -7,
+            "kiroha_minus_baseline_tokens": -7,
             "savings_percent": 7.37
           },
           "cl100k_base": {
-            "kiri_minus_baseline_tokens": -7,
+            "kiroha_minus_baseline_tokens": -7,
             "savings_percent": 7.45
           }
         }
@@ -278,15 +278,15 @@
     ],
     "aggregate": {
       "o200k_base": {
-        "kiri_tokens": 182,
+        "kiroha_tokens": 182,
         "baseline_tokens": 191,
-        "kiri_minus_baseline_tokens": -9,
+        "kiroha_minus_baseline_tokens": -9,
         "weighted_savings_percent": 4.71
       },
       "cl100k_base": {
-        "kiri_tokens": 183,
+        "kiroha_tokens": 183,
         "baseline_tokens": 192,
-        "kiri_minus_baseline_tokens": -9,
+        "kiroha_minus_baseline_tokens": -9,
         "weighted_savings_percent": 4.69
       }
     }

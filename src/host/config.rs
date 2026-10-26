@@ -1,4 +1,4 @@
-//! Closed host configuration `kiri-host/1` (spec §14.1).
+//! Closed host configuration `kiroha-host/1` (spec §14.1).
 
 use crate::url::{Origin, Url};
 use crate::value::{Record, Value};
@@ -257,8 +257,8 @@ pub fn parse_host_file(v: &Value, launch_dir: &str) -> CResult<HostConfig> {
     let r = rec(v, "host configuration")?;
     closed(r, &["format", "filesystem_root", "capabilities", "environment", "database_pools", "limits"], "host configuration")?;
     match r.get("format") {
-        Some(Value::Str(s)) if &**s == "kiri-host/1" => {}
-        _ => return Err("format must be exactly \"kiri-host/1\"".into()),
+        Some(Value::Str(s)) if &**s == "kiroha-host/1" => {}
+        _ => return Err("format must be exactly \"kiroha-host/1\"".into()),
     }
     let mut cfg = HostConfig::default_with_root(launch_dir.to_string());
     if let Some(root) = r.get("filesystem_root") {

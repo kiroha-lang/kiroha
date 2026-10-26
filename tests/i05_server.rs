@@ -41,15 +41,15 @@ fn routing_framing_limits_and_shutdown() {
         "GET /big":{{r=>d(x,n)=if n==0 then x else d([x,x],n-1); d(1,25)}}}},
         {{port:{port},timeout:300,max_body:8,max_inflight:1}})"#
     );
-    let sp = dir.join("s.kiri");
+    let sp = dir.join("s.kiroha");
     std::fs::write(&sp, src).unwrap();
     let hp = dir.join("h.json");
     std::fs::write(
         &hp,
-        format!(r#"{{"format":"kiri-host/1","capabilities":{{"listen":[{{"host":"127.0.0.1","port":{port}}}]}},"limits":{{"memory_bytes":4000000000}}}}"#),
+        format!(r#"{{"format":"kiroha-host/1","capabilities":{{"listen":[{{"host":"127.0.0.1","port":{port}}}]}},"limits":{{"memory_bytes":4000000000}}}}"#),
     )
     .unwrap();
-    let child = kiri().arg("run").arg(&sp).arg("--json").arg("--host").arg(&hp).stdout(std::process::Stdio::piped()).spawn().unwrap();
+    let child = kiroha().arg("run").arg(&sp).arg("--json").arg("--host").arg(&hp).stdout(std::process::Stdio::piped()).spawn().unwrap();
     // Kill the server if an assertion fails before the orderly shutdown.
     struct Guard(Option<std::process::Child>);
     impl Drop for Guard {
@@ -219,15 +219,15 @@ fn routing_framing_limits_and_shutdown() {
 fn request_line_is_not_counted_in_header_bytes() {
     let port = free_port();
     let dir = tempdir("srv-hb");
-    let sp = dir.join("s.kiri");
+    let sp = dir.join("s.kiroha");
     std::fs::write(&sp, format!(r#"serve({{"GET /a":{{r=>1}},"POST /a":{{r=>input(r,json)}}}},{{port:{port}}})"#)).unwrap();
     let hp = dir.join("h.json");
     std::fs::write(
         &hp,
-        format!(r#"{{"format":"kiri-host/1","capabilities":{{"listen":[{{"host":"127.0.0.1","port":{port}}}]}},"limits":{{"header_bytes":300}}}}"#),
+        format!(r#"{{"format":"kiroha-host/1","capabilities":{{"listen":[{{"host":"127.0.0.1","port":{port}}}]}},"limits":{{"header_bytes":300}}}}"#),
     )
     .unwrap();
-    let mut child = kiri().arg("run").arg(&sp).arg("--json").arg("--host").arg(&hp).stdout(std::process::Stdio::null()).spawn().unwrap();
+    let mut child = kiroha().arg("run").arg(&sp).arg("--json").arg("--host").arg(&hp).stdout(std::process::Stdio::null()).spawn().unwrap();
     for _ in 0..100 {
         if TcpStream::connect(("127.0.0.1", port)).is_ok() {
             break;
@@ -251,4 +251,34 @@ fn request_line_is_not_counted_in_header_bytes() {
     assert_eq!(send(port, raw.as_bytes()), "", "an oversized field section is closed without a response");
     let _ = child.kill();
     let _ = child.wait();
+}
+
+#[test]
+fn maximum_header_quota_accepts_fragmented_request() {
+    let port = free_port();
+    let dir = tempdir("srv-max-hb");
+    let sp = dir.join("s.kiroha");
+    std::fs::write(&sp, format!(r#"serve({{"GET /a":{{r=>1}}}},{{port:{port}}})"#)).unwrap();
+    let hp = dir.join("h.json");
+    std::fs::write(&hp, format!(r#"{{"format":"kiroha-host/1","capabilities":{{"listen":[{{"host":"127.0.0.1","port":{port}}}]}},"limits":{{"header_bytes":18446744073709551615}}}}"#)).unwrap();
+    struct Guard(std::process::Child);
+    impl Drop for Guard {
+        fn drop(&mut self) {
+            let _ = self.0.kill();
+            let _ = self.0.wait();
+        }
+    }
+    let _guard = Guard(kiroha().arg("run").arg(sp).arg("--json").arg("--host").arg(hp).stdout(std::process::Stdio::null()).spawn().unwrap());
+    for _ in 0..100 {
+        if TcpStream::connect(("127.0.0.1", port)).is_ok() { break; }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let mut socket = TcpStream::connect(("127.0.0.1", port)).unwrap();
+    socket.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+    socket.write_all(b"GET /a HTTP/1.1\r\nHost: x\r\n").unwrap();
+    std::thread::sleep(Duration::from_millis(20));
+    let _ = socket.write_all(b"\r\n");
+    let mut response = String::new();
+    socket.read_to_string(&mut response).unwrap();
+    assert_eq!(status(&response), "200", "{response}");
 }

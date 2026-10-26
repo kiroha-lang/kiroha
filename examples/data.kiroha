@@ -1,4 +1,4 @@
-// Pure data processing: run with `kiri run examples/data.kiri --json`
+// Pure data processing: run with `kiroha run examples/data.kiroha --json`
 orders = [
   {id:1, customer:"ada", total:12.50, items:["pen","ink"]},
   {id:2, customer:"lin", total:3.10, items:["paper"]},

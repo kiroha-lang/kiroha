@@ -1,16 +1,17 @@
 [package]
-name = "kiri"
+name = "kiroha"
 version = "0.3.0"
 edition = "2021"
-description = "Reference implementation of the Kiri 0.3.0 / Web1 language and runtime"
+rust-version = "1.88"
+description = "Reference implementation of the Kiroha 0.3.0 / Web1 language and runtime"
 license = "MIT"
 
 [lib]
-name = "kiri"
+name = "kiroha"
 path = "src/lib.rs"
 
 [[bin]]
-name = "kiri"
+name = "kiroha"
 path = "src/main.rs"
 
 [dependencies]

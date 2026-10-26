@@ -1,9 +1,9 @@
 {
-  "format": "kiri-host/1",
+  "format": "kiroha-host/1",
   "capabilities": {
     "listen": [{"host": "127.0.0.1", "port": 8080}],
-    "read": ["/tmp/kiri-notes"], "write": ["/tmp/kiri-notes"],
+    "read": ["/tmp/kiroha-notes"], "write": ["/tmp/kiroha-notes"],
     "clock": true, "random": true, "log": true
   },
-  "filesystem_root": "/tmp/kiri-notes"
+  "filesystem_root": "/tmp/kiroha-notes"
 }

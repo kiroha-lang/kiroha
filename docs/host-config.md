@@ -1,13 +1,13 @@
-# Host configuration (`kiri-host/1`)
+# Host configuration (`kiroha-host/1`)
 
 Normative text: spec §14.1. The host file is strict JSON (duplicate keys,
 comments and BOM rejected). It configures the runtime; it is not visible to
-Kiri code. Every key — including nested ones — is closed: unknown keys are
+Kiroha code. Every key — including nested ones — is closed: unknown keys are
 configuration errors (exit 2).
 
 ```json
 {
-  "format": "kiri-host/1",
+  "format": "kiroha-host/1",
   "filesystem_root": "/srv/task",
   "capabilities": {
     "http": ["https://api.example", "http://127.0.0.1:9000"],
@@ -22,7 +22,7 @@ configuration errors (exit 2).
   },
   "environment": {"API_TOKEN": "secret"},
   "database_pools": {
-    "main": {"dsn_env": "KIRI_PG_MAIN", "max_connections": 4}
+    "main": {"dsn_env": "KIROHA_PG_MAIN", "max_connections": 4}
   },
   "limits": {
     "source_bytes": 1048576,
@@ -71,7 +71,7 @@ libpq-style DSN, read only by the connector) and optional `max_connections`
 appear in errors. Example:
 
 ```sh
-export KIRI_PG_MAIN="host=127.0.0.1 port=5432 user=app dbname=app password=..."
+export KIROHA_PG_MAIN="host=127.0.0.1 port=5432 user=app dbname=app password=..."
 ```
 
 Connection TLS follows the DSN's `sslmode` (`disable`, `prefer` — the

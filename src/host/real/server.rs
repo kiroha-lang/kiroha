@@ -314,7 +314,7 @@ async fn handle_conn(
         // capped separately. An unreadable head is closed without a response.
         match buf.windows(2).position(|w| w == b"\r\n") {
             None if buf.len() > REQUEST_LINE_MAX => return,
-            Some(le) if buf.len() - (le + 2) > header_limit as usize + 4 => return,
+            Some(le) if (buf.len() - (le + 2)) as u64 > header_limit.saturating_add(4) => return,
             _ => {}
         }
         let mut chunk = vec![0u8; 8192];
