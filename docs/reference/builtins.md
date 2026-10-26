@@ -1,6 +1,6 @@
 # Built-in reference
 
-Kiroha 0.6.0 / Web1 has **31 global functions, 19 collection methods, one `.size` property and 5 schema
+Kiroha 0.7.0 / Web1 has **31 global functions, 19 collection methods, one `.size` property and 5 schema
 atoms**. Globals are ordinary bindings and may be shadowed. Members are selected
 by receiver kind; they are not global names. Normative text:
 [`spec.md`](../../spec.md) §7–§13.
@@ -199,6 +199,10 @@ url("https://api.example/base?old=1", ["a/b","x y"], {q:["a b",null,true], n:0})
 
 ## Database
 
+The `db`/`sql`/`tx` API is shared by PostgreSQL, MySQL and MariaDB. Select
+`backend` in the host pool configuration; SQL dialect and native result types
+follow that backend. See the [database guide](../guides/databases.md).
+
 ### `db(name)`
 
 Returns the configured pool handle for alias `name` (needs the
@@ -214,11 +218,15 @@ task; `Q` must be a query literal (a string is `type`).
 | `timeout` | 10000 | positive ms |
 | `max_rows` | 10000 | nonnegative; exceeding → `limit` (never truncates) |
 
+The following type mapping describes PostgreSQL; the database guide lists
+MySQL/MariaDB mappings (BOOL → integer, binary → Bytes, MariaDB JSON → string,
+large/fractional numeric parameters → exact text requiring a DECIMAL cast).
+
 Statement validation (before any connection is used) rejects with
 `db {phase:"prepare", outcome:"not_sent", reason}`: `statement` (not a single
-SELECT/INSERT/UPDATE/DELETE/MERGE, optionally with WITH; includes DDL, SELECT
+SELECT/INSERT/UPDATE/DELETE (PostgreSQL also MERGE), optionally with WITH; includes DDL, SELECT
 INTO, transaction control), `multiple_statements`, `hole_context` (hole inside
-quotes, comments or dollar-quoted text), `literal_parameter` (a written `$1`).
+quotes, comments or dollar-quoted text), `literal_parameter` (a written `$1` on PostgreSQL or `?` on MySQL/MariaDB).
 
 Parameters bind as: null → untyped NULL, bool → boolean, string → text (no
 U+0000), number → numeric (exact), bytes → bytea, JSON record/array → jsonb.

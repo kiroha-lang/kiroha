@@ -67,21 +67,38 @@ process environment is never exposed implicitly.
 
 ## Database pools
 
-Each alias has `dsn_env` (the *launch process* environment variable holding a
-libpq-style DSN, read only by the connector) and optional `max_connections`
-(default 4). Credentials and connection parameters stay in the DSN and never
-appear in errors. Example:
+Each alias has required `dsn_env`, optional `backend` (`postgresql`, `mysql`
+or `mariadb`, default `postgresql`), and optional `max_connections` (default
+4, positive integer). The launch process environment variable named by
+`dsn_env` holds the trusted DSN, read only by the connector. Credentials and
+raw connection errors are never exposed to Kiroha source or diagnostics.
 
-```sh
-export KIROHA_PG_MAIN="host=127.0.0.1 port=5432 user=app dbname=app password=..."
+```json
+"database_pools": {
+  "main": {"backend":"mysql", "dsn_env":"APP_DATABASE_URL", "max_connections":4},
+  "archive": {"backend":"mariadb", "dsn_env":"ARCHIVE_DATABASE_URL"},
+  "legacy": {"dsn_env":"KIROHA_PG_MAIN"}
+}
 ```
 
-Connection TLS follows the DSN's `sslmode` (`disable`, `prefer` — the
-default — or `require`); server certificates are verified against the same
-trust store as HTTPS. Each
-connection starts with UTF-8 client encoding, `standard_conforming_strings`
-on and read-committed isolation, and is reset with `DISCARD ALL` before reuse
-(or discarded if the reset fails).
+For PostgreSQL, use a libpq-style connection string. TLS follows `sslmode`
+(`disable`, `prefer` — the default — or `require`); TLS certificates and
+hostnames are verified. Connections use UTF-8, `standard_conforming_strings`
+on and read committed, and reset with `DISCARD ALL` plus the baseline.
+
+For MySQL/MariaDB, use `mysql://user:password@host:port/database` (MariaDB
+also accepts `mariadb://`). TCP addresses are honored. Add `?require_ssl=true`
+for TLS with certificate and hostname verification. Trust roots include the
+system and process `SSL_CERT_FILE`/`SSL_CERT_DIR`; trusted driver URL options
+own any additional TLS policy. Sessions use `utf8mb4_bin`, strict SQL mode,
+read committed and autocommit; reset clears session state and reapplies the
+baseline, or discards the connection. Cancellation uses an authenticated
+control connection to stop the query, then discards its interrupted lease.
+Use InnoDB tables for rollback. The configured account must be able to
+cancel its own queries.
+
+See [the database guide](https://kiroha-lang.github.io/kiroha/guides/databases/) for a complete host file,
+portable queries and backend type differences.
 
 ## Limits
 
@@ -109,4 +126,4 @@ shortened to fit the clock.
 
 HTTPS verification uses the system trust store. Setting the process
 environment variable `SSL_CERT_FILE` to a PEM bundle replaces it (useful for
-private CAs and tests). There is no way to disable verification.
+private CAs and tests). HTTPS has no option to disable verification. Database TLS is controlled by the trusted DSN as described above.

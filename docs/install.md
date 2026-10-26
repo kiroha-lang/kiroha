@@ -34,8 +34,8 @@ source build where the POSIX host adapters are supported.
 Pin both the installer and executable to a release:
 
 ```sh
-curl -fsSL https://github.com/kiroha-lang/kiroha/releases/download/v0.6.0/install.sh \
-  | bash -s -- --version 0.6.0
+curl -fsSL https://github.com/kiroha-lang/kiroha/releases/download/v0.7.0/install.sh \
+  | bash -s -- --version 0.7.0
 ```
 
 Choose a different directory:
@@ -54,7 +54,7 @@ files. `KIROHA_RELEASE_BASE_URL` can point to a release mirror with the same
 
 ## Build from source
 
-Requires Rust 1.88+ (tested with 1.96), a C compiler and libclang for
+Requires Rust 1.89+ (tested with 1.96), a C compiler and libclang for
 `pg_query`. On Debian/Ubuntu, `sudo apt-get install build-essential libclang-dev`
 provides the native build requirements. On macOS, use the Xcode command-line
 tools and `brew install llvm protobuf`, then export

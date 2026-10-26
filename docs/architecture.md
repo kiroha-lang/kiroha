@@ -1,6 +1,6 @@
 # Architecture
 
-This document describes how this implementation realizes the Kiroha 0.6.0 /
+This document describes how this implementation realizes the Kiroha 0.7.0 /
 Web1 contract. Language-visible behavior is fixed by [`spec.md`](../spec.md);
 everything here is an engineering choice.
 
@@ -11,7 +11,7 @@ source bytes ─▶ lexer ─▶ parser ─▶ resolver ─▶ type checker ─�
                                   ┌───────────────┴────────────────┐
                            VirtualHost (conformance)        RealHost (CLI run)
                            virtual clock, fixtures,         tokio LocalSet, httparse+rustls,
-                           traces, virtual server           tokio-postgres, httparse server,
+                           traces, virtual server           PG/MySQL adapters, httparse server,
                                                             openat/renameat files
 ```
 
@@ -29,7 +29,8 @@ source bytes ─▶ lexer ─▶ parser ─▶ resolver ─▶ type checker ─�
 | `src/value.rs` | Value kinds, records, functions, error constructors, JSON equality/hash |
 | `src/schema.rs` | Schema normalization and validation |
 | `src/url.rs` | URL acceptance rules and the `url` constructor |
-| `src/sqlcheck.rs` | Query translation, hole-context lexing and statement validation with libpg_query (PostgreSQL 16 grammar) |
+| `src/database.rs` | Backend-neutral `Backend`, `SqlType`, `SqlParam` and `RawRows` shared by the runtime and all database adapters |
+| `src/sqlcheck.rs` | Query translation, hole-context lexing and statement validation: libpg_query (PostgreSQL 16 grammar) in `sqlcheck/postgres.rs`, sqlparser's MySQL dialect in `sqlcheck/mysql.rs` |
 | `src/runtime/` | Task engine (`mod.rs`), evaluator (`machine.rs`), frames |
 | `src/methods.rs` | Receiver-kind registry, member signatures and properties |
 | `src/builtins/` | The 51 native operations: `pure`, `callbacks`, `effects`, `db`, `server`, helpers |
@@ -196,6 +197,15 @@ cancelled.
   dropped. Pool slots are guarded across connection setup and reset: dropping a cancelled future discards the lease and returns its slot, even if reset never started. A cancelled or timed-out statement triggers a PostgreSQL
   CancelRequest, so the backend stops and the following ROLLBACK is not
   queued behind it.
+- **MySQL / MariaDB** — mysql_async behind the same `Connection` trait
+  (`host/real/database.rs`), which owns pool leases, transaction state and
+  slot accounting for every backend; `backend` in a pool entry selects the
+  adapter. Parameters bind as binary values (integers beyond 64 bits stay
+  exact text), results are normalized to the shared `RawRows` text form, and
+  floating-point/date/time columns are rejected as `decode` rather than rounded.
+  Sessions use `utf8mb4_bin`, strict `sql_mode` and READ COMMITTED; release runs
+  a connection reset plus that baseline. A cancelled or timed-out statement
+  issues `KILL QUERY` from a side connection and discards the lease.
 - **Server** — a tokio listener and an httparse request-head parser that keeps
   the raw target and header pairs; body framing (Content-Length/chunked) is
   decoded on request of the runtime with the `max_body` limit; a watcher

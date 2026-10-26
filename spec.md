@@ -1,9 +1,9 @@
-# Kiroha 0.6.0 — Web1 Language and Runtime Specification
+# Kiroha 0.7.0 — Web1 Language and Runtime Specification
 
-**Revision:** 0.6.0 · **Profile:** Web1 · **Date:** 2026-10-26
+**Revision:** 0.7.0 · **Profile:** Web1 · **Date:** 2026-10-26
 **Deliverables:** this self-contained implementation specification and `measurement.json`.
 
-Kiroha is a small, strict, immutable expression language for LLM-generated programs that manipulate JSON, call web services, serve APIs and use PostgreSQL. Its single canonical callback syntax is a mandatory trailing lambda, with a matching declaration-side callback slot:
+Kiroha is a small, strict, immutable expression language for LLM-generated programs that manipulate JSON, call web services, serve APIs and use PostgreSQL, MySQL or MariaDB. Its single canonical callback syntax is a mandatory trailing lambda, with a matching declaration-side callback slot:
 
 ```kiroha
 fun apply<T,U>(x:T){f:(T)=>U}:U f(x) end fun apply
@@ -28,7 +28,7 @@ The declaration and call both have an ordinary argument channel and a separate c
 - [8. Failures, diagnostics, budgets, and task scopes](#8-failures-diagnostics-budgets-and-task-scopes)
 - [9. Concurrency, retries, pagination](#9-concurrency-retries-pagination)
 - [10. HTTP client and URL contract](#10-http-client-and-url-contract)
-- [11. PostgreSQL](#11-postgresql)
+- [11. Databases](#11-databases)
 - [12. HTTP server](#12-http-server)
 - [13. Environment, files, clock, randomness and logs](#13-environment-files-clock-randomness-and-logs)
 - [14. Host configuration and adapter](#14-host-configuration-and-adapter)
@@ -43,7 +43,7 @@ The declaration and call both have an ordinary argument channel and a separate c
 
 Sections 2–16 are the normative implementation contract. MUST/MUST NOT express conformance requirements. SHOULD is used only for explicitly optional engineering advice. Examples and test expectations must agree with the normative rules; an implementation may not silently choose a different behavior to match its host language.
 
-This file replaces the Kiroha 0.5.0 specification as the implementation authority for 0.6.0. It defines lexical/syntactic rules, static resolution, values, evaluation, 31 global functions, 19 collection methods and the size property, external effects, host configuration, a CLI and an embedded conformance corpus. No prior chat, hidden design document, skill, existing implementation or unstated API is needed to determine Kiroha semantics.
+This file replaces the Kiroha 0.5.0 specification as the implementation authority for 0.7.0. It defines lexical/syntactic rules, static resolution, values, evaluation, 31 global functions, 19 collection methods and the size property, external effects, host configuration, a CLI and an embedded conformance corpus. No prior chat, hidden design document, skill, existing implementation or unstated API is needed to determine Kiroha semantics.
 
 This revision has a Rust reference implementation in this repository. Embedded cases remain normative acceptance requirements; recorded execution results are in `docs/conformance-report.md`. Token measurements report document/source length only. Finite review and tests do not prove that every future implementation will be bug-free.
 
@@ -64,11 +64,11 @@ The generation surface is small because common work has explicit runtime/library
 | Missing/null | Distinct; optional access and ?? have narrowly specified behavior |
 | Error model | Catchable error records; separate uncatchable abort channel |
 | Networking | Buffered HTTP/JSON; explicit limits; no hidden redirects/retries/cookies |
-| Database | Parameterized PostgreSQL; explicit transaction handles and poison state |
+| Database | Parameterized database adapters; explicit transaction handles and poison state |
 | Portability | Host-independent values; explicit I/O and configuration boundaries |
 | Tests | Embedded machine-readable cases plus required real integration scenarios |
 
-The 0.3.0 baseline fixed details not settled by the prior short contract: grammar disambiguation, comparison nonchaining, scalar-based strings, canonical decimal/JSON spelling, static error timing, callback preflight, complete error data, timeout/cleanup scopes, URL/header/framing policies, SQL parsing/typing, filesystem replacement, CLI/wire formats and conformance fixtures. It also treats HTTP 205 as bodyless. The 0.4.0 revision introduced explicit `fun` and matching named ends. Version 0.5.0 removes function-header `then`, makes a separator after a definition optional, and moves collection operations to receiver methods with `.size` for length. Conditional `then` remains mandatory. The native operation inventory remains 51 entries; its public surface is 31 globals, 19 methods and one property. Version 0.6.0 adds explicit structural types, lightweight checking and simple generics, with no implicit any. Token counts below measure length, not generation success.
+The 0.3.0 baseline fixed details not settled by the prior short contract: grammar disambiguation, comparison nonchaining, scalar-based strings, canonical decimal/JSON spelling, static error timing, callback preflight, complete error data, timeout/cleanup scopes, URL/header/framing policies, SQL parsing/typing, filesystem replacement, CLI/wire formats and conformance fixtures. It also treats HTTP 205 as bodyless. The 0.4.0 revision introduced explicit `fun` and matching named ends. Version 0.5.0 removes function-header `then`, makes a separator after a definition optional, and moves collection operations to receiver methods with `.size` for length. Conditional `then` remains mandatory. The native operation inventory remains 51 entries; its public surface is 31 globals, 19 methods and one property. Version 0.7.0 adds explicit structural types, lightweight checking and simple generics, with no implicit any. Token counts below measure length, not generation success.
 
 ### 0.4 Agent build instruction
 
@@ -82,7 +82,7 @@ The exact text between the text fence below is extracted by `kiroha spec --compa
 
 <!-- KIROHA_GENERATION_CARD_BEGIN -->
 ```text
-Kiroha 0.6.0 / Web1
+Kiroha 0.7.0 / Web1
 Write only this language/API. No imports, host escape, invented methods or implicit variables. Task URLs, credentials, DB schemas and requirements are separate input.
 
 CORE
@@ -148,9 +148,9 @@ url(base,segments,query={}): append encoded string segments, preserve origin/que
 Network/timeout outcome not_sent only when proven, otherwise unknown. Failed request does not imply rollback.
 
 DATABASE
-db(name): configured borrowed PostgreSQL pool,reused,no close.
-sql(d,Q,o={}): one parameterized PostgreSQL16 SELECT/INSERT/UPDATE/DELETE/MERGE (WITH allowed); no SELECT INTO/DDL/session/transaction control. Query only; no literal $n parameters. o={timeout:10000,max_rows:10000}. Returns {rows:[record],count:int}, count server command count. Outside tx autocommit.
-Bind null/bool/string/exact-number/Bytes; JSON records/arrays=>JSONB, not SQL arrays. Results: integer/numeric exact; text/varchar/char/uuid string; bool,bytea,JSON/JSONB,NULL map naturally. Other OIDs (arrays,date/time,float,etc.) require explicit SQL conversion. Duplicate columns/mapping/limit errors; autocommit may already have committed.
+db(name): configured borrowed database pool,reused,no close. Host selects postgresql(default)/mysql/mariadb.
+sql(d,Q,o={}): one parameterized SELECT/INSERT/UPDATE/DELETE (PG16 also MERGE, WITH allowed); backend SQL syntax, no SELECT INTO/DDL/session/transaction control. Query only; no literal $n(PG)/?(MySQL/MariaDB) parameters. o={timeout:10000,max_rows:10000}. Returns {rows:[record],count:int}, count server command count. Outside tx autocommit.
+Bind null/bool/string/exact-number/Bytes/JSON records-arrays, not SQL arrays. PG: numeric/jsonb/bytea/bool map naturally. MySQL/MariaDB: large/fractional numbers bind exact text; CAST(... AS DECIMAL(p,s)) for numeric semantics. BOOL=>int, binary=>Bytes, MySQL JSON=>json, MariaDB JSON=>str then parse/check. Results integer/decimal exact, text str, NULL null. Float/date/time/unsupported types need SQL casts. Duplicate columns/mapping/limit errors; autocommit may have committed.
 tx(d,o={timeout:10000}){f}: f(t), pinned read-committed transaction. Normal unpoisoned result commits; otherwise rollback attempt. Every sql(t) failure after live owned t accepted poisons with first failure even if caught. t task-confined/expires on callback return; parallel children cannot use it even n1. No nested tx same task. Only explicit sql(t) joins; sql(d),HTTP/files independent.
 tx timeout aborts callback and is catchable only outside tx. Ancestor abort wins, then tx timeout, then first SQL error, then other callback error. Lost COMMIT acknowledgment=>db outcome unknown; no replay.
 
@@ -725,7 +725,7 @@ Web1 has exactly **31 global functions, 19 collection methods and one size prope
 | 37 | `get(u,o={})` | Require HTTP 2xx; decode/parse JSON |
 | 38 | `post(u,v,o={})` | Send JSON; require 2xx; decode/parse JSON |
 | 39 | `url(base,segments,query={})` | Strict URL construction with encoded segments/query |
-| 40 | `db(name)` | Borrow configured PostgreSQL pool handle |
+| 40 | `db(name)` | Borrow configured database pool handle |
 | 41 | `sql(d,Q,o={})` | `{rows:[record],count:int}` |
 | 42 | `tx(d,o={}){f}` | Transaction callback f(t); commit result or rollback/fail |
 | 43 | `serve(routes,o={})` | Serve until termination; no normal return |
@@ -1008,21 +1008,21 @@ For network/TLS/timeout/limit failures associated with a request, report outcome
 
 No ordinary error is proof that a remote mutation was rolled back. This is an observable API property, not a hidden retry policy.
 
-## 11. PostgreSQL
+## 11. Databases
 
 ### 11.1 Connection and dialect boundary
 
-Web1's reference database dialect is **PostgreSQL 16**. A conforming adapter must pass the required integration cases against PostgreSQL 16; newer servers may be used only while preserving this profile. Kiroha is not a SQL implementation. A PostgreSQL driver and a PostgreSQL-aware statement parser are permitted dependencies. The external server defines SQL results, SQL errors, privileges, triggers and read-committed isolation.[P][I]
+Web1 provides **PostgreSQL 16**, **MySQL 8.4** and **MariaDB 11.4** profiles through the same `db`, `sql` and `tx` API. Host pool configuration selects a profile; omission selects PostgreSQL for compatibility. Pools of different profiles may coexist in one host. Pool leases, deadlines, transaction ownership, poisoning, cleanup and error outcomes are shared; protocol drivers and SQL validation are adapters. Kiroha is not a SQL implementation or SQL portability layer. The server defines SQL results, SQL errors, privileges, triggers, storage limits and read-committed isolation.[P][I] PostgreSQL retains its exact profile below; the MySQL/MariaDB additions are in §11.6.
 
 `db(name)` accepts a string alias in the host configuration. Check permission before lookup; an authorized but unavailable configured pool raises db with phase pool. It returns a reusable borrowed database handle. It neither creates a user-owned pool per call nor reserves a connection. Repeated db(name) uses the same configured pool. There is no source-level close.
 
-The host owns pool limits, credentials, lifetime and shutdown. Pool acquisition observes the operation deadline. A lease is released only after protocol completion and session reset, or discarded. Reset must restore the configured baseline (including search_path, roles, timezone and prepared/session state), or the connection is discarded. The normalized release disposition is reset for a healthy connection in a known ended state; this asks the adapter to reset, with physical discard permitted if reset cannot be confirmed. Disposition discard is mandatory for uncertain protocol/COMMIT state and never returns that connection to reuse. Startup baseline is UTF-8 client encoding, standard_conforming_strings=on, and read-committed transactions. Server-side privileges remain the authority for allowed database actions.
+The host owns pool limits, credentials, lifetime and shutdown. Pool acquisition observes the operation deadline. A lease is released only after protocol completion and session reset, or discarded. Reset must restore the configured baseline (including search_path, roles, timezone and prepared/session state), or the connection is discarded. The normalized release disposition is reset for a healthy connection in a known ended state; this asks the adapter to reset, with physical discard permitted if reset cannot be confirmed. Disposition discard is mandatory for uncertain protocol/COMMIT state and never returns that connection to reuse. The PostgreSQL startup baseline is UTF-8 client encoding, standard_conforming_strings=on, and read-committed transactions. Server-side privileges remain the authority for allowed database actions.
 
 ### 11.2 Query translation and statement validation
 
 `sql(d,Q,o={})` requires a database or live owned transaction handle and a Query value. An ordinary string never becomes SQL implicitly. Query values are immutable segments plus values (Section 2.4).
 
-Translate holes to distinct PostgreSQL positional value parameters in encounter order, inserting a space before and after each generated `$n` token. A PostgreSQL-aware lexer/parser MUST establish that:
+For the PostgreSQL profile, translate holes to distinct PostgreSQL positional value parameters in encounter order, inserting a space before and after each generated `$n` token. A PostgreSQL-aware lexer/parser MUST establish that:
 
 - Each hole occurs in ordinary SQL lexical state, outside strings, quoted identifiers, comments and dollar-quoted bodies.
 - Each generated marker parses exactly once as a ParamRef expression. Holes cannot supply identifiers, keywords, operators or fragments.
@@ -1037,7 +1037,7 @@ A Query whose literal text places a Kiroha hole inside SQL quotes is invalid whe
 
 ### 11.3 Parameters and results
 
-The adapter preserves exact values at the driver boundary:
+The PostgreSQL adapter preserves exact values at the driver boundary:
 
 | Kiroha parameter | Wire binding |
 | --- | --- |
@@ -1120,6 +1120,77 @@ A caught SQL error does not clear poison. On leaving f, first priority is any an
 Only `sql(t,...)` joins the transaction. `sql(d,...)` with the pool handle remains an independent autocommit operation, even inside f. It may wait for another connection and be limited by the parent tx deadline. HTTP/file/log effects in f are independent and remain after rollback.
 
 A COMMIT failure without a definite server rejection/rollback acknowledgment is db/phase commit/outcome unknown. Never replay the callback. An unknown COMMIT outcome, including timeout/abort after COMMIT dispatch, is an explicit exception to the rollback step: issue no further SQL, discard the connection and preserve the primary outcome. A confirmed COMMIT is never rolled back. A definite server-confirmed rollback releases/resets the connection; a failure before COMMIT dispatch still attempts rollback. Real cancellation/rollback uses the cleanup scope from Section 8, not the already-expired callback token.
+
+### 11.6 MySQL and MariaDB profiles
+
+These profiles use the MySQL prepared-statement protocol. Trusted DSNs use
+`mysql://user:password@host:port/database`; MariaDB also accepts `mariadb://`.
+Explicit TCP endpoints are honored. TLS is opt-in through the driver's
+`require_ssl=true` URL option and verifies certificates/hostnames by default;
+trusted DSNs own TLS policy. System roots and `SSL_CERT_FILE`/`SSL_CERT_DIR`
+are supported. Credentials and raw driver/server messages never enter errors.
+
+Connections start and reset with `utf8mb4` / `utf8mb4_bin`,
+`sql_mode=STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION`, read-committed isolation
+and autocommit enabled. Reset clears session state with COM_RESET_CONNECTION
+and reapplies this baseline, or discards the connection. Cancellation sends
+KILL QUERY over a separate authenticated connection, bounded by the enclosing
+cleanup deadline, and discards the interrupted connection. Failed connection
+setup or reset returns its pool slot even if its future is canceled.
+Use transactional tables such as InnoDB: nontransactional engines and external
+function/trigger effects cannot be rolled back by `tx`.
+
+The syntax profile is the subset accepted by sqlparser 0.63's MySQL dialect
+and the selected server. Translate value holes to distinct ` ? ` markers in
+encounter order. Each must parse exactly once as a value placeholder. Reject
+literal `?` outside quotes/comments, holes inside single/double quoted strings,
+backtick identifiers or comments, and MySQL/MariaDB executable comments
+(`/*!...*/`, `/*M!...*/`). Single/double quoted strings use backslash escapes
+and doubled quotes; backticks use doubled backticks. Line comments are `#` or
+`--` followed by whitespace/control; block comments are not nested.
+Allow one SELECT, INSERT, UPDATE or DELETE statement, optionally WITH, with
+one optional trailing semicolon/comments. REPLACE, SELECT INTO (including file
+output), DDL, session/transaction control and other utility statements are
+rejected. Unsupported grammar is `db/prepare/not_sent` with reason `statement`;
+for example use `CAST(value AS CHAR)`, since the parser does not accept the
+`CHAR CHARACTER SET ...` cast form. SQL is not rewritten to another dialect.
+
+| Parameter | MySQL/MariaDB driver value |
+| --- | --- |
+| null | SQL NULL |
+| bool | Signed integer 0/1 |
+| exact number | Signed/unsigned 64-bit integer if representable, otherwise exact canonical decimal text |
+| string | UTF-8 bytes (U+0000 allowed) |
+| Bytes | Raw bytes |
+| JSON record/array | Canonical JSON text |
+
+No number passes through binary64 in Kiroha or the adapter. For fractional or
+large parameters, use `CAST(${value} AS DECIMAL(p,s))` where numeric semantics
+are required; an uncast parameter may be reported as text. Server precision,
+coercion and JSON storage semantics still apply. In particular MySQL native
+JSON may normalize numeric values; storing canonical text preserves Kiroha's
+original JSON representation when this matters.
+
+| Reported result metadata | Kiroha result |
+| --- | --- |
+| TINY/SHORT/LONG/INT24/LONGLONG/YEAR, including unsigned | Exact integer |
+| DECIMAL/NEWDECIMAL | Exact decimal from server text |
+| Text/string/enum/set with nonbinary charset | UTF-8 string |
+| Binary charset string/blob, BIT | Bytes |
+| Native MySQL JSON | Strict parsed JSON |
+| SQL NULL with supported type or native NULL type | null |
+
+BOOLEAN/TINYINT(1) is an integer; never guess booleans from display width.
+MariaDB JSON is a LONGTEXT alias and returns a string: explicitly `parse` and
+`check` it. For a portable JSON read, `CAST(doc AS CHAR)` then `parse` works on
+both engines. FLOAT/DOUBLE, date/time/timestamp, geometry and unlisted types
+raise `db/decode`, including zero-row/NULL-only results; cast to CHAR or a
+deliberate DECIMAL type as needed. Duplicate column names are rejected before
+rows are exposed. SELECT count is returned rows; non-row DML count is the
+server's affected-row count (changed rows for UPDATE with the default client
+flags). Auto-generated IDs are not added to the result API. Server errors add
+`sqlstate` and `errno` when available. All §11.4–11.5 outcome/poison/ownership
+rules apply, including unknown COMMIT acknowledgment and no callback replay.
 
 ## 12. HTTP server
 
@@ -1293,7 +1364,7 @@ The example's values are illustrative inputs, not automatically enabled permissi
 
 Capability arrays default to []; booleans default to false. http entries are exact normalized http/https origins, with no wildcard/path/query/userinfo. listen entries are exact host/port pairs. database and env entries are exact case-sensitive aliases/names. read/write entries are absolute permitted **directory** roots, including descendants by path components. Duplicate capability entries are configuration errors.
 
-Environment values are strings; allowing an env name does not require it to exist, so absent names can raise env. Database-pool entries have exactly dsn_env and optional max_connections (default 4, positive integer). dsn_env names a launch-process environment variable read only by the host connector; its value is not automatically exposed to Kiroha env. Unknown/missing pool configuration is reported when db is called. Database credentials, connection TLS policy and native driver connection parameters are encoded in that trusted DSN; they are outside the source language and must not appear in errors.
+Environment values are strings; allowing an env name does not require it to exist, so absent names can raise env. Database-pool entries have required dsn_env, optional backend (exactly "postgresql", "mysql" or "mariadb", default "postgresql") and optional max_connections (default 4, positive integer). dsn_env names a launch-process environment variable read only by the host connector; its value is not automatically exposed to Kiroha env. Unknown/missing pool configuration is reported when db is called. Database credentials, connection TLS policy and native driver connection parameters are encoded in that trusted DSN; they are outside the source language and must not appear in errors.
 
 | Limit | Default | Domain / semantics |
 | --- | --- | --- |
@@ -1384,7 +1455,7 @@ A complete Web1 implementation ships an executable named kiroha with these comma
 
 The --json flag is mandatory for check/run/conformance in this version; a human-oriented mode is an optional separate extension and cannot change this protocol. `fmt`, a REPL, debugger, package manager and language server are optional future tools, not required or advertised as implemented by this specification.
 
---version has fields `{"implementation":"<name/version>","language":"0.6.0","profile":"Web1","cli":"kiroha-cli/1","conformance":"kiroha-conformance/1"}`. check success is `{"protocol":"kiroha-cli/1","ok":true,"phase":"check"}`.
+--version has fields `{"implementation":"<name/version>","language":"0.7.0","profile":"Web1","cli":"kiroha-cli/1","conformance":"kiroha-conformance/1"}`. check success is `{"protocol":"kiroha-cli/1","ok":true,"phase":"check"}`.
 
 run success is `{"protocol":"kiroha-cli/1","ok":true,"result":WireValue}`. An ordinary/runtime or frontend failure is `{"protocol":"kiroha-cli/1","ok":false,"phase":Phase,"error":Error,"span":SpanOrNull}`. Frontend phases are lex/parse/check; runtime is runtime. A source span has byte offsets `{start,end,line,column}` with end exclusive. Span can be null for host-originated runtime failures, not for frontend diagnostics. Static error records use the same outer code/message/data shape.
 
@@ -1421,7 +1492,7 @@ An implementation agent given only this Markdown should build in this dependency
 2. Implement tokens/source spans, nested query lexer, parser, syntax restrictions and static symbol resolution. Run frontend cases through check.
 3. Implement immutable values, exact decimals, closures, sequences, operators, proper tail calls, errors, schema normalization and all data functions.
 4. Implement the task engine, abort scopes, deadlines and the deterministic fixture host. Exercise parallel/retry/pages and event traces.
-5. Implement production HTTP, files, environment/time/random/log and PostgreSQL adapters with exact encodings, lifecycle and outcome reporting.
+5. Implement production HTTP, files, environment/time/random/log and database adapters with exact encodings, lifecycle and outcome reporting.
 6. Implement server transport, routing, input/reply, ingress limits and shutdown.
 7. Package the required CLI; run embedded cases plus the mandatory real integration scenarios below; record versions and outcomes.
 
@@ -1442,7 +1513,9 @@ Required integration scenarios, beyond the deterministic corpus:
 | I07 | Task engine: CPU-bound cancellation, bounded parallelism, joins and cleanup deadlines; no callback/effect initiation after abort observation |
 | I08 | CLI: exact tagged numbers/Bytes/opaque containers, stderr isolation, all exit codes, static checking without effects, source/config limits |
 
-The implementation report identifies runtime/compiler/OS/dependency versions, PostgreSQL server version, test command, case IDs, pass/fail/skip states and the reason for each skip. Spec/token measurements are separate from this execution report.
+The MySQL 8.4 and MariaDB 11.4 profiles additionally run `tests/database_backends.rs` against both real servers: configuration, exact parameters/results, JSON differences, commit/rollback/poison, query/transaction cancellation and reuse, SQL/result guards, session reset, canceled handshake slot recovery, lost COMMIT acknowledgment without replay, and mixed-profile aliases. Missing DSNs are explicit skips and are insufficient verification.
+
+The implementation report identifies runtime/compiler/OS/dependency versions, PostgreSQL/MySQL/MariaDB server versions, test command, case IDs, pass/fail/skip states and the reason for each skip. Spec/token measurements are separate from this execution report.
 
 ## 16. Embedded conformance protocol
 
@@ -1452,7 +1525,7 @@ The corpus below is normative test input, with **no execution result asserted by
 
 The manifest is the single JSON fence between standalone lines `<!-- KIROHA_CONFORMANCE_BEGIN -->` and `<!-- KIROHA_CONFORMANCE_END -->`. Match marker **whole lines**, not occurrences inside prose or the embedded extraction script. The generation card, measurement corpus and measurement script use the same extraction rule with their respective marker names. Require exactly one begin and end, correct order, exactly one fence with the declared language and no extra content inside the markers. Preserve the payload's final LF.
 
-Manifest root keys are exactly `format`, `language`, `scheduler`, `cases`. Values are `kiroha-conformance/1`, `0.6.0/Web1`, `virtual-fifo/1`, and a nonempty case array. IDs must be unique.
+Manifest root keys are exactly `format`, `language`, `scheduler`, `cases`. Values are `kiroha-conformance/1`, `0.7.0/Web1`, `virtual-fifo/1`, and a nonempty case array. IDs must be unique.
 
 ### 16.2 Case and expectation schema
 
@@ -1521,7 +1594,7 @@ The following normalized operation argument/result formats are closed. Metadata 
 | rollback | connection | null (confirmed rollback) |
 | release | connection, disposition:"reset" or "discard" | null |
 
-An execute parameter is exactly `{oid,value}`. value is null for SQL NULL, canonical decimal text for numeric, "true"/"false" for bool, decoded string for text, canonical padded base64 for bytea, and canonical JSON text for JSONB. The sql field is the translated SQL text with spaces around generated parameters as Section 11 specifies. An execute result cell is null or PostgreSQL text-format content: decimal text, t/f, raw text/UUID, bytea `\x` hexadecimal, or complete JSON text. count is a nonnegative integer string. outcome is committed for confirmed autocommit or unknown for an active transaction/unresolved result. Duplicate names/unsupported OIDs must be handled by the runtime, not hidden by the fixture host.
+The deterministic fixture codec remains the PostgreSQL reference profile; virtual fixtures do not select real DSNs/backends. These OIDs are fixture wire data, not the internal database abstraction (which uses normalized logical types). An execute parameter is exactly `{oid,value}`. value is null for SQL NULL, canonical decimal text for numeric, "true"/"false" for bool, decoded string for text, canonical padded base64 for bytea, and canonical JSON text for JSONB. The sql field is the translated SQL text with spaces around generated parameters as Section 11 specifies. An execute result cell is null or PostgreSQL text-format content: decimal text, t/f, raw text/UUID, bytea `\x` hexadecimal, or complete JSON text. count is a nonnegative integer string. outcome is committed for confirmed autocommit or unknown for an active transaction/unresolved result. Duplicate names/unsupported OIDs must be handled by the runtime, not hidden by the fixture host.
 
 An HTTP fixture's bytes already have valid transport framing removed. It can exercise gzip/content/JSON limits; corrupt wire framing belongs in I01. Fixture supplied headers still undergo Kiroha normalization. It never performs real DNS/TLS. Protocol guarantees that require real wire behavior are not established by this mock result. Automatic runtime diagnostic logs are captured separately in the runner's diagnostic report and do not consume log_line fixtures; those fixtures represent source log(v) only.
 
@@ -1543,7 +1616,7 @@ All following cases are independent. A reference runtime is not included. Extrac
 ```json
 {
   "format": "kiroha-conformance/1",
-  "language": "0.6.0/Web1",
+  "language": "0.7.0/Web1",
   "scheduler": "virtual-fifo/1",
   "cases": [
     {"id":"lex-leading-zero","source":"01","expect":{"phase":"lex","code":"lexical"}},
@@ -1862,7 +1935,7 @@ The next block is source data, not executed conformance evidence.
 ```json
 {
   "format": "kiroha-measurement-corpus/1",
-  "language": "0.6.0/Web1",
+  "language": "0.7.0/Web1",
   "status": "handwritten_sources_not_executed",
   "baseline": "TypeScript snippets using a proposed SDK with the same contracts; SDK/binding not implemented. Native array helpers are used only in the first case. An async expression harness supplies context. Imports and harness wrappers are excluded symmetrically. No executed-equivalence claim.",
   "cases": [
@@ -1914,7 +1987,7 @@ import tiktoken
 
 PIN = "0.14.0"
 ENCODINGS = ("o200k_base", "cl100k_base")
-LANGUAGE = "0.6.0/Web1"
+LANGUAGE = "0.7.0/Web1"
 
 def fail(message):
     raise SystemExit(message)

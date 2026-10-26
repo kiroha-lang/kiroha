@@ -45,6 +45,7 @@ pub struct Capabilities {
 
 #[derive(Clone, Debug)]
 pub struct PoolConfig {
+    pub backend: crate::database::Backend,
     pub dsn_env: String,
     pub max_connections: u64,
 }
@@ -273,13 +274,17 @@ pub fn parse_host_file(v: &Value, launch_dir: &str) -> CResult<HostConfig> {
         let p = rec(p, "database_pools")?;
         for (alias, pv) in p.iter() {
             let pr = rec(pv, "database pool")?;
-            closed(pr, &["dsn_env", "max_connections"], "database pool")?;
+            closed(pr, &["backend", "dsn_env", "max_connections"], "database pool")?;
+            let backend = match pr.get("backend") {
+                None => crate::database::Backend::default(),
+                Some(v) => crate::database::Backend::parse(v.as_str().ok_or("database backend must be a string")?).ok_or("unknown database backend")?,
+            };
             let dsn_env = pr.get("dsn_env").and_then(|d| d.as_str()).ok_or("database pool needs a string dsn_env")?;
             let max_connections = match pr.get("max_connections") {
                 Some(v) => int_in(v, "max_connections", 1, u64::MAX)?,
                 None => 4,
             };
-            cfg.database_pools.push((alias.to_string(), PoolConfig { dsn_env: dsn_env.to_string(), max_connections }));
+            cfg.database_pools.push((alias.to_string(), PoolConfig { backend, dsn_env: dsn_env.to_string(), max_connections }));
         }
     }
     Ok(cfg)

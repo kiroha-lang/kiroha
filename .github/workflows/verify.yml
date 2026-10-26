@@ -21,8 +21,32 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U kiroha -d postgres"
           --health-interval 5s --health-timeout 5s --health-retries 10
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: kiroha_ci
+          MYSQL_ROOT_HOST: "%"
+          MYSQL_DATABASE: kiroha
+        ports:
+          - 53306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -pkiroha_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: kiroha_ci
+          MARIADB_ROOT_HOST: "%"
+          MARIADB_DATABASE: kiroha
+        ports:
+          - 53307:3306
+        options: >-
+          --health-cmd "healthcheck.sh --connect --innodb_initialized"
+          --health-interval 5s --health-timeout 5s --health-retries 20
     env:
       KIROHA_TEST_PG_DSN: host=127.0.0.1 port=55432 user=kiroha dbname=postgres
+      KIROHA_TEST_MYSQL_DSN: mysql://root:kiroha_ci@127.0.0.1:53306/kiroha
+      KIROHA_TEST_MARIADB_DSN: mariadb://root:kiroha_ci@127.0.0.1:53307/kiroha
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.96.0
@@ -44,6 +68,22 @@ jobs:
         with:
           python-version: '3.14'
       - run: sudo apt-get update && sudo apt-get install -y libclang-dev
+      - name: Configure a verified MySQL TLS fixture
+        env:
+          MYSQL_CONTAINER: ${{ job.services.mysql.id }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/mysql-tls"
+          cd "$RUNNER_TEMP/mysql-tls"
+          openssl req -x509 -newkey rsa:2048 -nodes -keyout ca-key.pem -out ca.pem -days 2 -subj '/CN=Kiroha CI DB CA'
+          openssl req -newkey rsa:2048 -nodes -keyout server-key.pem -out server.csr -subj '/CN=localhost'
+          printf 'subjectAltName=DNS:localhost,IP:127.0.0.1\nextendedKeyUsage=serverAuth\n' > server.ext
+          openssl x509 -req -in server.csr -CA ca.pem -CAkey ca-key.pem -CAcreateserial -out server-cert.pem -days 2 -extfile server.ext
+          for cert in ca.pem server-cert.pem server-key.pem; do
+            docker cp "$cert" "$MYSQL_CONTAINER:/var/lib/mysql/$cert"
+          done
+          docker exec "$MYSQL_CONTAINER" chown mysql:mysql /var/lib/mysql/ca.pem /var/lib/mysql/server-cert.pem /var/lib/mysql/server-key.pem
+          docker exec -e MYSQL_PWD=kiroha_ci "$MYSQL_CONTAINER" mysql -uroot -e 'ALTER INSTANCE RELOAD TLS'
+          echo "KIROHA_TEST_MYSQL_CA=$RUNNER_TEMP/mysql-tls/ca.pem" >> "$GITHUB_ENV"
       - run: cargo build --release --locked
       - run: cargo test --release --locked
       - run: python3 -m unittest discover -s tests -p test_install.py -v

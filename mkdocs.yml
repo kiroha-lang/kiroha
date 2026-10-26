@@ -69,6 +69,7 @@ nav:
       - Types and simple generics: types.md
       - Work with data: learn/data.md
       - Read JSON over HTTP: guides/http.md
+      - Work with databases: guides/databases.md
       - When something goes wrong: guides/troubleshooting.md
       - Complete language guide: language-guide.md
   - Reference:

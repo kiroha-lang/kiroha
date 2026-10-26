@@ -196,6 +196,7 @@ pub struct Group {
 
 /// Transaction state (§11.5).
 pub struct TxState {
+    pub backend: crate::database::Backend,
     pub owner: TaskId,
     pub connection: String,
     pub active: bool,

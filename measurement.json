@@ -1,6 +1,6 @@
 {
   "format": "kiroha-measurement/2",
-  "language": "0.6.0/Web1",
+  "language": "0.7.0/Web1",
   "status": "tokenization_only",
   "runtime_execution_evidence": null,
   "generation_evaluation_evidence": null,
@@ -26,21 +26,21 @@
   "documents": {
     "full_markdown": {
       "file": "spec.md",
-      "sha256": "d2fa1408023141200703f9d8e6728e2612bd7b559b41e4a5c2c6b536a3087a66",
-      "unicode_code_points": 240551,
-      "utf8_bytes": 240661,
+      "sha256": "b18d406aa11edd1c6bbe1c2c116d22bc9af1f0fc5758021fdd7da7635115df3f",
+      "unicode_code_points": 246091,
+      "utf8_bytes": 246205,
       "tokens": {
-        "o200k_base": 59277,
-        "cl100k_base": 58783
+        "o200k_base": 60550,
+        "cl100k_base": 60042
       }
     },
     "generation_card": {
-      "sha256": "f9411829d1ff3d781e86b9611a7b6763965f3a1da0384587d699ad3131b016d5",
-      "unicode_code_points": 13238,
-      "utf8_bytes": 13238,
+      "sha256": "c9dfc31155fca7cae4c17b482d79724a234aac104f723dbc5275fc8d339be4a2",
+      "unicode_code_points": 13460,
+      "utf8_bytes": 13460,
       "tokens": {
-        "o200k_base": 3095,
-        "cl100k_base": 3072
+        "o200k_base": 3156,
+        "cl100k_base": 3132
       },
       "target_tokens_each_encoding": 4096,
       "within_target": true
@@ -48,16 +48,16 @@
   },
   "embedded_blocks": {
     "generation_card": {
-      "sha256": "f9411829d1ff3d781e86b9611a7b6763965f3a1da0384587d699ad3131b016d5",
-      "unicode_code_points": 13238,
-      "utf8_bytes": 13238,
+      "sha256": "c9dfc31155fca7cae4c17b482d79724a234aac104f723dbc5275fc8d339be4a2",
+      "unicode_code_points": 13460,
+      "utf8_bytes": 13460,
       "tokens": {
-        "o200k_base": 3095,
-        "cl100k_base": 3072
+        "o200k_base": 3156,
+        "cl100k_base": 3132
       }
     },
     "conformance": {
-      "sha256": "a89991cc4151e7200458d6fb38557d3d1efbcf792817f2663d3555224c378988",
+      "sha256": "49bdda1545065c55b267ffc56f6b2695280e4f0efa7e592632a29cae5b20ca0c",
       "unicode_code_points": 71284,
       "utf8_bytes": 71345,
       "tokens": {
@@ -66,7 +66,7 @@
       }
     },
     "measurement_corpus": {
-      "sha256": "b259b19cd34d571043f63fde235ff9410c79263c3c58aca344e838feed895508",
+      "sha256": "c51fb3748e9349f980a1b50819697fbd3b01e5b8eec06f54127ac46ff1665c59",
       "unicode_code_points": 2417,
       "utf8_bytes": 2417,
       "tokens": {
@@ -75,7 +75,7 @@
       }
     },
     "measurement_script": {
-      "sha256": "14daa3e5df7f35618025c8b8efa48c41c2318e070efa19e80ca2f02a4b17f649",
+      "sha256": "a0c117ba35ebfbd6e662679f6b1478863fe17ec8b4db5dac4b96fa0f8e9e3313",
       "unicode_code_points": 9379,
       "utf8_bytes": 9379,
       "tokens": {

@@ -22,7 +22,11 @@ def main():
     parser.add_argument('--ref', help='Git ref for a remote marketplace test')
     args = parser.parse_args()
     manifest = json.loads((ROOT / 'plugins/kiroha/plugin.json').read_text())
-    with tempfile.TemporaryDirectory(prefix='kiroha-codex.') as folder:
+    # Codex 0.164+ refuses helper binaries under /tmp. Keep disposable state
+    # under the user's cache so actual app-server discovery can initialize.
+    cache = Path.home() / '.cache'
+    cache.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix='kiroha-codex.', dir=cache) as folder:
         temporary = Path(folder)
         home = temporary / 'codex'
         home.mkdir()

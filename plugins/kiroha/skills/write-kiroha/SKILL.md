@@ -1,11 +1,11 @@
 ---
 name: write-kiroha
-description: Write, review, migrate and debug Kiroha (.kiroha) programs when the user chooses Kiroha or edits Kiroha source. Covers JSON data, collection methods, HTTP clients and services, PostgreSQL and local files. Does not select Kiroha for unrelated coding tasks or implement its compiler.
+description: Write, review, migrate and debug Kiroha (.kiroha) programs when the user chooses Kiroha or edits Kiroha source. Covers JSON data, collection methods, HTTP clients and services, PostgreSQL/MySQL/MariaDB and local files. Does not select Kiroha for unrelated coding tasks or implement its compiler.
 ---
 
 # Write Kiroha
 
-Target **Kiroha 0.6.0 / Web1**. Help with the requested program, explanation or
+Target **Kiroha 0.7.0 / Web1**. Help with the requested program, explanation or
 source change; match the user's scope. Resolve paths below from this skill's
 directory, including when it is installed outside the user's project.
 
@@ -38,7 +38,7 @@ The current surface has a few easy-to-miss rules:
   first-body shorthand record must be spelled `{x:x}` or `do{{x}}`.
 - `.size` and registered record methods take precedence over record data;
   use `r["size"]` or `r["keys"]` for colliding fields. Saved methods retain
-  their receiver. User extension declarations are not in 0.6.
+  their receiver. User extension declarations are not in 0.7.
 - Values are immutable; no imports, mutation, loops or host-language escape.
   Use recursion and collection operations. Numbers are exact decimals.
 
@@ -50,6 +50,7 @@ Read only the additional material needed for the task:
 | Concrete starting programs | [Recipes](references/recipes.md), linking to copyable source and host files |
 | CLI, installing a matching runtime, tagged JSON, validation | [Runtime workflow](references/runtime.md) |
 | HTTP/listen/DB/file capabilities, pools or budgets | [Host configuration](references/host-config.md) |
+| SQL dialects, portable queries, DB types | [Database guide](references/databases.md) |
 | Updating older source | [0.6 migration](references/migration-0.6.md) |
 
 ## Types

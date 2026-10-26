@@ -1,5 +1,41 @@
 # Web1 acceptance record
 
+## 0.7.0 shared database adapters (2026-10-26)
+
+PostgreSQL 16, MySQL 8.4 and MariaDB 11.4 now use one pool/lease abstraction,
+logical parameter/result types and `db`/`sql`/`tx` state machine. Host pool
+`backend` defaults to `postgresql`. See the [database guide](guides/databases.md)
+and spec §11.6 for SQL grammar and native type differences. PostgreSQL's
+existing OID mapping and deterministic fixture format remain compatible.
+
+Local release-mode verification: **104 Rust tests passed, 0 failed, 0 skipped**
+against PostgreSQL **16.4**, MySQL **8.4.4** and MariaDB **11.4.5** on Linux
+x86_64 / Rust **1.96.0**. Ten backend tests cover exact numbers/binary/Unicode,
+JSON differences, real commit/rollback/poison, affected-row counts, timeouts,
+post-cancel reuse, session reset, zero-row/NULL unsupported types, a stalled
+handshake with one pool slot, mixed-profile parallel transactions, and a proxy
+that drops a confirmed COMMIT acknowledgment (unknown outcome, exactly one
+persisted row, no replay). MySQL TLS succeeds with a private trusted CA and
+rejects both an untrusted chain and a mismatched IP identity.
+
+The suite uses `KIROHA_TEST_PG_DSN`, `KIROHA_TEST_MYSQL_DSN`,
+`KIROHA_TEST_MARIADB_DSN` and `KIROHA_TEST_MYSQL_CA`; unset variables explicitly
+skip integration coverage and are insufficient acceptance. Local Docker Desktop
+WSL integration was unavailable, so task-owned native server binaries were used.
+Hosted CI provisions all three Docker services and a hostname-valid MySQL TLS
+fixture. The test databases use nonempty passwords for MySQL/MariaDB.
+
+Additional gates: **253/253** conformance cases, warning-free Clippy, **8**
+installer tests, both TLC models (1212/90 distinct states), strict docs/internal
+links, **29** executed beginner examples and exact specification measurements.
+The compact card is **3156/3132** tokens. Plugin **0.3.0** packages **23**
+inspected files; Codex **0.164.0** installs identical bytes and discovers the
+skill without errors in temporary state. The plugin's PostgreSQL-specific DB
+recipe is statically checked; real backend behavior is verified by runtime tests.
+The historical audits below describe earlier revisions, not a new independent
+audit of 0.7. Hosted publication evidence is added after checks finish.
+
+
 ## 0.6.0 lightweight types and simple generics (2026-10-26)
 
 `type Point={x:num,y:num};` declares a structural type. Named function

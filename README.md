@@ -5,7 +5,7 @@
 **Kiroha (きろは)** combines the original working name Kiri with *iroha*, the basics of a language. The executable and source extension are `kiroha` and `.kiroha`. See [the naming and migration note](docs/naming.md).
 
 Kiroha is a small, strict, immutable expression language for programs that
-manipulate JSON, call web services, serve HTTP APIs and use PostgreSQL. It was
+manipulate JSON, call web services, serve HTTP APIs and use PostgreSQL, MySQL or MariaDB. It was
 designed to be written by LLMs: the standard surface is 31 global functions, 19 collection methods
 and one `.size` property, numbers are exact decimals, every effect is explicit and
 capability-checked, and there is exactly one way to pass a callback — a
@@ -20,9 +20,9 @@ check(get("https://api.example/users"), [User])
 ```
 
 This repository is a complete Rust implementation of the
-**Kiroha 0.6.0 / Web1** specification ([`spec.md`](spec.md)), including the
+**Kiroha 0.7.0 / Web1** specification ([`spec.md`](spec.md)), including the
 `kiroha` command-line tool, a deterministic conformance runner and production
-adapters for HTTP/1.1 (+ verified TLS), PostgreSQL 16, an HTTP server and the
+adapters for HTTP/1.1 (+ verified TLS), PostgreSQL 16, MySQL 8.4, MariaDB 11.4, an HTTP server and the
 local filesystem.
 
 ## Status
@@ -30,12 +30,12 @@ local filesystem.
 | Area | State |
 | --- | --- |
 | Embedded conformance corpus (spec §16) | **253 / 253 pass**, including explicit types, generics, compact definitions and receiver members (`kiroha conformance spec.md --json`) |
-| Integration scenarios I01–I08 (spec §15.3) | All pass (`cargo test`, PostgreSQL 16.15 for I03/I04) |
+| Integration scenarios I01–I08 (spec §15.3) | All pass (PostgreSQL 16.4; additional backend tests use MySQL 8.4.4 / MariaDB 11.4.5) |
 | Extra prose-rule regressions | Pass (`tests/prose_regressions.rs`) |
 | Formal verification | TLA+ models of `parallel` and `tx` model-checked with TLC; property-based tests of decimals and JSON against oracles ([details](docs/formal-verification.md)) |
 | 31 globals + 19 methods + size + 5 schema atoms | Implemented; inventory matches the generation card |
 | CLI protocol `kiroha-cli/1` | Implemented |
-| Acceptance | 93 tests pass with PostgreSQL; compact syntax and members have dedicated regressions; the dated 0.3 baseline passed audit 23 ([record](docs/completion.md)) |
+| Acceptance | 104 tests pass with PostgreSQL/MySQL/MariaDB; compact syntax and members have dedicated regressions; the dated 0.3 baseline passed audit 23 ([record](docs/completion.md)) |
 
 Details, versions and known deviations are in
 [docs/conformance-report.md](docs/conformance-report.md).
@@ -55,7 +55,7 @@ for version pinning, alternate directories and source builds.
 
 ## Build from source
 
-Requires Rust 1.88+ (tested with 1.96), a C compiler and libclang (for the
+Requires Rust 1.89+ (tested with 1.96), a C compiler and libclang (for the
 embedded PostgreSQL parser, `pg_query`; set `LIBCLANG_PATH` if it is not
 found automatically).
 
@@ -112,6 +112,7 @@ See [the examples and their setup instructions](examples/README.md) for runnable
 | --- | --- |
 | [Language guide](docs/language-guide.md) | Tutorial: syntax, callbacks, scope, pipes, errors, schemas, concurrency, HTTP, SQL, servers |
 | [Types and generics](docs/types.md) | Local inference, annotations, explicit `any`, structural types and simple generics |
+| [Database guide](docs/guides/databases.md) | Shared API, backend configuration and SQL/type differences |
 | [0.6 migration](docs/migration-0.6.md) | Type declarations and checked function signatures |
 | [0.5 migration](docs/migration-0.5.md) | Compact definitions, collection methods and `.size` |
 | [0.4 migration](docs/migration-0.4.md) | `fun name(...) ... end fun name`, body sequences and reserved words |
@@ -124,7 +125,7 @@ See [the examples and their setup instructions](examples/README.md) for runnable
 | [Architecture](docs/architecture.md) | Implementation design: CEK machine, scheduler, adapters, memory accounting |
 | [Conformance report](docs/conformance-report.md) | Test results, environment, deviations |
 | [Formal verification](docs/formal-verification.md) | TLA+ models (scheduler, transactions) and property-based tests (decimals, JSON) |
-| [Specification](spec.md) | The normative Kiroha 0.6.0 / Web1 contract |
+| [Specification](spec.md) | The normative Kiroha 0.7.0 / Web1 contract |
 | [Acceptance record](docs/completion.md) | Requirement-by-requirement completion evidence and final independent audit |
 | [Handoff](HANDOFF.md) | Completed state, verification and maintenance workflow |
 
@@ -140,6 +141,16 @@ python scripts/measure.py --check            # requires tiktoken==0.14.0
 
 Without `KIROHA_TEST_PG_DSN` the PostgreSQL tests print `SKIP` and pass
 vacuously; the conformance report states which environment was used.
+
+MySQL and MariaDB use the same database abstraction (`backend` in a host
+`database_pools` entry: `postgresql` (default), `mysql` or `mariadb`). Their
+real-server tests in `tests/database_backends.rs` are enabled by DSNs and skip
+without them:
+
+```sh
+KIROHA_TEST_MYSQL_DSN='mysql://user:pass@127.0.0.1:3306/db' \
+KIROHA_TEST_MARIADB_DSN='mariadb://user:pass@127.0.0.1:3307/db' cargo test --test database_backends
+```
 
 The [verification workflow](.github/workflows/verify.yml) provisions PostgreSQL
 16 and runs the build, tests, conformance corpus, warning-free Clippy, TLC
