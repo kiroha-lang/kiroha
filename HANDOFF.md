@@ -1,5 +1,21 @@
 # Handoff: Kiroha 0.4.0 / Web1
 
+## Documentation website
+
+The friendly English documentation is published at
+https://kiroha-lang.github.io/kiroha/ (22 content pages). It includes a guided
+first program, functions, data, a local HTTP walkthrough, troubleshooting,
+the complete reference and the specification. Search, copy buttons, dark mode
+and mobile navigation were verified on the public site at 1440×900 and 390×844.
+
+The [Pages workflow](https://github.com/kiroha-lang/kiroha/actions/runs/40274604867)
+passed the strict build, internal-link checks and 20 executable beginner
+examples, then deployed source `26fb7b5`. The language verification also
+passed. Sources live in `docs/`; `spec.md` and `examples/README.md` are included
+at build time without duplicate copies. See [documentation contribution](docs/contributing-docs.md)
+for preview and validation commands. Build dependencies are pinned in
+`requirements-docs.txt`; generated `site/` output is ignored.
+
 ## Current 0.4 syntax revision
 
 The function syntax is now `fun fac(n) then ... end fun fac`. Both `fun` and
