@@ -144,7 +144,9 @@ fn i07_cpu_bound_cancellation_and_bounded_parallelism() {
     for src in [
         "d(x,n)=if n==0 then x else d({a:x,b:x},n-1); check(1,maybe(d(json,26)))".to_string(),
         format!("{big} sort(map(range(0,3000)){{i=>s}})"),
-        "c=fold(range(0,26),\"\\u0001\"){(a,i)=>a+a}; len(dump(c))".to_string(),
+        // Repeat the escaping work: a fast runner can finish one 384 MiB
+        // serialization before the deadline, which is a valid success.
+        "spin(c)=if len(dump(c))>0 then spin(c) else 0; c=fold(range(0,26),\"\\u0001\"){(a,i)=>a+a}; spin(c)".to_string(),
         format!("{big} len(url(\"https://a.example\",[replace(s,\"x\",\" \")]))"),
         format!("{big} xs=map(range(0,3000)){{i=>s+\"\"}}; len(unique(xs))"),
         format!("{big} xs=map(range(0,3000)){{i=>s+\"\"}}; xs==map(xs){{x=>x+\"\"}}"),

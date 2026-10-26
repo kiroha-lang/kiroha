@@ -391,5 +391,16 @@ mod tests {
         let mut s = String::new();
         write_string(&mut s, "/é\u{2028}\u{0}\u{1f}\"");
         assert_eq!(s, "\"/é\u{2028}\\u0000\\u001f\\\"\"");
+
+        // Check the escaping checkpoint directly, independently of CPU speed.
+        // This input is shorter than the periodic loop checkpoint, so removing
+        // the initial large-string check must fail this regression assertion.
+        let input = "\u{1}".repeat(8192);
+        let mut out = String::new();
+        crate::interrupt::arm(Some(std::time::Instant::now()), None);
+        write_string(&mut out, &input);
+        let trip = crate::interrupt::disarm();
+        assert_eq!(trip, Some(crate::interrupt::Trip::Deadline));
+        assert!(out.is_empty());
     }
 }

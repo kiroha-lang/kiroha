@@ -62,8 +62,8 @@ kiroha --version
 
 ## Release verification
 
-The release workflow first runs the full PostgreSQL-backed verification suite.
-It then builds each target on a native runner, executes `--version`, the 145
+The release workflow runs the full PostgreSQL-backed verification suite and
+builds each target on a native runner, executes `--version`, the 145
 embedded conformance cases and an exact-decimal program, packages binaries and
 the license, and publishes the release only after every target passes.
 Installer tests use a local release server and cover platform selection,

@@ -28,6 +28,13 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.96.0
         with:
           components: clippy
+      - uses: actions/cache@v4
+        with:
+          path: |
+            target
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: verify-rust1.96-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock', 'Cargo.toml') }}
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
