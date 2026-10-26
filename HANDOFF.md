@@ -1,37 +1,38 @@
 # Handoff: Kiroha 0.7.0 / Web1
 
-## Database adapters (0.7, publication in progress)
+## Database adapters (0.7, published)
 
-Active work is on `feat/database-backends` in `/home/mizushima/dev/kiroha`.
 PostgreSQL 16, MySQL 8.4 and MariaDB 11.4 share `db`/`sql`/`tx`, normalized
 `SqlType`/`SqlParam`/`RawRows`, pool leases and the transaction state machine.
 Host pool `backend` defaults to `postgresql`; `mysql` and `mariadb` select
-MySQL-protocol connections and their statement validator. See
+MySQL-protocol connections and their statement validator. See the
 [database guide](docs/guides/databases.md), spec §11.6 and
 `tests/database_backends.rs`. Plugin 0.3 includes the same guide.
 
-Ten backend integration tests pass against MySQL 8.4.4 and MariaDB 11.4.5,
-including exact values, JSON differences, cleanup, poisoned transactions,
-canceled handshakes, session reset, lost COMMIT acknowledgment and mixed
-aliases with PostgreSQL 16.4. All 104 release tests pass without skips, alongside 253 conformance cases,
-Clippy, both TLC models, 8 installer tests, docs/examples and plugin installation
-with Codex 0.164.0. TLS verifies the trusted CA and rejects bad chains/identities.
-PR6 is merged at `8f52d533fb16f4f8d9099de9e705b7d7174e899c` and the
-immutable `v0.7.0` tag points there. PR checks passed. Publication is waiting
-for native builds. macOS 14 runner retirement caused long ARM queues; the
-release workflow migration uses macOS 15 with Xcode 16.2 on both architectures.
-An optional `release_tag` dispatch input checks out and verifies the existing
-tag in all jobs, allowing recovery with a repaired workflow without retagging.
-Do not publish until the dispatched verification and all four builds pass. The original uncommitted handoff is
-preserved in `HANDOFF-codex.md`; its configuration/testing claims are
-historical and the current tree/test output is authoritative.
+The implementation is merged through PR6 at `8f52d53`, also immutable tag
+`v0.7.0`. PR7 (`96bfe21`) repairs the release workflow without changing the
+language source: macOS 15 ARM, Xcode 16.2 for both Mac architectures, and an
+optional `release_tag` dispatch input that checks out that tag in every job.
+Release 40344545672 verifies and publishes the original tagged source.
 
-Do not run `git worktree prune`: the linked worktree was moved from
-`kiroha-databases` to `kiroha`. Repair its pointer before any worktree cleanup.
-The test servers are task-owned native binaries under the scratch directory
-recorded in `HANDOFF-codex.md`, ports 55433/33062/33061. Docker Desktop's WSL
-integration is currently unavailable; CI provisions all three container
-services, with nonempty test-only passwords for MySQL/MariaDB.
+104 release tests pass with PostgreSQL 16.4, MySQL 8.4.4 and MariaDB 11.4.5,
+without skips; 253 conformance cases pass. Ten backend tests include exact
+values, JSON differences, cleanup, poisoned transactions, canceled handshakes,
+session reset, lost COMMIT acknowledgment, mixed aliases and verified TLS
+with rejection of bad chains/identities. Clippy, both TLC models, installer,
+docs/examples and the Codex 0.164.0 plugin installation/discovery checks pass.
+Four native release targets pass; public latest/pinned installations both
+pass all cases and three-backend transactions. See
+[publication evidence](docs/completion.md#public-070-distribution-2026-10-27).
+
+No database implementation/publication work remains. The task-owned native
+servers from `HANDOFF-codex.md` were stopped after verification. That file is
+an archived pre-commit handoff; the current source and evidence supersede it.
+Local Docker Desktop WSL integration was unavailable; CI provisions all three
+Docker services with nonempty MySQL/MariaDB passwords and a private TLS CA.
+Do not run `git worktree prune` while the moved linked-worktree pointer remains
+unrepaired. The primary checkout is `/home/mizushima/dev/kiri` (main); the
+linked checkout used for this work is `/home/mizushima/dev/kiroha`.
 
 ## Current revision and contribution workflow
 
@@ -81,7 +82,7 @@ server or account connection is needed.
 ## Documentation website
 
 The friendly English documentation is published at
-https://kiroha-lang.github.io/kiroha/ (26 content pages). It includes a guided
+https://kiroha-lang.github.io/kiroha/ (29 generated HTML pages). It includes a guided
 first program, functions, data, a local HTTP walkthrough, troubleshooting,
 the complete reference and the specification. Search, copy buttons, dark mode
 and mobile navigation were verified on the public site at 1440×900 and 390×844.
@@ -177,32 +178,33 @@ rollback and release; it cannot renew its grace for each effect.
 
 ## Verify
 
-Requires Rust 1.89+ (tested 1.96), C/compiler libclang, Java 25 for TLC,
-PostgreSQL 16 and Python with exactly `tiktoken==0.14.0` for measurement.
+Requires Rust 1.89+ (tested 1.96), a C compiler/libclang, Java 25 for TLC,
+and Python with exactly `tiktoken==0.14.0` for measurement. Full integration
+verification requires PostgreSQL 16, MySQL 8.4 and MariaDB 11.4. The Verify
+workflow provisions these as Docker services and generates a private MySQL
+TLS CA/certificate with localhost/127.0.0.1 identities.
+
+For local verification, first provision those fixtures and export all four
+variables: `KIROHA_TEST_PG_DSN`, `KIROHA_TEST_MYSQL_DSN`,
+`KIROHA_TEST_MARIADB_DSN`, and `KIROHA_TEST_MYSQL_CA` (the private fixture CA
+PEM path). The network fault-injection tests expect loopback TCP endpoints.
+Then run:
 
 ```sh
 cargo build --release --locked
-KIROHA_TEST_PG_DSN="host=127.0.0.1 port=55432 user=kiri dbname=postgres" cargo test --release --locked
+cargo test --release --locked
 timeout 60 target/release/kiroha conformance spec.md --json
 cargo clippy --release --all-targets --locked -- -D warnings
 timeout 60 ./formal/check.sh
 python scripts/measure.py --check
 ```
 
-Without `KIROHA_TEST_PG_DSN`, database integration tests explicitly print SKIP
-and return; that is insufficient for acceptance. The existing local PG16
-cluster is `/tmp/claude-1000/pg16`, port 55432, user `kiri` (check that it is
-actually live). `LIBCLANG_PATH=/usr/lib/llvm-15/lib` works on this machine.
-An isolated measurement venv is `/tmp/kiri-measure-env`.
-
-To create another local PG16 cluster:
-
-```sh
-B=/home/linuxbrew/.linuxbrew/opt/postgresql@16/bin
-D=/tmp/kiroha-pg16
-LANG=C LC_ALL=C $B/initdb -D $D -U kiroha --auth=trust -E UTF8 --locale=C
-LANG=C LC_ALL=C $B/pg_ctl -D $D -o "-p 55432 -k /tmp -c listen_addresses=127.0.0.1" -l $D/log start
-```
+Unset integration variables explicitly print SKIP and return; that is
+insufficient acceptance. The task-owned local servers have been stopped.
+Their native binary/data paths are archived in `HANDOFF-codex.md`; check
+current process state before using them. `LIBCLANG_PATH=/usr/lib/llvm-15/lib`
+works on this machine. `/tmp/kiroha-maint-env` contains the pinned documentation
+and measurement dependencies used for this release.
 
 ## Audit workflow
 

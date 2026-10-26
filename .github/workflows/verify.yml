@@ -79,7 +79,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.14'
-      - run: sudo apt-get update && sudo apt-get install -y libclang-dev
+      - name: Install native build dependencies
+        run: |
+          # The Azure mirror stalled repeatedly on the libclang archive.
+          for kiroha_sources in /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources /etc/apt/mirrors/* /etc/apt/apt-mirrors.txt; do
+            if [[ -f "$kiroha_sources" ]]; then
+              sudo sed -i 's/azure.archive.ubuntu.com/archive.ubuntu.com/g' "$kiroha_sources"
+            fi
+          done
+          sudo apt-get update
+          sudo apt-get install -y libclang-dev
+
       - name: Configure a verified MySQL TLS fixture
         env:
           MYSQL_CONTAINER: ${{ job.services.mysql.id }}

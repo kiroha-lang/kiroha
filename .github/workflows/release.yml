@@ -67,6 +67,12 @@ jobs:
         shell: bash
         run: |
           if [[ "$RUNNER_OS" == Linux ]]; then
+            # The Azure mirror stalled repeatedly on the libclang archive.
+            for kiroha_sources in /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources /etc/apt/mirrors/* /etc/apt/apt-mirrors.txt; do
+              if [[ -f "$kiroha_sources" ]]; then
+                sudo sed -i 's/azure.archive.ubuntu.com/archive.ubuntu.com/g' "$kiroha_sources"
+              fi
+            done
             sudo apt-get update
             sudo apt-get install -y libclang-dev
           else
