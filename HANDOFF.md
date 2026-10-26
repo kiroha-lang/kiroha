@@ -178,34 +178,33 @@ rollback and release; it cannot renew its grace for each effect.
 
 ## Verify
 
-Requires Rust 1.89+ (tested 1.96), C/compiler libclang, Java 25 for TLC,
-PostgreSQL 16 and Python with exactly `tiktoken==0.14.0` for measurement.
+Requires Rust 1.89+ (tested 1.96), a C compiler/libclang, Java 25 for TLC,
+and Python with exactly `tiktoken==0.14.0` for measurement. Full integration
+verification requires PostgreSQL 16, MySQL 8.4 and MariaDB 11.4. The Verify
+workflow provisions these as Docker services and generates a private MySQL
+TLS CA/certificate with localhost/127.0.0.1 identities.
+
+For local verification, first provision those fixtures and export all four
+variables: `KIROHA_TEST_PG_DSN`, `KIROHA_TEST_MYSQL_DSN`,
+`KIROHA_TEST_MARIADB_DSN`, and `KIROHA_TEST_MYSQL_CA` (the private fixture CA
+PEM path). The network fault-injection tests expect loopback TCP endpoints.
+Then run:
 
 ```sh
 cargo build --release --locked
-KIROHA_TEST_PG_DSN="host=127.0.0.1 port=55432 user=kiri dbname=postgres" cargo test --release --locked
+cargo test --release --locked
 timeout 60 target/release/kiroha conformance spec.md --json
 cargo clippy --release --all-targets --locked -- -D warnings
 timeout 60 ./formal/check.sh
 python scripts/measure.py --check
 ```
 
-Without the corresponding `KIROHA_TEST_PG_DSN`, `KIROHA_TEST_MYSQL_DSN`,
-`KIROHA_TEST_MARIADB_DSN` and `KIROHA_TEST_MYSQL_CA`, integration tests explicitly
-print SKIP and return; that is insufficient for acceptance. See the Verify
-workflow for three-container setup and its private CA/hostname fixture. The existing local PG16
-cluster is `/tmp/claude-1000/pg16`, port 55432, user `kiri` (check that it is
-actually live). `LIBCLANG_PATH=/usr/lib/llvm-15/lib` works on this machine.
-An isolated measurement venv is `/tmp/kiri-measure-env`.
-
-To create another local PG16 cluster:
-
-```sh
-B=/home/linuxbrew/.linuxbrew/opt/postgresql@16/bin
-D=/tmp/kiroha-pg16
-LANG=C LC_ALL=C $B/initdb -D $D -U kiroha --auth=trust -E UTF8 --locale=C
-LANG=C LC_ALL=C $B/pg_ctl -D $D -o "-p 55432 -k /tmp -c listen_addresses=127.0.0.1" -l $D/log start
-```
+Unset integration variables explicitly print SKIP and return; that is
+insufficient acceptance. The task-owned local servers have been stopped.
+Their native binary/data paths are archived in `HANDOFF-codex.md`; check
+current process state before using them. `LIBCLANG_PATH=/usr/lib/llvm-15/lib`
+works on this machine. `/tmp/kiroha-maint-env` contains the pinned documentation
+and measurement dependencies used for this release.
 
 ## Audit workflow
 
