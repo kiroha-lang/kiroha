@@ -43,6 +43,10 @@ futures-util = { version = "0.3", default-features = false, features = ["std"] }
 
 [dev-dependencies]
 rcgen = "0.13"
+num-bigint = "0.4"
+num-integer = "0.1"
+num-traits = "0.2"
+proptest = { version = "1", default-features = false, features = ["std"] }
 flate2 = "1"
 
 [profile.release]

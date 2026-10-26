@@ -1,0 +1,9 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc f4678cc44a4c921f5f0f7e307fa87d3940636b09ba1c4185a8cd09794f9b6b31 # shrinks to d = Decimal { coef: 1000000000000000000000000000000000001, exp: 24 }
+cc 6507d8d9c862789cb6e82523029e75e62e858f8471177838e70247adcdcc715f # shrinks to d = Decimal { coef: -1, exp: -1 }
+cc 9f07e6d95bdaff4f3f6a37df3c151a6208df308d2c8efa852662655653208d6d # shrinks to a = Decimal { coef: -7425920000000001, exp: -10 }, b = Decimal { coef: 1, exp: 0 }

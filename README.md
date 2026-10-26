@@ -29,6 +29,7 @@ local filesystem.
 | Embedded conformance corpus (spec §16) | **145 / 145 pass** (`kiri conformance spec.md --json`) |
 | Integration scenarios I01–I08 (spec §15.3) | All pass (`cargo test`, PostgreSQL 16.15 for I03/I04) |
 | Extra prose-rule regressions | Pass (`tests/prose_regressions.rs`) |
+| Formal verification | TLA+ models of `parallel` and `tx` model-checked with TLC; property-based tests of decimals and JSON against oracles ([details](docs/formal-verification.md)) |
 | 51 prelude functions + 5 schema atoms | Implemented; inventory matches the generation card |
 | CLI protocol `kiri-cli/1` | Implemented |
 
@@ -88,6 +89,7 @@ See [examples/](examples/) for runnable programs.
 | [Host configuration](docs/host-config.md) | `kiri-host/1` capabilities, pools, limits |
 | [Architecture](docs/architecture.md) | Implementation design: CEK machine, scheduler, adapters, memory accounting |
 | [Conformance report](docs/conformance-report.md) | Test results, environment, deviations |
+| [Formal verification](docs/formal-verification.md) | TLA+ models (scheduler, transactions) and property-based tests (decimals, JSON) |
 | [Specification](spec.md) | The normative Kiri 0.3.0 / Web1 contract |
 
 ## Development
@@ -96,6 +98,7 @@ See [examples/](examples/) for runnable programs.
 cargo test                                  # unit + integration tests
 KIRI_TEST_PG_DSN="host=127.0.0.1 port=55432 user=kiri dbname=postgres" cargo test   # include PostgreSQL I03/I04
 cargo run --release -- conformance spec.md --json
+./formal/check.sh                           # TLA+ model checking (needs Java)
 ```
 
 Without `KIRI_TEST_PG_DSN` the PostgreSQL tests print `SKIP` and pass

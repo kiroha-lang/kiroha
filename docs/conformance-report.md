@@ -54,6 +54,14 @@ raising its record unchanged, and left-to-right argument validation.
 Without `KIRI_TEST_PG_DSN`, I03/I04 print `SKIP: KIRI_TEST_PG_DSN not set`
 and do not assert; the results above were obtained **with** PostgreSQL 16.15.
 
+## Formal verification
+
+TLA+ models of `parallel` (§9.1) and `tx` (§11.5) are model-checked with TLC
+(`./formal/check.sh`: 1,212 and 90 distinct states, no violation), and decimal
+and JSON properties are checked against independent oracles
+(`tests/properties.rs`, 13 properties). Every property was shown to catch an
+injected defect. See [formal verification](formal-verification.md).
+
 ## Manual checks performed
 
 - Real HTTPS: `example.com` succeeds; `wrong.host.badssl.com` and
