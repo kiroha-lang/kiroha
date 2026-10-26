@@ -1,0 +1,25 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "kiroha",
+  "version": "0.1.0",
+  "description": "Write, review and debug Kiroha programs with versioned language guidance and executable examples.",
+  "author": {"name": "Kiroha contributors", "url": "https://github.com/kiroha-lang"},
+  "homepage": "https://kiroha-lang.github.io/kiroha/codex-plugin/",
+  "repository": "https://github.com/kiroha-lang/kiroha",
+  "license": "MIT",
+  "keywords": ["kiroha", "programming-language", "code-generation", "codex", "skills"],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Kiroha",
+        "shortDescription": "Write and check Kiroha code",
+        "longDescription": "Create and maintain Kiroha 0.5 programs for JSON data, collection methods, HTTP clients and services, PostgreSQL and local files. Includes the canonical generation card, API and host references, migration guidance and runnable examples. Uses an existing shell and Kiroha CLI when execution is needed; no MCP server or account connection is required.",
+        "developerName": "Kiroha contributors",
+        "category": "Developer Tools",
+        "capabilities": ["Interactive"],
+        "websiteURL": "https://kiroha-lang.github.io/kiroha/codex-plugin/",
+        "defaultPrompt": "Use $kiroha:write-kiroha to write and check a Kiroha program for my task."
+      }
+    }
+  }
+}

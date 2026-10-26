@@ -65,6 +65,18 @@ cp target/release/kiroha ~/.local/bin/     # or anywhere on PATH
 kiroha --version
 ```
 
+## Codex plugin
+
+Give an agent Kiroha's versioned generation card, API guidance and runnable examples:
+
+```sh
+codex plugin marketplace add kiroha-lang/kiroha
+codex plugin add kiroha@kiroha-lang
+```
+
+Use `$kiroha:write-kiroha` to write, review, debug or migrate Kiroha programs.
+See [the plugin guide](docs/codex-plugin.md) for usage, local development and packaging.
+
 ## Quick start
 
 ```sh

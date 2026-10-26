@@ -1,0 +1,14 @@
+fun total(items)
+  items.map{item=>item.price*item.quantity}.sum()
+end fun total
+orders=[
+  {customer:"Ada",price:2.5,quantity:2},
+  {customer:"Lin",price:4.2,quantity:1},
+  {customer:"Ada",price:3,quantity:3}
+];
+{
+  count:orders.size,
+  total:total(orders),
+  customers:orders.group{order=>order.customer}.map{g=>{name:g.key,total:total(g.items)}}
+}
+// => {"count":3,"total":18.2,"customers":[{"name":"Ada","total":14},{"name":"Lin","total":4.2}]}

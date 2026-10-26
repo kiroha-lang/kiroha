@@ -15,10 +15,25 @@ against the runtime built from the same revision, so breaking syntax changes
 can be reviewed before a release exists. The sections below preserve the
 previous publication and independent-audit evidence.
 
+## Codex plugin
+
+The skills-only plugin in `plugins/kiroha` provides `kiroha:write-kiroha` for
+Kiroha 0.5.0; plugin version is independently 0.1.0. Register the repository's
+`.agents/plugins/marketplace.json` using `codex plugin marketplace add kiroha-lang/kiroha`,
+then `codex plugin add kiroha@kiroha-lang`. See [the guide](docs/codex-plugin.md).
+
+The canonical generation card/API/host/migration references are synchronized by
+`scripts/plugin.py sync`; CI rejects drift, checks all eight source examples,
+executes pure/HTTP/pagination/file/service fixtures, and inspects a reproducible
+ZIP. The DB example is checked statically only. `scripts/check_plugin_codex.py`
+verified marketplace install, all installed bytes and actual `skills/list`
+discovery on Codex CLI 0.163.0 in temporary state without model calls. No MCP
+server or account connection is needed.
+
 ## Documentation website
 
 The friendly English documentation is published at
-https://kiroha-lang.github.io/kiroha/ (23 content pages). It includes a guided
+https://kiroha-lang.github.io/kiroha/ (24 content pages). It includes a guided
 first program, functions, data, a local HTTP walkthrough, troubleshooting,
 the complete reference and the specification. Search, copy buttons, dark mode
 and mobile navigation were verified on the public site at 1440×900 and 390×844.

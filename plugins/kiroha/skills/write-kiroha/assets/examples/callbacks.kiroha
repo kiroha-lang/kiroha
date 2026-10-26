@@ -1,0 +1,10 @@
+fun twice(value){step}
+  first=step(value);
+  step(first)
+end fun twice
+fun factorial(n)
+  if n<=1 then 1 else n*factorial(n-1)
+end fun factorial
+m=[1,2,3].map;
+[twice(2){x=>x*3},factorial(10),m(){x=>x+1},[1,2,3].fold(0){(a,x)=>a+x}]
+// => [18,3628800,[2,3,4],6]

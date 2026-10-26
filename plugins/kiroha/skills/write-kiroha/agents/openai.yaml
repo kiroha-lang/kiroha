@@ -1,0 +1,4 @@
+interface:
+  display_name: "Write Kiroha"
+  short_description: "Write, migrate and check Kiroha programs"
+  default_prompt: "Use $write-kiroha to write and check a Kiroha program for my task."

@@ -1,0 +1,1 @@
+{"format":"kiroha-host/1","capabilities":{"databases":["main"]},"database_pools":{"main":{"dsn_env":"KIROHA_PG_MAIN","max_connections":4}}}
