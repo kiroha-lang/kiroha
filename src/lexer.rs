@@ -112,6 +112,8 @@ pub enum Tok {
     Num(Option<Rc<Decimal>>),
     Str(Rc<str>),
     Query(Rc<QueryTok>),
+    /// SQL text delimited by braces following a sql(...) call.
+    SqlBlock(Rc<QueryTok>),
     P(P),
     Eof,
 }
@@ -168,6 +170,34 @@ fn is_ident_char(c: u8) -> bool {
     c.is_ascii_alphanumeric() || c == b'_'
 }
 
+// Only an unqualified `sql`, optionally followed by a bracketed type, may
+// introduce SQL text. Balance tokens rather than searching source strings so
+// connection and options expressions can contain nested calls and records.
+fn sql_block_head(tokens: &[Token]) -> bool {
+    fn before_pair(tokens: &[Token], end: usize, open: P, close: P) -> Option<usize> {
+        if !matches!(tokens.get(end)?.tok, Tok::P(p) if p == close) { return None; }
+        let mut depth = 0usize;
+        for i in (0..=end).rev() {
+            match tokens[i].tok {
+                Tok::P(p) if p == close => depth += 1,
+                Tok::P(p) if p == open => { depth -= 1; if depth == 0 { return Some(i); } }
+                _ => {}
+            }
+        }
+        None
+    }
+    let Some(end) = tokens.len().checked_sub(1) else { return false };
+    let Some(open) = before_pair(tokens, end, P::LParen, P::RParen) else { return false };
+    let Some(mut head) = open.checked_sub(1) else { return false };
+    if matches!(tokens[head].tok, Tok::P(P::RBracket)) {
+        let Some(left) = before_pair(tokens, head, P::LBracket, P::RBracket) else { return false };
+        let Some(previous) = left.checked_sub(1) else { return false };
+        head = previous;
+    }
+    matches!(&tokens[head].tok, Tok::Ident(name) if &**name == "sql")
+        && (head == 0 || !matches!(tokens[head - 1].tok, Tok::P(P::Dot | P::QDot) | Tok::Kw(Kw::Fun)))
+}
+
 impl<'a> Lexer<'a> {
     fn peek(&self) -> Option<u8> {
         self.b.get(self.i).copied()
@@ -197,7 +227,10 @@ impl<'a> Lexer<'a> {
                 self.i += 1;
                 return Ok(out);
             }
-            let tok = if is_ident_start(c) {
+            let tok = if c == b'{' && sql_block_head(&out) && !self.looks_like_lambda() {
+                self.i += 1;
+                self.sql_block(start)?
+            } else if is_ident_start(c) {
                 self.word()?
             } else if c.is_ascii_digit() {
                 self.number()?
@@ -215,6 +248,118 @@ impl<'a> Lexer<'a> {
                 Tok::P(p)
             };
             out.push(Token { tok, span: Span::new(start, self.i) });
+        }
+    }
+
+    // Preserve ordinary trailing callbacks on a user binding named `sql`.
+    fn looks_like_lambda(&self) -> bool {
+        let rest = &self.src[self.i + 1..];
+        let b = rest.as_bytes();
+        let mut i = 0;
+        let mut braces = 0usize;
+        let mut string = false;
+        let mut comment = false;
+        while i < b.len() {
+            let c = b[i];
+            if comment {
+                if c == b'\n' || c == b'\r' { comment = false; }
+            } else if string {
+                if c == b'\\' { i = (i + 2).min(b.len()); continue; }
+                if c == b'"' { string = false; }
+            } else {
+                match c {
+                    b'"' => string = true,
+                    b'/' if b.get(i + 1) == Some(&b'/') => { comment = true; i += 1; }
+                    b'{' => braces += 1,
+                    b'}' if braces == 0 => return false,
+                    b'}' => braces -= 1,
+                    b'\'' | b'`' | b';' if braces == 0 => return false,
+                    b'=' if braces == 0 && b.get(i + 1) == Some(&b'>') => {
+                        let probe = format!("{{{}=>null}}", &rest[..i]);
+                        if let Ok(tokens) = tokenize(&probe) {
+                            if let Ok(program) = crate::parser::parse(&tokens) {
+                                if matches!(program.node(program.items[0]), crate::ast::Node::Lambda(_)) { return true; }
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            i += 1;
+        }
+        false
+    }
+
+    fn sql_block(&mut self, start: usize) -> Result<Tok, Diagnostic> {
+        let mut segments = Vec::new();
+        let mut holes = Vec::new();
+        let mut cur = String::new();
+        let mut quote: Option<u8> = None;
+        let mut dollar: Option<String> = None;
+        let mut line_comment = false;
+        let mut block_comments = 0usize;
+        let mut braces = 0usize;
+        loop {
+            let c = self.peek().ok_or_else(|| lexical("unterminated SQL block", start, self.i))?;
+            // As with q`...`, an escaped interpolation opener is literal text.
+            if c == b'\\' && self.peek_at(1) == Some(b'$') && self.peek_at(2) == Some(b'{') {
+                if quote.is_none() && dollar.is_none() && !line_comment && block_comments == 0 { braces += 1; }
+                cur.push_str("${"); self.i += 3; continue;
+            }
+            // Holes are recognized even in quotes/comments so the existing SQL
+            // safety checker can reject a hole in an invalid SQL context.
+            if c == b'$' && self.peek_at(1) == Some(b'{') {
+                let hs = self.i;
+                self.i += 2;
+                let tokens = self.tokens(true)?;
+                holes.push(Hole { tokens, span: Span::new(hs, self.i) });
+                segments.push(std::mem::take(&mut cur));
+                continue;
+            }
+            if let Some(tag) = &dollar {
+                if self.src[self.i..].starts_with(tag) {
+                    cur.push_str(tag); self.i += tag.len(); dollar = None; continue;
+                }
+            } else if line_comment {
+                if c == b'\n' || c == b'\r' { line_comment = false; }
+            } else if block_comments > 0 {
+                if c == b'/' && self.peek_at(1) == Some(b'*') { cur.push_str("/*"); self.i += 2; block_comments += 1; continue; }
+                if c == b'*' && self.peek_at(1) == Some(b'/') { cur.push_str("*/"); self.i += 2; block_comments -= 1; continue; }
+            } else if let Some(q) = quote {
+                if c == b'\\' && self.peek_at(1).is_some() {
+                    cur.push('\\'); self.i += 1;
+                    let ch = self.src[self.i..].chars().next().unwrap(); cur.push(ch); self.i += ch.len_utf8(); continue;
+                }
+                if c == q {
+                    cur.push(c as char); self.i += 1;
+                    if self.peek() == Some(q) { cur.push(q as char); self.i += 1; } else { quote = None; }
+                    continue;
+                }
+            } else {
+                match c {
+                    b'}' if braces == 0 => { self.i += 1; segments.push(cur); return Ok(Tok::SqlBlock(Rc::new(QueryTok { segments, holes }))); }
+                    b'{' => braces += 1,
+                    b'}' => braces -= 1,
+                    b'\'' | b'"' | b'`' => quote = Some(c),
+                    b'-' if self.peek_at(1) == Some(b'-') => line_comment = true,
+                    // PostgreSQL JSON operators #>, #>> and #- are not
+                    // MySQL's hash comments.
+                    b'#' if !matches!(self.peek_at(1), Some(b'>' | b'-')) => line_comment = true,
+                    b'/' if self.peek_at(1) == Some(b'*') => { cur.push_str("/*"); self.i += 2; block_comments = 1; continue; }
+                    b'$' => {
+                        let rest = &self.src[self.i + 1..];
+                        let len: usize = rest.chars().take_while(|c| c.is_ascii_alphanumeric() || *c == '_' || !c.is_ascii()).map(char::len_utf8).sum();
+                        let starts_tag = rest.chars().next().is_none_or(|c| !c.is_ascii_digit());
+                        let follows_ident = cur.chars().next_back().is_some_and(|c| c.is_ascii_alphanumeric() || c == '_' || c == '$' || !c.is_ascii());
+                        if !follows_ident && starts_tag && rest.as_bytes().get(len) == Some(&b'$') {
+                            let tag = &self.src[self.i..self.i + len + 2];
+                            cur.push_str(tag); self.i += tag.len(); dollar = Some(tag.to_string()); continue;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            let ch = self.src[self.i..].chars().next().unwrap(); cur.push(ch); self.i += ch.len_utf8();
         }
     }
 

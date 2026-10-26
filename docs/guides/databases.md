@@ -60,6 +60,38 @@ The result is `{rows, count}`. Each row is a record. Use `check` to establish
 the shape of columns before doing shape-specific work. Duplicate column names
 are errors: give joined or calculated columns distinct aliases.
 
+### SQL blocks (unreleased)
+
+On the development version, a SQL block can validate every row against a type
+and return the resulting array directly:
+
+```kiroha
+type Greeting = {message:str};
+d = db("main");
+greetings = sql[Greeting](d){select ${"Hello, Kiroha!"} as message};
+greetings.one().message
+```
+
+`sql[Greeting](d){...}` is equivalent to validating ``sql(d, q`…`).rows``
+against `[Greeting]`: a mismatch raises `validation`, including for an extra
+column in a closed record. An empty result is an empty array. The SQL has
+already run when validation occurs; catching a validation error inside `tx`
+does not poison that transaction. Use `.one()` when exactly one row is needed.
+
+Without a type, `sql(d){...}` returns the usual `{rows, count}`. Options work
+in both forms, for example `sql[Greeting](d, {max_rows:10}){select ...}`.
+Holes use the same parameter binding and SQL safety checks as query literals.
+The old ``sql(d, q`…`)`` form remains available in released Kiroha 0.7.0.
+
+SQL block braces inside quoted SQL text, dollar quotes and comments do not end
+the block. A literal `${` is written `\${`; interpolation is otherwise recognized
+even inside SQL quotes and comments, where SQL validation rejects it. For block
+delimiting, a backslash inside a quoted SQL string or identifier escapes the
+following character; use a query literal for dialect-specific text that needs a
+different interpretation. In particular, `#` starts a block-level line comment
+except in PostgreSQL's `#>`, `#>>` and `#-` operators; use a query literal for
+PostgreSQL's bare `#` operator.
+
 ## Keep related writes together
 
 Suppose an administrator has created an `audit(message)` table. Use InnoDB

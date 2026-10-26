@@ -215,6 +215,12 @@ Returns the configured pool handle for alias `name` (needs the
 `d` is a database handle or a live transaction handle owned by the current
 task; `Q` must be a query literal (a string is `type`).
 
+The development version also provides SQL blocks: `sql[T](d){...}` validates
+each returned row as `T` and returns `[T]`; `sql(d){...}` returns the usual
+`{rows, count}`. Either form accepts options after `d`. Validation occurs after
+SQL execution. See the [database guide](https://kiroha-lang.github.io/kiroha/guides/databases/#sql-blocks-unreleased)
+for details; these forms are not in the released 0.7.0 binary.
+
 | Option | Default | Domain |
 | --- | --- | --- |
 | `timeout` | 10000 | positive ms |

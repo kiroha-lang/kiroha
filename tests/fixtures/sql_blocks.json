@@ -1,0 +1,478 @@
+{
+  "format": "kiroha-conformance/1",
+  "language": "0.7.0/Web1",
+  "scheduler": "virtual-fifo/1",
+  "cases": [
+    {
+      "id": "typed-parameter",
+      "source": "type Name={name:str}; name=\"x'); drop table t; --\"; sql[Name](db(\"main\"),{max_rows:2}){select ${name} as name}.one().name",
+      "host": {
+        "capabilities": {
+          "databases": [
+            "main"
+          ]
+        }
+      },
+      "fixtures": [
+        {
+          "id": "pool",
+          "op": "pool",
+          "match": {
+            "alias": "main"
+          },
+          "ok": "p"
+        },
+        {
+          "id": "acq",
+          "op": "acquire",
+          "match": {
+            "pool": "p"
+          },
+          "ok": "c"
+        },
+        {
+          "id": "q",
+          "op": "execute",
+          "match": {
+            "connection": "c",
+            "parameters": [
+              {
+                "oid": 25,
+                "value": "x'); drop table t; --"
+              }
+            ],
+            "sql": "select  $1  as name"
+          },
+          "ok": {
+            "columns": [
+              {
+                "name": "name",
+                "oid": 25
+              }
+            ],
+            "rows": [
+              [
+                "x'); drop table t; --"
+              ]
+            ],
+            "count": "1",
+            "outcome": "committed"
+          }
+        },
+        {
+          "id": "rel",
+          "op": "release",
+          "match": {
+            "connection": "c",
+            "disposition": "reset"
+          },
+          "ok": null
+        }
+      ],
+      "expect": {
+        "phase": "value",
+        "json": "\"x'); drop table t; --\""
+      }
+    },
+    {
+      "id": "untyped-count",
+      "source": "r=sql(db(\"main\"),{max_rows:2}){select 1 as name}; [r.count,r.rows.size]",
+      "host": {
+        "capabilities": {
+          "databases": [
+            "main"
+          ]
+        }
+      },
+      "fixtures": [
+        {
+          "id": "pool",
+          "op": "pool",
+          "match": {
+            "alias": "main"
+          },
+          "ok": "p"
+        },
+        {
+          "id": "acq",
+          "op": "acquire",
+          "match": {
+            "pool": "p"
+          },
+          "ok": "c"
+        },
+        {
+          "id": "q",
+          "op": "execute",
+          "match": {
+            "connection": "c"
+          },
+          "ok": {
+            "columns": [
+              {
+                "name": "name",
+                "oid": 25
+              }
+            ],
+            "rows": [
+              [
+                "a"
+              ],
+              [
+                "b"
+              ]
+            ],
+            "count": "2",
+            "outcome": "committed"
+          }
+        },
+        {
+          "id": "rel",
+          "op": "release",
+          "match": {
+            "connection": "c",
+            "disposition": "reset"
+          },
+          "ok": null
+        }
+      ],
+      "expect": {
+        "phase": "value",
+        "json": "[2,2]"
+      }
+    },
+    {
+      "id": "typed-mismatch",
+      "source": "type Name={name:int}; sql[Name](db(\"main\")){select 1 as name}",
+      "host": {
+        "capabilities": {
+          "databases": [
+            "main"
+          ]
+        }
+      },
+      "fixtures": [
+        {
+          "id": "pool",
+          "op": "pool",
+          "match": {
+            "alias": "main"
+          },
+          "ok": "p"
+        },
+        {
+          "id": "acq",
+          "op": "acquire",
+          "match": {
+            "pool": "p"
+          },
+          "ok": "c"
+        },
+        {
+          "id": "q",
+          "op": "execute",
+          "match": {
+            "connection": "c"
+          },
+          "ok": {
+            "columns": [
+              {
+                "name": "name",
+                "oid": 25
+              }
+            ],
+            "rows": [
+              [
+                "bad"
+              ]
+            ],
+            "count": "1",
+            "outcome": "committed"
+          }
+        },
+        {
+          "id": "rel",
+          "op": "release",
+          "match": {
+            "connection": "c",
+            "disposition": "reset"
+          },
+          "ok": null
+        }
+      ],
+      "expect": {
+        "phase": "runtime",
+        "code": "validation"
+      }
+    },
+    {
+      "id": "typed-empty",
+      "source": "type Name={name:int}; sql[Name](db(\"main\")){select 1 as name}",
+      "host": {
+        "capabilities": {
+          "databases": [
+            "main"
+          ]
+        }
+      },
+      "fixtures": [
+        {
+          "id": "pool",
+          "op": "pool",
+          "match": {
+            "alias": "main"
+          },
+          "ok": "p"
+        },
+        {
+          "id": "acq",
+          "op": "acquire",
+          "match": {
+            "pool": "p"
+          },
+          "ok": "c"
+        },
+        {
+          "id": "q",
+          "op": "execute",
+          "match": {
+            "connection": "c"
+          },
+          "ok": {
+            "columns": [
+              {
+                "name": "name",
+                "oid": 25
+              }
+            ],
+            "rows": [],
+            "count": "0",
+            "outcome": "committed"
+          }
+        },
+        {
+          "id": "rel",
+          "op": "release",
+          "match": {
+            "connection": "c",
+            "disposition": "reset"
+          },
+          "ok": null
+        }
+      ],
+      "expect": {
+        "phase": "value",
+        "json": "[]"
+      }
+    },
+    {
+      "id": "validation-not-shadowed",
+      "source": "type Name={name:str}; check=9; sql[Name](db(\"main\")){select 1 as name}.one().name",
+      "host": {
+        "capabilities": {
+          "databases": [
+            "main"
+          ]
+        }
+      },
+      "fixtures": [
+        {
+          "id": "pool",
+          "op": "pool",
+          "match": {
+            "alias": "main"
+          },
+          "ok": "p"
+        },
+        {
+          "id": "acq",
+          "op": "acquire",
+          "match": {
+            "pool": "p"
+          },
+          "ok": "c"
+        },
+        {
+          "id": "q",
+          "op": "execute",
+          "match": {
+            "connection": "c"
+          },
+          "ok": {
+            "columns": [
+              {
+                "name": "name",
+                "oid": 25
+              }
+            ],
+            "rows": [
+              [
+                "ok"
+              ]
+            ],
+            "count": "1",
+            "outcome": "committed"
+          }
+        },
+        {
+          "id": "rel",
+          "op": "release",
+          "match": {
+            "connection": "c",
+            "disposition": "reset"
+          },
+          "ok": null
+        }
+      ],
+      "expect": {
+        "phase": "value",
+        "json": "\"ok\""
+      }
+    },
+    {
+      "id": "hole-in-quote",
+      "source": "try sql(db(\"main\")){select '${\"bad\"}' as name} catch {e=>e.data.reason}",
+      "host": {
+        "capabilities": {
+          "databases": [
+            "main"
+          ]
+        }
+      },
+      "fixtures": [
+        {
+          "id": "pool",
+          "op": "pool",
+          "match": {
+            "alias": "main"
+          },
+          "ok": "p"
+        }
+      ],
+      "expect": {
+        "phase": "value",
+        "json": "\"hole_context\"",
+        "trace": [
+          "pool:start",
+          "pool:ok"
+        ]
+      }
+    },
+    {
+      "id": "hole-in-comment",
+      "source": "try sql(db(\"main\")){select 1 -- ${2}\n} catch {e=>e.data.reason}",
+      "host": {
+        "capabilities": {
+          "databases": [
+            "main"
+          ]
+        }
+      },
+      "fixtures": [
+        {
+          "id": "pool",
+          "op": "pool",
+          "match": {
+            "alias": "main"
+          },
+          "ok": "p"
+        }
+      ],
+      "expect": {
+        "phase": "value",
+        "json": "\"hole_context\"",
+        "trace": [
+          "pool:start",
+          "pool:ok"
+        ]
+      }
+    },
+    {
+      "id": "literal-parameter",
+      "source": "try sql(db(\"main\")){select $1 as name} catch {e=>e.data.reason}",
+      "host": {
+        "capabilities": {
+          "databases": [
+            "main"
+          ]
+        }
+      },
+      "fixtures": [
+        {
+          "id": "pool",
+          "op": "pool",
+          "match": {
+            "alias": "main"
+          },
+          "ok": "p"
+        }
+      ],
+      "expect": {
+        "phase": "value",
+        "json": "\"literal_parameter\"",
+        "trace": [
+          "pool:start",
+          "pool:ok"
+        ]
+      }
+    },
+    {
+      "id": "multiple-statements",
+      "source": "try sql(db(\"main\")){select 1; select 2} catch {e=>e.data.reason}",
+      "host": {
+        "capabilities": {
+          "databases": [
+            "main"
+          ]
+        }
+      },
+      "fixtures": [
+        {
+          "id": "pool",
+          "op": "pool",
+          "match": {
+            "alias": "main"
+          },
+          "ok": "p"
+        }
+      ],
+      "expect": {
+        "phase": "value",
+        "json": "\"multiple_statements\"",
+        "trace": [
+          "pool:start",
+          "pool:ok"
+        ]
+      }
+    },
+    {
+      "id": "evaluation-order",
+      "source": "try sql(db(\"main\"),{max_rows:fail({code:\"option\",message:\"\",data:{}})}){select ${fail({code:\"hole\",message:\"\",data:{}})}} catch {e=>e.code}",
+      "host": {
+        "capabilities": {
+          "databases": [
+            "main"
+          ]
+        }
+      },
+      "fixtures": [
+        {
+          "id": "pool",
+          "op": "pool",
+          "match": {
+            "alias": "main"
+          },
+          "ok": "p"
+        }
+      ],
+      "expect": {
+        "phase": "value",
+        "json": "\"hole\"",
+        "trace": [
+          "pool:start",
+          "pool:ok"
+        ]
+      }
+    }
+  ]
+}

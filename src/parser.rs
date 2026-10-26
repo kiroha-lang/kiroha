@@ -42,6 +42,7 @@ fn tok_desc(t: &Tok) -> String {
         Tok::Num(_) => "number".into(),
         Tok::Str(_) => "string".into(),
         Tok::Query(_) => "query literal".into(),
+        Tok::SqlBlock(_) => "SQL block".into(),
         Tok::P(p) => format!("`{p:?}`"),
         Tok::Eof => "end of input".into(),
     }
@@ -553,6 +554,13 @@ impl<'a> Parser<'a> {
         let mut e = self.primary()?;
         loop {
             match self.peek() {
+                Tok::P(P::LBracket) if matches!(self.prog.node(e), Node::Name { name, .. } if &**name == "sql") && self.typed_sql_ahead() => {
+                    self.advance();
+                    let annotation = self.type_expr()?;
+                    self.expect(P::RBracket, "`]` after SQL row type")?;
+                    let args = self.arguments()?;
+                    e = self.sql_block_call(e, args, Some(annotation))?;
+                }
                 Tok::P(P::Lt) => {
                     let saved = self.pos;
                     match self.type_args() {
@@ -562,6 +570,10 @@ impl<'a> Parser<'a> {
                 }
                 Tok::P(P::LParen) => {
                     let args = self.arguments()?;
+                    if matches!(self.peek(), Tok::SqlBlock(_)) && matches!(self.prog.node(e), Node::Name { name, .. } if &**name == "sql") {
+                        e = self.sql_block_call(e, args, None)?;
+                        continue;
+                    }
                     let cb = self.trailing_callback()?;
                     let span = self.prog.span(e).join(self.prev_span());
                     e = self.add(Node::Call { callee: e, args, cb }, span);
@@ -589,6 +601,58 @@ impl<'a> Parser<'a> {
                 _ => return Ok(e),
             }
         }
+    }
+
+    fn typed_sql_ahead(&self) -> bool {
+        fn after_pair(toks: &[Token], start: usize, open: P, close: P) -> Option<usize> {
+            let mut depth = 0usize;
+            for (i, token) in toks.iter().enumerate().skip(start) {
+                match token.tok {
+                    Tok::P(p) if p == open => depth += 1,
+                    Tok::P(p) if p == close => { depth -= 1; if depth == 0 { return Some(i + 1); } }
+                    Tok::Eof => return None,
+                    _ => {}
+                }
+            }
+            None
+        }
+        let Some(after_type) = after_pair(&self.toks, self.pos, P::LBracket, P::RBracket) else { return false };
+        if !matches!(self.toks.get(after_type).map(|t| &t.tok), Some(Tok::P(P::LParen))) { return false; }
+        let Some(after_args) = after_pair(&self.toks, after_type, P::LParen, P::RParen) else { return false };
+        matches!(self.toks.get(after_args).map(|t| &t.tok), Some(Tok::SqlBlock(_)))
+    }
+
+    fn sql_block_call(&mut self, callee: NodeId, mut args: Vec<NodeId>, annotation: Option<TypeExpr>) -> PResult<NodeId> {
+        if !(1..=2).contains(&args.len()) {
+            return Err(syntax("SQL block requires a database and optional options", self.span()));
+        }
+        let span = self.prog.span(callee).join(self.span());
+        let q = match self.advance().tok { Tok::SqlBlock(q) => q, _ => unreachable!() };
+        let query = self.query_node(q, span)?;
+        args.insert(1, query);
+        let call = self.add(Node::Call { callee, args, cb: None }, span);
+        let Some(annotation) = annotation else { return Ok(call) };
+        let rows = self.add(Node::Member { recv: call, name: Rc::from("rows"), optional: false }, span);
+        let schema = self.add(Node::SqlSchema { annotation, schema: None }, span);
+        let schema_array = self.add(Node::Array(vec![schema]), span);
+        // This validation is intrinsic to the syntax, independent of a local
+        // variable named `check`.
+        let check = self.add(Node::Name { name: Rc::from("check"), var: Var::Prelude(crate::builtins::prelude_index("check").unwrap()) }, span);
+        Ok(self.add(Node::Call { callee: check, args: vec![rows, schema_array], cb: None }, span))
+    }
+
+    fn query_node(&mut self, q: Rc<crate::lexer::QueryTok>, sp: Span) -> PResult<NodeId> {
+        let mut holes = Vec::new();
+        for h in &q.holes {
+            let mut toks = h.tokens.clone();
+            toks.push(Token { tok: Tok::Eof, span: Span::new(h.span.end - 1, h.span.end - 1) });
+            if toks.len() == 1 { return Err(syntax("empty query hole", h.span)); }
+            let mut sub = Parser { toks: Cow::Borrowed(&toks), pos: 0, prog: self.prog };
+            let e = sub.expr()?;
+            if !matches!(sub.peek(), Tok::Eof) { return Err(sub.unexpected("`}` closing query hole")); }
+            holes.push(e);
+        }
+        Ok(self.add(Node::Query { segments: Rc::new(q.segments.clone()), holes }, sp))
     }
 
     fn is_lambda_head(&mut self) -> bool {
@@ -741,21 +805,7 @@ impl<'a> Parser<'a> {
             }
             Tok::Query(q) => {
                 self.advance();
-                let mut holes = Vec::new();
-                for h in &q.holes {
-                    let mut toks = h.tokens.clone();
-                    toks.push(Token { tok: Tok::Eof, span: Span::new(h.span.end - 1, h.span.end - 1) });
-                    if toks.len() == 1 {
-                        return Err(syntax("empty query hole", h.span));
-                    }
-                    let mut sub = Parser { toks: Cow::Borrowed(&toks), pos: 0, prog: self.prog };
-                    let e = sub.expr()?;
-                    if !matches!(sub.peek(), Tok::Eof) {
-                        return Err(sub.unexpected("`}` closing query hole"));
-                    }
-                    holes.push(e);
-                }
-                Ok(self.add(Node::Query { segments: Rc::new(q.segments.clone()), holes }, sp))
+                self.query_node(q, sp)
             }
             Tok::Kw(Kw::If) | Tok::Kw(Kw::Try) => Err(syntax(
                 "`if`/`try` must begin an expression; parenthesize it when used as an operand",

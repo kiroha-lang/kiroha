@@ -397,6 +397,12 @@ name = "x'); drop table users; --";
 sql(d, q`select id, name from users where name = ${name}`).rows
 ```
 
+The development version also supports `sql[User](d){select ...}`, which
+validates each returned row as `User` and returns `[User]`, and
+`sql(d){select ...}`, which returns `{rows, count}`. See the
+[database guide](guides/databases.md#sql-blocks-unreleased) for details and
+the release status.
+
 - `sql` returns `{rows, count}`; `count` is the server's affected/returned
   count.
 - Holes are only allowed in value positions outside quotes and comments; one

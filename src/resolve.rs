@@ -260,6 +260,7 @@ impl<'a> Resolver<'a> {
                 }
                 Ok(())
             }
+            Node::Name { var: Var::Prelude(_), .. } => Ok(()),
             Node::Name { name, .. } => {
                 let depth = self.ctxs.len() - 1;
                 match self.lookup(depth, &name) {
@@ -337,6 +338,11 @@ impl<'a> Resolver<'a> {
                 for h in holes {
                     self.expr(h)?;
                 }
+                Ok(())
+            }
+            Node::SqlSchema { mut annotation, .. } => {
+                self.type_expr(&mut annotation)?;
+                if let Node::SqlSchema { annotation: stored, .. } = &mut self.prog.nodes[id as usize] { *stored = annotation; }
                 Ok(())
             }
             Node::Group(e) => self.expr(e),

@@ -23,6 +23,41 @@ SITE = 'https://kiroha-lang.github.io/kiroha/'
 SCHEMA = 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json'
 
 
+def map_markdown_links(text, transform):
+    """Transform prose links without mistaking fenced or inline code for links."""
+    fence = None
+    output = []
+    inline = re.compile(r'(?<!`)(`+)(?!`)(.*?)(?<!`)\1(?!`)')
+    for line in text.splitlines(keepends=True):
+        marker = re.match(r'^ {0,3}(`{3,}|~{3,})', line)
+        if fence:
+            output.append(line)
+            close = re.match(r'^ {0,3}(`{3,}|~{3,})[ \t]*(?:\r?\n)?$', line)
+            if close and close[1][0] == fence[0] and len(close[1]) >= len(fence):
+                fence = None
+            continue
+        if marker:
+            fence = marker[1]
+            output.append(line)
+            continue
+        pos = 0
+        links = re.compile(r'\[([^\]]+)\]\(([^)]+)\)')
+        while pos < len(line):
+            code = inline.search(line, pos)
+            link = links.search(line, pos)
+            if link and (not code or link.start() < code.start()):
+                output.append(line[pos:link.start()])
+                output.append(transform(link))
+                pos = link.end()
+            elif code:
+                output.append(line[pos:code.end()])
+                pos = code.end()
+            else:
+                output.append(line[pos:])
+                break
+    return ''.join(output)
+
+
 def generated():
     spec = (ROOT / 'spec.md').read_text()
     start = '<!-- KIROHA_GENERATION_CARD_BEGIN -->\n```text\n'
@@ -47,7 +82,7 @@ def generated():
             if target.fragment:
                 url += '#' + target.fragment
             return f'[{label}]({url})'
-        text = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', absolute, text)
+        text = map_markdown_links(text, absolute)
         result[SKILL / 'references' / Path(source).name] = (
             f'<!-- Generated from docs/{source}; run python3 scripts/plugin.py sync. -->\n\n' + text)
     return result
@@ -107,12 +142,18 @@ def metadata():
             read_json(path)
         if path.is_file() and path.suffix == '.md':
             text = path.read_text()
-            for link in re.findall(r'\[[^\]]*\]\(([^)]+)\)', text):
+            # The generation card is plain source text, not Markdown prose.
+            if path == SKILL / 'references/generation-card.md':
+                continue
+            def verify_link(match):
+                link = match[2]
                 if link.startswith(('https://', 'http://', '#')):
-                    continue
+                    return match[0]
                 target = (path.parent / link.split('#', 1)[0]).resolve()
                 assert target.is_relative_to(PLUGIN), (path, link)
                 assert target.exists(), (path, link)
+                return match[0]
+            map_markdown_links(text, verify_link)
     return manifest
 
 
