@@ -91,6 +91,7 @@ See [examples/](examples/) for runnable programs.
 | [Conformance report](docs/conformance-report.md) | Test results, environment, deviations |
 | [Formal verification](docs/formal-verification.md) | TLA+ models (scheduler, transactions) and property-based tests (decimals, JSON) |
 | [Specification](spec.md) | The normative Kiri 0.3.0 / Web1 contract |
+| [Handoff](HANDOFF.md) | Current state, open work, verification and audit workflow for the next maintainer |
 
 ## Development
 
