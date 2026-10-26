@@ -1,0 +1,73 @@
+# Install Kiroha
+
+Install the latest prebuilt release:
+
+```sh
+curl -fsSL https://github.com/kiroha-lang/kiroha/releases/latest/download/install.sh | bash
+export PATH="$HOME/.local/bin:$PATH"
+kiroha --version
+```
+
+No Rust toolchain, C compiler or libclang is needed for prebuilt binaries.
+The installer detects the OS and CPU, downloads the matching archive, verifies
+its SHA-256 against the release's `SHA256SUMS`, and checks the executable before
+replacing an existing installation. It installs without sudo in
+`~/.local/bin`. If necessary, add the PATH line above to your shell startup file.
+
+| Platform | CPU | Minimum runtime |
+| --- | --- | --- |
+| Linux, including WSL | x86_64 / ARM64 | glibc 2.35+ (e.g. Ubuntu 22.04+) |
+| macOS | Intel / Apple Silicon | macOS 13+ |
+
+For Windows, run the Linux installer inside WSL. Other targets can use a
+source build where the POSIX host adapters are supported.
+
+## Choose a version or directory
+
+Pin both the installer and executable to a release:
+
+```sh
+curl -fsSL https://github.com/kiroha-lang/kiroha/releases/download/v0.3.0/install.sh \
+  | bash -s -- --version 0.3.0
+```
+
+Choose a different directory:
+
+```sh
+curl -fsSL https://github.com/kiroha-lang/kiroha/releases/latest/download/install.sh \
+  | bash -s -- --install-dir "$HOME/bin"
+```
+
+`KIROHA_VERSION` and `KIROHA_INSTALL_DIR` provide the same defaults; command-line
+options take precedence. `--help` lists the options. Re-running the installer
+updates the executable; failed downloads, checksums or executable checks leave
+the previous installation in place. The script does not edit shell startup
+files. `KIROHA_RELEASE_BASE_URL` can point to a release mirror with the same
+`latest/download` and `download/vVERSION` layout.
+
+## Build from source
+
+Requires Rust 1.88+ (tested with 1.96), a C compiler and libclang for
+`pg_query`. On Debian/Ubuntu, `sudo apt-get install build-essential libclang-dev`
+provides the native build requirements. On macOS, use the Xcode command-line
+tools and `brew install llvm`, then export
+`LIBCLANG_PATH="$(brew --prefix llvm)/lib"` if automatic discovery fails.
+
+```sh
+git clone https://github.com/kiroha-lang/kiroha.git
+cd kiroha
+cargo install --path . --locked
+kiroha --version
+```
+
+## Release verification
+
+The release workflow first runs the full PostgreSQL-backed verification suite.
+It then builds each target on a native runner, executes `--version`, the 145
+embedded conformance cases and an exact-decimal program, packages binaries and
+the license, and publishes the release only after every target passes.
+Installer tests use a local release server and cover platform selection,
+version pinning, paths with spaces, failed downloads/checksums, and preservation
+of an existing executable.
+
+To remove a default installation, delete `~/.local/bin/kiroha`.

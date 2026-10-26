@@ -5,6 +5,8 @@ edition = "2021"
 rust-version = "1.88"
 description = "Reference implementation of the Kiroha 0.3.0 / Web1 language and runtime"
 license = "MIT"
+repository = "https://github.com/kiroha-lang/kiroha"
+homepage = "https://github.com/kiroha-lang/kiroha"
 
 [lib]
 name = "kiroha"

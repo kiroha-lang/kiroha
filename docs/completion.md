@@ -21,7 +21,7 @@ contains 360 independently passing cases/control records.
 | Every embedded case passes | **145 total, 145 passed, 0 failed, 0 skipped**. |
 | Report records environment and hidden skips are absent | `docs/conformance-report.md` records compiler/OS/dependencies, PostgreSQL version, real integration IDs, commands and explicit skip behavior. The final run has **82 passed, 0 failed, 0 ignored**. |
 | Comprehensive documentation and runnable examples | README, language guide, built-in/value/error references, CLI/host configuration, architecture, verification and migration notes are present. All six examples pass static checking; pure, HTTP, database and server examples were executed with their required setup. |
-| New language name | **Kiroha (きろは)**; crate, executable, protocols, markers, extensions and examples renamed. `docs/naming.md` records the rationale and dated `kiroha-lang` account lookup. No organization or remote was created. |
+| New language name | **Kiroha (きろは)**; crate, executable, protocols, markers, extensions and examples renamed. The owner subsequently created `kiroha-lang`; the source repository is [kiroha-lang/kiroha](https://github.com/kiroha-lang/kiroha). |
 
 ## Reproduction
 
@@ -48,6 +48,9 @@ b21b3a8ae325fbcba95ac3d7744c1b9dc55e31998976281f2a3f3b1543e59047
 ```
 
 The verification workflow provisions PostgreSQL 16 and runs these gates.
-Its syntax passed actionlint v1.7.7 locally. No hosted CI run is claimed:
-the repository has no configured remote. Optional fuzzing, sanitizers, Kani
+Its original syntax passed actionlint v1.7.7 locally. The subsequent publication
+adds a native four-target release workflow and a checked `curl | bash` installer;
+see [installation](install.md) for those distribution checks. Hosted workflow
+results are available in [GitHub Actions](https://github.com/kiroha-lang/kiroha/actions).
+Optional fuzzing, sanitizers, Kani
 and mechanically linked proofs remain future work, outside §15.3 acceptance.

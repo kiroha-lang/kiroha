@@ -1,6 +1,6 @@
 name: Verify Web1
 
-on: [push, pull_request, workflow_dispatch]
+on: [push, pull_request, workflow_dispatch, workflow_call]
 
 permissions:
   contents: read
@@ -38,6 +38,7 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y libclang-dev
       - run: cargo build --release --locked
       - run: cargo test --release --locked
+      - run: python3 -m unittest discover -s tests -p test_install.py -v
       - run: timeout 60 target/release/kiroha conformance spec.md --json
       - run: cargo clippy --release --all-targets --locked -- -D warnings
       - run: timeout 60 ./formal/check.sh

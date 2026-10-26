@@ -39,7 +39,20 @@ local filesystem.
 Details, versions and known deviations are in
 [docs/conformance-report.md](docs/conformance-report.md).
 
-## Build and install
+## Install
+
+```sh
+curl -fsSL https://github.com/kiroha-lang/kiroha/releases/latest/download/install.sh | bash
+export PATH="$HOME/.local/bin:$PATH"
+kiroha --version
+```
+
+Prebuilt releases support Linux/WSL (glibc 2.35+) and macOS 13+, on x86_64 and
+ARM64. No Rust build environment is needed. The installer verifies SHA-256
+and defaults to `~/.local/bin`; see [installation options](docs/install.md)
+for version pinning, alternate directories and source builds.
+
+## Build from source
 
 Requires Rust 1.88+ (tested with 1.96), a C compiler and libclang (for the
 embedded PostgreSQL parser, `pg_query`; set `LIBCLANG_PATH` if it is not
@@ -89,6 +102,7 @@ See [the examples and their setup instructions](examples/README.md) for runnable
 | [Values and numbers](docs/reference/values-and-numbers.md) | Value kinds, exact decimals, canonical spelling, JSON, equality |
 | [Errors and aborts](docs/reference/errors.md) | Error codes and data, aborts, precedence |
 | [CLI](docs/cli.md) | Commands, envelopes, wire values, exit codes |
+| [Installation](docs/install.md) | One-command installer, versions, platforms and release verification |
 | [Host configuration](docs/host-config.md) | `kiroha-host/1` capabilities, pools, limits |
 | [Architecture](docs/architecture.md) | Implementation design: CEK machine, scheduler, adapters, memory accounting |
 | [Conformance report](docs/conformance-report.md) | Test results, environment, deviations |

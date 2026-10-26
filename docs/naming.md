@@ -4,10 +4,11 @@ The language is named **Kiroha**, combining its original working name Kiri
 with *iroha*, the basics of a language. It keeps the short Japanese sound
 while giving the language its own name.
 
-The intended GitHub organization is `kiroha-lang`. On 2026-10-26,
-`GET https://api.github.com/users/kiroha-lang` returned HTTP 404. This is a
-dated account lookup, not a reservation; no organization has been created
-by this repository. Public searches for `Kiroha programming language` found
+The official GitHub organization is [kiroha-lang](https://github.com/kiroha-lang),
+created by the language's owner on 2026-10-26 after the naming decision.
+The source repository is [kiroha-lang/kiroha](https://github.com/kiroha-lang/kiroha).
+The earlier account lookup returned HTTP 404 before the owner created it.
+Public searches for `Kiroha programming language` found
 no same-named language. Kiroha is also used outside language development,
 including an unrelated [GitHub user](https://github.com/Kiroha).
 

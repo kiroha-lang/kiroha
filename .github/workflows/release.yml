@@ -1,0 +1,110 @@
+name: Release
+
+on:
+  push:
+    tags: ['v[0-9]*']
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    uses: ./.github/workflows/verify.yml
+  build:
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+          - runner: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+          - runner: macos-15-intel
+            target: x86_64-apple-darwin
+          - runner: macos-14
+            target: aarch64-apple-darwin
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    env:
+      MACOSX_DEPLOYMENT_TARGET: '13.0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.96.0
+        with:
+          targets: ${{ matrix.target }}
+      - name: Install build tools
+        shell: bash
+        run: |
+          if [[ "$RUNNER_OS" == Linux ]]; then
+            sudo apt-get update
+            sudo apt-get install -y libclang-dev
+          else
+            brew install llvm
+            echo "LIBCLANG_PATH=$(brew --prefix llvm)/lib" >> "$GITHUB_ENV"
+          fi
+      - name: Check release version
+        shell: bash
+        run: |
+          version=$(awk -F '"' '/^version = / {print $2; exit}' Cargo.toml)
+          test "$GITHUB_REF_NAME" = "v$version"
+      - run: cargo build --release --locked --target '${{ matrix.target }}'
+      - name: Smoke test native binary
+        shell: bash
+        run: |
+          bin="target/${{ matrix.target }}/release/kiroha"
+          "$bin" --version
+          "$bin" conformance spec.md --json
+          printf '0.1 + 0.2' | "$bin" run - --json
+      - name: Package
+        shell: bash
+        run: |
+          mkdir -p stage dist
+          cp 'target/${{ matrix.target }}/release/kiroha' LICENSE stage/
+          tar -czf 'dist/kiroha-${{ matrix.target }}.tar.gz' -C stage kiroha LICENSE
+      - name: Test installer with native system Bash
+        run: |
+          /bin/bash -n install.sh
+          KIROHA_TEST_BASH=/bin/bash python3 -m unittest discover -s tests -p test_install.py -v
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kiroha-${{ matrix.target }}
+          path: dist/*.tar.gz
+          if-no-files-found: error
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Prepare checksums and installer
+        run: |
+          cp install.sh dist/install.sh
+          cd dist
+          sha256sum kiroha-*.tar.gz install.sh > SHA256SUMS
+      - name: Publish verified release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > release-notes.md <<'EOF'
+          Kiroha 0.3.0 / Web1 reference implementation.
+
+          Install the latest verified binary (Linux/WSL or macOS, x86_64/ARM64):
+
+          ```sh
+          curl -fsSL https://github.com/kiroha-lang/kiroha/releases/latest/download/install.sh | bash
+          ```
+
+          The installer verifies SHA-256 and defaults to `~/.local/bin`.
+          Pin a version with `bash -s -- --version 0.3.0`, or set `KIROHA_INSTALL_DIR`.
+          Linux binaries require glibc 2.35+; macOS binaries target macOS 13+.
+          See the repository's installation and language documentation for details.
+          EOF
+          gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --draft \
+            --title "Kiroha ${GITHUB_REF_NAME#v}" --notes-file release-notes.md
+          gh release edit "$GITHUB_REF_NAME" --draft=false --latest

@@ -23,10 +23,14 @@ The checkout remains `/home/mizushima/dev/kiri`.
   not acceptance requirements.
 - The Rust package, library, executable, source extension, CLI/host/conformance
   formats and specification markers use `kiroha`/`Kiroha`/`KIROHA` consistently.
-  There is no legacy format alias. No remote or GitHub organization was created.
+  There is no legacy format alias. The owner created the `kiroha-lang` GitHub
+  organization; the repository is https://github.com/kiroha-lang/kiroha,
+  with `origin` configured and default branch `main`.
 - CI is defined in `.github/workflows/verify.yml`, including PostgreSQL 16,
   Clippy, conformance, TLC and reproducible token measurement. A local pass is
   not evidence of a hosted CI run.
+- `install.sh` and `.github/workflows/release.yml` provide verified prebuilt
+  releases for Linux/macOS x86_64/ARM64. See [installation](docs/install.md).
 
 ## Code and design
 
