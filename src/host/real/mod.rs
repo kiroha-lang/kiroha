@@ -129,6 +129,11 @@ fn io_err(op: &str, reason: &str, outcome: &str) -> Value {
 }
 
 impl Host for RealHost {
+    fn set_memory_budget(&mut self, baseline: usize, limit: u64) {
+        let memory = http1::MemoryBudget { baseline, limit };
+        self.http.memory.set(Some(memory));
+        self.servers.memory = Some(memory);
+    }
     fn now_ms(&self) -> u64 {
         self.start.elapsed().as_millis() as u64
     }

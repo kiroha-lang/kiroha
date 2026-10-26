@@ -238,6 +238,19 @@ fn request_line_is_not_counted_in_header_bytes() {
     let raw = format!("GET {long_path} HTTP/1.1\r\nHost: x\r\nX-A: {}\r\n\r\n", "b".repeat(80));
     let r = send(port, raw.as_bytes());
     assert_eq!(status(&r), "404", "long request line with a small field section is admitted: {r}");
+    let raw = format!("GET /{} HTTP/1.1\r\nHost: x\r\n\r\n", "a".repeat(20000));
+    for fragmented in [false, true] {
+        let mut socket = TcpStream::connect(("127.0.0.1", port)).unwrap();
+        socket.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+        if fragmented {
+            socket.write_all(&raw.as_bytes()[..17000]).unwrap();
+            std::thread::sleep(Duration::from_millis(20));
+            let _ = socket.write_all(&raw.as_bytes()[17000..]);
+        } else { socket.write_all(raw.as_bytes()).unwrap(); }
+        let mut response = String::new();
+        let _ = socket.read_to_string(&mut response);
+        assert_eq!(status(&response), "404", "request-line fragmentation changed admission: {response}");
+    }
     let fields = "Host: x\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\n";
     for total in [300, 301] {
         let trailer = format!("Y: {}\r\n", "z".repeat(total - fields.len() - 5));

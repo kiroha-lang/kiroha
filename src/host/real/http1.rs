@@ -4,8 +4,14 @@
 
 use tokio::io::{AsyncRead, AsyncReadExt};
 
-/// Longest chunk-size line (size plus extensions) accepted.
-const MAX_CHUNK_LINE: usize = 8192;
+#[derive(Clone, Copy)]
+pub struct MemoryBudget { pub baseline: usize, pub limit: u64 }
+
+impl MemoryBudget {
+    pub fn allows(self, extra: usize) -> bool {
+        (crate::alloc::live_bytes().saturating_sub(self.baseline) as u64).saturating_add(extra as u64) <= self.limit
+    }
+}
 
 /// Why a framed body could not be read.
 pub enum ChunkErr<E> {
@@ -15,6 +21,7 @@ pub enum ChunkErr<E> {
     TooLarge,
     /// The trailer section exceeded `header_limit` (a received field section).
     TrailerTooLarge,
+    Memory,
     /// The consumer rejected a piece of data.
     Sink(E),
 }
@@ -41,68 +48,57 @@ pub fn trim_ows(mut s: &[u8]) -> &[u8] {
     s
 }
 
-/// `1*HEXDIG` value; numerals longer than 16 significant digits saturate to
-/// `u64::MAX` (RFC 9110 §8.6 / RFC 9112 §7.1: no overflow errors).
-fn hex_saturating(digits: &[u8]) -> u64 {
-    let sig: &[u8] = {
-        let first = digits.iter().position(|&c| c != b'0').unwrap_or(digits.len());
-        &digits[first..]
-    };
-    if sig.len() > 16 {
-        return u64::MAX;
+/// Incremental RFC 9112 §7.1.1 parser. Extensions are validated and discarded
+/// as they arrive, so their length and transport fragmentation need no quota.
+#[derive(Clone, Copy)]
+enum ChunkState { Hex, NameStart, Name, NameBws, ValueStart, Token, Quoted, Escape, AfterValue, BeforeSemi }
+
+struct ChunkSize { state: ChunkState, size: u64, digits: bool }
+
+impl ChunkSize {
+    fn new() -> Self { Self { state: ChunkState::Hex, size: 0, digits: false } }
+
+    fn feed(&mut self, c: u8) -> bool {
+        use ChunkState::*;
+        use crate::builtins::headers::is_token_char;
+        self.state = match self.state {
+            Hex if c.is_ascii_hexdigit() => {
+                self.digits = true;
+                self.size = self.size.saturating_mul(16).saturating_add((c as char).to_digit(16).unwrap() as u64);
+                Hex
+            }
+            Hex if !self.digits => return false,
+            Hex | AfterValue | Token if c == b';' => NameStart,
+            Hex | AfterValue | Token if is_ows(c) => BeforeSemi,
+            BeforeSemi if is_ows(c) => BeforeSemi,
+            BeforeSemi if c == b';' => NameStart,
+            NameStart if is_ows(c) => NameStart,
+            NameStart | Name if is_token_char(c) => Name,
+            Name | NameBws if c == b'=' => ValueStart,
+            Name | NameBws if c == b';' => NameStart,
+            Name | NameBws if is_ows(c) => NameBws,
+            ValueStart if is_ows(c) => ValueStart,
+            ValueStart if c == b'"' => Quoted,
+            ValueStart | Token if is_token_char(c) => Token,
+            Quoted if c == b'"' => AfterValue,
+            Quoted if c == b'\\' => Escape,
+            Quoted if c == b'\t' || c == b' ' || c == b'!' || (b'#'..=b'[').contains(&c) || (b']'..=b'~').contains(&c) || c >= 128 => Quoted,
+            Escape if c == b'\t' || c == b' ' || (b'!'..=b'~').contains(&c) || c >= 128 => Quoted,
+            _ => return false,
+        };
+        true
     }
-    sig.iter().fold(0u64, |n, &c| n * 16 + (c as char).to_digit(16).unwrap() as u64)
+
+    fn finish(&self) -> Option<u64> {
+        use ChunkState::*;
+        if self.digits && matches!(self.state, Hex | Name | Token | AfterValue) { Some(self.size) } else { None }
+    }
 }
 
-/// `chunk-size [ chunk-ext ]` (RFC 9112 §7.1.1):
-/// `1*HEXDIG *( BWS ";" BWS ext-name [ BWS "=" BWS ( token / quoted-string ) ] )`.
 pub fn parse_chunk_size(line: &[u8]) -> Option<u64> {
-    use crate::builtins::headers::{is_token_char, quoted_string_len};
-    let hex_end = line.iter().position(|c| !c.is_ascii_hexdigit()).unwrap_or(line.len());
-    if hex_end == 0 {
-        return None;
-    }
-    let size = hex_saturating(&line[..hex_end]);
-    let bws = |mut k: usize| {
-        while k < line.len() && is_ows(line[k]) {
-            k += 1;
-        }
-        k
-    };
-    let token_end = |k: usize| {
-        let mut e = k;
-        while e < line.len() && is_token_char(line[e]) {
-            e += 1;
-        }
-        e
-    };
-    let mut k = hex_end;
-    while k < line.len() {
-        k = bws(k);
-        if line.get(k) != Some(&b';') {
-            return None;
-        }
-        k = bws(k + 1);
-        let e = token_end(k);
-        if e == k {
-            return None;
-        }
-        k = e;
-        let after = bws(k);
-        if line.get(after) == Some(&b'=') {
-            k = bws(after + 1);
-            if line.get(k) == Some(&b'"') {
-                k += quoted_string_len(&line[k..])?;
-            } else {
-                let e = token_end(k);
-                if e == k {
-                    return None;
-                }
-                k = e;
-            }
-        }
-    }
-    Some(size)
+    let mut parser = ChunkSize::new();
+    for &c in line { if !parser.feed(c) { return None; } }
+    parser.finish()
 }
 
 /// Content-Length per RFC 9110 §8.6: `1*DIGIT`, possibly a comma-separated list
@@ -146,6 +142,8 @@ struct Src<'a, R> {
     rd: &'a mut R,
     buf: Vec<u8>,
     pos: usize,
+    memory: Option<MemoryBudget>,
+    exhausted: bool,
 }
 
 impl<R: AsyncRead + Unpin> Src<'_, R> {
@@ -158,24 +156,50 @@ impl<R: AsyncRead + Unpin> Src<'_, R> {
         match self.rd.read(&mut chunk).await {
             Ok(0) | Err(_) => Err(()),
             Ok(k) => {
+                let growth = if self.buf.len() + k > self.buf.capacity() {
+                    (self.buf.len() + k).max(self.buf.capacity().saturating_mul(2)).saturating_sub(self.buf.capacity())
+                } else { 0 };
+                if self.memory.is_some_and(|m| !m.allows(growth)) { self.exhausted = true; return Err(()); }
                 self.buf.extend_from_slice(&chunk[..k]);
                 Ok(())
             }
         }
     }
 
-    /// One CRLF-terminated line without the CRLF.
-    async fn line(&mut self) -> Result<Vec<u8>, ()> {
+    async fn byte(&mut self) -> Result<u8, ()> {
+        if self.pos == self.buf.len() { self.fill().await?; }
+        let c = self.buf[self.pos]; self.pos += 1; Ok(c)
+    }
+
+    async fn chunk_size(&mut self) -> Result<u64, ()> {
+        let mut parser = ChunkSize::new();
+        let mut count = 0usize;
+        loop {
+            let c = self.byte().await?;
+            if c == b'\r' {
+                if self.byte().await? != b'\n' { return Err(()); }
+                return parser.finish().ok_or(());
+            }
+            if !parser.feed(c) { return Err(()); }
+            count += 1;
+            if count.is_multiple_of(1024) { tokio::task::yield_now().await; }
+        }
+    }
+
+    /// One trailer field, bounded by the remaining aggregate field budget.
+    /// The terminal empty line is not part of that budget.
+    async fn line(&mut self, remaining: u64) -> Result<Vec<u8>, bool> {
         loop {
             if let Some(i) = self.buf[self.pos..].windows(2).position(|w| w == b"\r\n") {
+                if i > 0 && (i as u64).saturating_add(2) > remaining { return Err(true); }
+                if self.memory.is_some_and(|m| !m.allows(i)) { self.exhausted = true; return Err(false); }
                 let l = self.buf[self.pos..self.pos + i].to_vec();
                 self.pos += i + 2;
                 return Ok(l);
             }
-            if self.buf.len() - self.pos > MAX_CHUNK_LINE {
-                return Err(());
-            }
-            self.fill().await?;
+            let pending = &self.buf[self.pos..];
+            if pending != b"\r" && pending.len() as u64 > remaining { return Err(true); }
+            self.fill().await.map_err(|_| false)?;
         }
     }
 
@@ -200,24 +224,29 @@ pub async fn read_chunked<R, E>(
     initial: Vec<u8>,
     max_total: u64,
     header_limit: u64,
-    mut sink: impl FnMut(&[u8]) -> Result<(), E>,
+    sink: impl FnMut(&[u8]) -> Result<(), E>,
 ) -> Result<(), ChunkErr<E>>
 where
     R: AsyncRead + Unpin,
 {
-    let mut src = Src { rd, buf: initial, pos: 0 };
+    read_chunked_bounded(rd, initial, max_total, header_limit, None, sink).await
+}
+
+pub async fn read_chunked_bounded<R, E>(
+    rd: &mut R, initial: Vec<u8>, max_total: u64, header_limit: u64,
+    memory: Option<MemoryBudget>, mut sink: impl FnMut(&[u8]) -> Result<(), E>,
+) -> Result<(), ChunkErr<E>> where R: AsyncRead + Unpin {
+    let mut src = Src { rd, buf: initial, pos: 0, memory, exhausted: false };
     let mut total: u64 = 0;
     loop {
-        let l = src.line().await.map_err(|_| ChunkErr::Framing)?;
-        let size = parse_chunk_size(&l).ok_or(ChunkErr::Framing)?;
+        let size = src.chunk_size().await.map_err(|_| if src.exhausted { ChunkErr::Memory } else { ChunkErr::Framing })?;
         if size == 0 {
             let mut trailer_bytes: u64 = 0;
             loop {
-                let t = match src.line().await {
+                let t = match src.line(header_limit - trailer_bytes).await {
                     Ok(t) => t,
-                    // an over-long line is itself an over-limit trailer section
-                    Err(()) if src.buf.len() - src.pos > MAX_CHUNK_LINE => return Err(ChunkErr::TrailerTooLarge),
-                    Err(()) => return Err(ChunkErr::Framing),
+                    Err(true) => return Err(ChunkErr::TrailerTooLarge),
+                    Err(false) => return Err(if src.exhausted { ChunkErr::Memory } else { ChunkErr::Framing }),
                 };
                 if t.is_empty() {
                     return Ok(());
@@ -245,7 +274,7 @@ where
         let mut left = size;
         while left > 0 {
             if src.pos == src.buf.len() {
-                src.fill().await.map_err(|_| ChunkErr::Framing)?;
+                src.fill().await.map_err(|_| if src.exhausted { ChunkErr::Memory } else { ChunkErr::Framing })?;
             }
             let avail = ((src.buf.len() - src.pos) as u64).min(left) as usize;
             sink(&src.buf[src.pos..src.pos + avail]).map_err(ChunkErr::Sink)?;
@@ -253,7 +282,7 @@ where
             left -= avail as u64;
         }
         total += size;
-        src.expect_crlf().await.map_err(|_| ChunkErr::Framing)?;
+        src.expect_crlf().await.map_err(|_| if src.exhausted { ChunkErr::Memory } else { ChunkErr::Framing })?;
     }
 }
 
@@ -310,6 +339,7 @@ mod tests {
                 ChunkErr::TooLarge => "large",
                 ChunkErr::TrailerTooLarge => "trailer",
                 ChunkErr::Sink(()) => "sink",
+                ChunkErr::Memory => "memory",
             })
         };
         assert_eq!(run(b"3\r\nabc\r\n2;x\r\nde\r\n0\r\nT: v\r\n\r\n", 100).await, Ok(b"abcde".to_vec()));
@@ -318,5 +348,33 @@ mod tests {
         assert_eq!(run(b"3\r\nabc\r\n0\r\nBad Trailer\r\n\r\n", 100).await, Err("framing"));
         assert_eq!(run(b"3\r\nab", 100).await, Err("framing"));
         assert_eq!(run(b"0\r\nX: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\r\n\r\n", 100).await, Err("trailer"));
+    }
+
+    #[tokio::test]
+    async fn long_metadata_is_independent_of_fragmentation() {
+        for payload in [
+            format!("1 ; a=\"{}\\\"z\"; b=c\r\nx\r\n0\r\n\r\n", "q".repeat(9000)),
+            format!("1\r\nx\r\n0\r\nY: {}\r\n\r\n", "q".repeat(9000)),
+        ] {
+            for fragmented in [false, true] {
+                let mut out = Vec::new();
+                if fragmented {
+                    let (mut writer, mut reader) = tokio::io::duplex(64);
+                    let write = async {
+                        use tokio::io::AsyncWriteExt;
+                        writer.write_all(payload.as_bytes()).await.unwrap();
+                        writer.shutdown().await.unwrap();
+                    };
+                    let read = read_chunked::<_, ()>(&mut reader, Vec::new(), 100, 10000, |data| { out.extend_from_slice(data); Ok(()) });
+                    let (_, result) = tokio::join!(write, read);
+                    assert!(result.is_ok(), "fragmented metadata rejected");
+                } else {
+                    let mut reader = payload.as_bytes();
+                    let result = read_chunked::<_, ()>(&mut reader, Vec::new(), 100, 10000, |data| { out.extend_from_slice(data); Ok(()) }).await;
+                    assert!(result.is_ok(), "whole metadata rejected");
+                }
+                assert_eq!(out, b"x");
+            }
+        }
     }
 }

@@ -19,6 +19,7 @@ use tokio::net::TcpStream;
 
 pub struct Client {
     tls: Arc<rustls::ClientConfig>,
+    pub memory: Cell<Option<http1::MemoryBudget>>,
 }
 
 fn net(reason: &str, outcome: &str) -> EffOutcome {
@@ -72,7 +73,7 @@ impl Client {
             .expect("TLS protocol versions")
             .with_root_certificates(root_store())
             .with_no_client_auth();
-        Client { tls: Arc::new(cfg) }
+        Client { tls: Arc::new(cfg), memory: Cell::new(None) }
     }
 
     async fn connect(&self, u: &Url) -> Result<Stream, EffOutcome> {
@@ -114,16 +115,12 @@ impl Client {
             Err(e) => return e,
         };
         match stream {
-            Stream::Plain(s) => exchange(s, &u, req, sent).await,
-            Stream::Tls(s) => exchange(*s, &u, req, sent).await,
+            Stream::Plain(s) => exchange(s, &u, req, sent, self.memory.get()).await,
+            Stream::Tls(s) => exchange(*s, &u, req, sent, self.memory.get()).await,
         }
     }
 }
 
-/// Longest accepted status line.
-const STATUS_LINE_MAX: usize = 8192;
-/// Interim (1xx) responses tolerated before the final one.
-const MAX_INTERIM: usize = 16;
 
 enum Mode {
     None,
@@ -133,13 +130,15 @@ enum Mode {
     Close,
 }
 
-async fn read_more<T: AsyncRead + Unpin>(io: &mut T, buf: &mut Vec<u8>) -> bool {
+async fn read_more<T: AsyncRead + Unpin>(io: &mut T, buf: &mut Vec<u8>, memory: Option<http1::MemoryBudget>) -> Result<bool, ()> {
     let mut chunk = [0u8; 16384];
     match io.read(&mut chunk).await {
-        Ok(0) | Err(_) => false,
+        Ok(0) | Err(_) => Ok(false),
         Ok(k) => {
+            let growth = if buf.len() + k > buf.capacity() { (buf.len() + k).max(buf.capacity().saturating_mul(2)).saturating_sub(buf.capacity()) } else { 0 };
+            if memory.is_some_and(|m| !m.allows(growth)) { return Err(()); }
             buf.extend_from_slice(&chunk[..k]);
-            true
+            Ok(true)
         }
     }
 }
@@ -179,7 +178,7 @@ impl Sink {
     }
 }
 
-async fn exchange<T>(mut io: T, u: &Url, req: HttpRequest, sent: Rc<Cell<bool>>) -> EffOutcome
+async fn exchange<T>(mut io: T, u: &Url, req: HttpRequest, sent: Rc<Cell<bool>>, memory: Option<http1::MemoryBudget>) -> EffOutcome
 where
     T: AsyncRead + AsyncWrite + Unpin,
 {
@@ -207,7 +206,6 @@ where
     // ---- response head -----------------------------------------------------
     let limit = req.header_limit;
     let mut buf: Vec<u8> = Vec::new();
-    let mut interim = 0;
     let mut header_bytes = 0u64;
     let (status, headers) = loop {
         let head_end = loop {
@@ -215,12 +213,11 @@ where
                 break i + 4;
             }
             match buf.windows(2).position(|w| w == b"\r\n") {
-                None if buf.len() > STATUS_LINE_MAX => return net("framing", "unknown"),
                 Some(le) if (buf.len() - (le + 2)) as u64 > limit.saturating_add(4) => return EffOutcome::Resource("header_bytes".into()),
                 _ => {}
             }
-            if !read_more(&mut io, &mut buf).await {
-                return net("framing", "unknown");
+            match read_more(&mut io, &mut buf, memory).await {
+                Ok(true) => {}, Ok(false) => return net("framing", "unknown"), Err(()) => return EffOutcome::Resource("memory".into()),
             }
         };
         // header_bytes counts the received field-section octets exactly
@@ -230,7 +227,9 @@ where
             return EffOutcome::Resource("header_bytes".into());
         }
         let parsed = {
-            let mut slots = vec![httparse::EMPTY_HEADER; (limit as usize / 4 + 1).min(1 << 16)];
+            let count = http1::field_section_len(&buf, head_end) / 4 + 1;
+            if memory.is_some_and(|m| !m.allows(count * std::mem::size_of::<httparse::Header>())) { return EffOutcome::Resource("memory".into()); }
+            let mut slots = vec![httparse::EMPTY_HEADER; count];
             let mut resp = httparse::Response::new(&mut slots);
             match resp.parse(&buf[..head_end]) {
                 Ok(httparse::Status::Complete(n)) if n == head_end => {}
@@ -246,10 +245,7 @@ where
             if code == 101 {
                 return net("invalid_status", "unknown");
             }
-            interim += 1;
-            if interim > MAX_INTERIM {
-                return net("framing", "unknown");
-            }
+            tokio::task::yield_now().await;
             continue;
         }
         if !(200..=599).contains(&code) {
@@ -322,8 +318,8 @@ where
             }
             while left > 0 {
                 let mut piece = Vec::new();
-                if !read_more(&mut io, &mut piece).await {
-                    return net("framing", "unknown");
+                match read_more(&mut io, &mut piece, memory).await {
+                    Ok(true) => {}, Ok(false) => return net("framing", "unknown"), Err(()) => return EffOutcome::Resource("memory".into()),
                 }
                 let k = (piece.len() as u64).min(left) as usize;
                 if let Err(e) = sink.push(&piece[..k]) {
@@ -335,13 +331,14 @@ where
         Mode::Chunked => {
             // Head fields (including interim responses) and trailers share
             // one received-field budget (§14.1).
-            match http1::read_chunked(&mut io, std::mem::take(&mut buf), raw_cap, limit - header_bytes, |d| sink.push(d)).await {
+            match http1::read_chunked_bounded(&mut io, std::mem::take(&mut buf), raw_cap, limit - header_bytes, memory, |d| sink.push(d)).await {
                 Ok(()) => {}
                 Err(ChunkErr::Framing) => return net("framing", "unknown"),
                 Err(ChunkErr::TooLarge) => return too_large(gzip),
                 // header_bytes overflow on a client is a host resource abort (§14.1)
                 Err(ChunkErr::TrailerTooLarge) => return EffOutcome::Resource("header_bytes".into()),
                 Err(ChunkErr::Sink(e)) => return e,
+                Err(ChunkErr::Memory) => return EffOutcome::Resource("memory".into()),
             }
         }
         Mode::Close => {

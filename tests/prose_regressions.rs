@@ -192,6 +192,14 @@ fn malformed_expectations_and_virtual_headers_fail_before_execution() {
     assert!(parse_manifest(m).is_err());
 }
 
+#[test]
+fn zero_step_abort_precedes_every_expression_and_effect() {
+    let m = r#"{"format":"kiroha-conformance/1","language":"0.3.0/Web1","scheduler":"virtual-fifo/1","cases":[{"id":"zero","source":"log(7)","abort_after_steps":0,"host":{"capabilities":{"log":true}},"expect":{"phase":"abort","reason":"cancelled","trace":[]}}]}"#;
+    let cases = parse_manifest(m).unwrap();
+    let (report, all) = run_all(&cases);
+    assert!(all, "{}", kiroha::json::dump(&report));
+}
+
 
 #[test]
 fn unmatched_effect_with_pending_timer_is_a_prompt_harness_failure() {

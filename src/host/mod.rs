@@ -161,6 +161,8 @@ pub enum HostEvent {
 }
 
 pub trait Host {
+    /// Share the evaluator's allocation baseline with buffered transports.
+    fn set_memory_budget(&mut self, _baseline: usize, _limit: u64) {}
     /// Monotonic milliseconds since runtime start.
     fn now_ms(&self) -> u64;
     fn dispatch(&mut self, id: u64, eff: Effect);

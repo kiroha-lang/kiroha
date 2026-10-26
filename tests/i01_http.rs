@@ -36,6 +36,34 @@ fn maximum_header_quota_accepts_fragmented_response() {
     assert_eq!(result(&r), "200");
 }
 
+#[test]
+fn response_metadata_uses_memory_budget_and_not_fragment_length() {
+    use std::io::{Read, Write};
+    for large in [false, true] {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let server = std::thread::spawn(move || {
+            let (mut socket, _) = listener.accept().unwrap();
+            socket.set_read_timeout(Some(std::time::Duration::from_secs(5))).unwrap();
+            socket.set_write_timeout(Some(std::time::Duration::from_secs(5))).unwrap();
+            let mut request = [0; 4096];
+            assert!(socket.read(&mut request).unwrap() > 0);
+            let response = format!("HTTP/1.1 200 {}\r\nContent-Length: 0\r\n\r\n", "x".repeat(if large { 2_000_000 } else { 9000 }));
+            for (index, piece) in response.as_bytes().chunks(8500).enumerate() {
+                if socket.write_all(piece).is_err() { break; }
+                if index == 0 { std::thread::sleep(std::time::Duration::from_millis(20)); }
+            }
+        });
+        let h = format!(r#"{{"format":"kiroha-host/1","capabilities":{{"http":["http://127.0.0.1:{port}"]}},"limits":{{"header_bytes":18446744073709551615,"memory_bytes":1000000}}}}"#);
+        let r = run(&format!(r#"http("GET","http://127.0.0.1:{port}/").status"#), Some(&h));
+        server.join().unwrap();
+        if large {
+            assert_eq!(r.code, 3, "{}", r.stdout);
+            assert!(r.stdout.contains("\"resource\":\"memory\""), "{}", r.stdout);
+        } else { assert_eq!(result(&r), "200"); }
+    }
+}
+
 fn server() -> (u16, std::sync::Arc<std::sync::Mutex<Vec<String>>>) {
     fixture_server(|path, _head| {
         let gz = gzip(br#"{"x":1}"#);
@@ -256,6 +284,7 @@ fn strict_client_framing() {
         "/c10" => raw("200 OK", &["Transfer-Encoding: ,"], b"ab"),
         "/combined" => raw("200 OK", &["Transfer-Encoding: chunked", "X: 1234567890"], b"0\r\nY: 12345678901234567890\r\n\r\n"),
         "/interim" => b"HTTP/1.1 103 Early Hints\r\nX: 12345678901234567890\r\n\r\nHTTP/1.1 200 OK\r\nContent-Length: 0\r\nX: 12345678901234567890\r\n\r\n".to_vec(),
+        "/many-interim" => format!("{}HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n", "HTTP/1.1 103 Early Hints\r\n\r\n".repeat(100)).into_bytes(),
         _ => raw("404 Not Found", &["Content-Length: 0"], b""),
     });
     let b = format!("http://127.0.0.1:{port}");
@@ -288,4 +317,6 @@ fn strict_client_framing() {
     // Exactly 68 field octets (43 head + 25 trailer) are allowed.
     let r = run(&format!(r#"len(http("GET","{b}/combined").body)"#), Some(&small.replace("1000", "68")));
     assert_eq!(result(&r), "0");
+    let r = run(&format!(r#"http("GET","{b}/many-interim").status"#), Some(&host(port)));
+    assert_eq!(result(&r), "200", "informational responses have no count limit");
 }

@@ -36,7 +36,7 @@ KIROHA_TEST_PG_DSN="host=127.0.0.1 port=55432 user=kiri dbname=postgres" cargo t
 
 | ID | Test | Status | What is exercised |
 | --- | --- | --- | --- |
-| I01 | `tests/i01_http.rs` (11 tests) | pass | Local raw HTTP fixture: GET/DELETE/POST, 4xx/5xx as data, repeated headers and `set-cookie`, 204/205/304, explicit HEAD with unsupported coding, gzip and decoded `max_bytes`, chunked framing, invalid chunked framing, invalid UTF-8/JSON, 302 not followed, one request per call (no retries), no cookies sent, query/header encoding, connection refused → `not_sent` |
+| I01 | `tests/i01_http.rs` (12 tests) | pass | Local raw HTTP fixture: GET/DELETE/POST, 4xx/5xx as data, repeated headers and `set-cookie`, 204/205/304, explicit HEAD with unsupported coding, gzip and decoded `max_bytes`, chunked framing, invalid chunked framing, invalid UTF-8/JSON, 302 not followed, one request per call (no retries), no cookies sent, query/header encoding, connection refused → `not_sent` |
 | I02 | `tests/i02_tls.rs` (2 tests) | pass | rcgen CA + rustls server: valid chain/hostname succeeds; wrong hostname and untrusted chain fail with `tls`/`not_sent`; server that drops after receiving the request → `network`/`unknown` |
 | I03 | `tests/i03_i04_postgres.rs::i03_*`, `cancelled_connection_setup_returns_pool_slot` | pass | PostgreSQL 16: every parameter kind, all supported result OIDs (int2/4/8, numeric with 39 digits, text, varchar, bpchar padding, uuid, bool, bytea, json, jsonb with `1e30`), NULL, hostile text as data, duplicate column names, unsupported types (date, float8, array, NaN numeric), DDL/multi-statement rejection, server SQLSTATE, U+0000 bind rejection, explicit conversions |
 | I04 | `tests/i03_i04_postgres.rs::i04_*` | pass | Commit with verified table state, callback-failure rollback, caught poison stays primary (23505) with rollback, tx timeout interrupting a pure loop, `sql` timeout on `pg_sleep`, task confinement and nested-tx ownership, independent autocommit inside a rolled-back tx, `DISCARD ALL` reset before pooled reuse |
@@ -89,7 +89,7 @@ root/request scope with `resource`. See
 
 ## Independent audits
 
-Eighteen independent read-and-execute audits of sections 2–15 were run against the
+Nineteen independent read-and-execute audits of sections 2–15 were run against the
 code (each walked the normative rules section by section and confirmed every
 finding by running programs or custom fixture manifests).
 
@@ -129,6 +129,8 @@ finding by running programs or custom fixture manifests).
 | 17 (full, §2–§16) | 4: unsigned timeout/clock-report values narrowed to negative i64; u64::MAX header quota overflow on fragmented client/server heads; fixture clock/OID/status numeric narrowing; closed fixture argument/result records accepted unknown fields | Fixed: exact unsigned values; saturating head bounds with fragmented-wire regressions; checked fixture metadata and wide clock values; pre-execution validation of closed normalized fixture schemas. Regressions in I01/I05 and `tests/prose_regressions.rs` / `tests/fixtures/unsigned.json`. |
 
 | 18 (full, §2–§16) | 3: temporal values/absolute deadlines silently saturated and real sleep capped at 30 years; expected response status/header and virtual request octet metadata incompletely validated; file temporary-name RNG errors ignored | Fixed: checked duration/clock capacity with resource aborts and no shortened sleep; complete pre-execution expectation/request validation; RNG failure returns io/random_source/not_applied before file creation. Regressions: 13 virtual clock cases, simulated 31-year real-host sleep, malformed manifests and Linux fault-injected file entropy failure. |
+
+| 19 (full, §2–§16) | 2: valid informational responses rejected after 16; long chunk/trailer lines depended on packet fragmentation; zero-step cancellation never fired | Fixed: unlimited internal informational responses, streaming extension validation, trailer bounds from the remaining field budget, shared transport heap accounting and start-line buffers independent of fragmentation; abort_after_steps=0 cancels before any expression/effect. Long fragmented metadata, memory-budget and zero-step regressions added. |
 
 Audit 2 recorded "no new violations" for §2, §3, §4, §5, §6, §7, §8, §9,
 §10 (apart from the fixture header checks), §11 (apart from the two SQL

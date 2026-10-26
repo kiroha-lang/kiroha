@@ -183,7 +183,7 @@ cancelled.
   decoded on request of the runtime with the `max_body` limit; a watcher
   reports client disconnects. One request per connection. The whole header
   section must arrive within 30 s; `header_bytes` counts the field section
-  only (the request line is capped separately at 16 KiB) and trailers count
+  only (start-line buffers obey the shared heap budget) and trailers count
   too; Content-Length and chunk sizes are parsed as saturating numerals, so an
   over-limit size is `413` rather than a framing error; header-level framing
   errors are reported to the runtime (`framing_invalid`) so that they take
@@ -241,6 +241,12 @@ short (so deadlines fire and other tasks run), `src/decimal.rs` enforces a
 host coefficient quota of 100,000 decimal digits for operands, power-of-ten
 scaling and results; exceeding it aborts with `resource`/`number`, as §3.2
 permits. Exponents are unaffected: `1e20000000 * 1e5` is fine.
+
+HTTP start-line/field buffers and trailer readers receive the evaluator's
+allocation baseline and quota through `Host::set_memory_budget`. They check
+buffer growth before allocation. Chunk extensions are validated byte by byte
+and discarded, with cooperative yields every 1024 bytes; no fixed line
+length or informational-response count changes a valid result.
 
 ## Memory accounting
 

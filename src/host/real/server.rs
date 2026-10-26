@@ -16,8 +16,6 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 const HEADER_TIMEOUT_MS: u64 = 30_000;
-/// Longest accepted request line (method, target, version).
-const REQUEST_LINE_MAX: usize = 16384;
 
 #[derive(Clone, Copy, Debug)]
 enum Framing {
@@ -47,6 +45,7 @@ struct Inner {
 pub struct Servers {
     tx: mpsc::UnboundedSender<HostEvent>,
     inner: Rc<RefCell<Inner>>,
+    pub memory: Option<http1::MemoryBudget>,
 }
 
 fn io_err(reason: &str, outcome: &str) -> EffOutcome {
@@ -81,7 +80,7 @@ fn framing_of(headers: &[(String, Vec<u8>)]) -> Framing {
 
 impl Servers {
     pub fn new(tx: mpsc::UnboundedSender<HostEvent>) -> Servers {
-        Servers { tx, inner: Rc::new(RefCell::new(Inner::default())) }
+        Servers { tx, inner: Rc::new(RefCell::new(Inner::default())), memory: None }
     }
 
     pub fn listen(&mut self, host: &str, port: u16, header_limit: u64) -> EffOutcome {
@@ -111,6 +110,7 @@ impl Servers {
         let inner = self.inner.clone();
         let tx = self.tx.clone();
         let lid = id.clone();
+        let memory = self.memory;
         tokio::task::spawn_local(async move {
             loop {
                 let accepted = tokio::select! {
@@ -123,7 +123,7 @@ impl Servers {
                     let lid = lid.clone();
                     let live = token.clone();
                     tokio::task::spawn_local(async move {
-                        handle_conn(stream, inner, tx, lid, header_limit, live).await;
+                        handle_conn(stream, inner, tx, lid, header_limit, live, memory).await;
                     });
                 }
             }
@@ -134,6 +134,7 @@ impl Servers {
     pub fn read_body(&mut self, request: u64, max_body: u64) -> impl Future<Output = EffOutcome> {
         let inner = self.inner.clone();
         let tx = self.tx.clone();
+        let memory = self.memory;
         async move {
             let (mut rd, mut buf, framing, header_limit) = {
                 let mut i = inner.borrow_mut();
@@ -173,7 +174,7 @@ impl Servers {
                 }
                 Framing::Chunked => {
                     let mut out: Vec<u8> = Vec::new();
-                    match http1::read_chunked::<_, ()>(&mut rd, buf, max_body, header_limit, |d| {
+                    match http1::read_chunked_bounded::<_, ()>(&mut rd, buf, max_body, header_limit, memory, |d| {
                         out.extend_from_slice(d);
                         Ok(())
                     })
@@ -181,6 +182,7 @@ impl Servers {
                     {
                         Ok(()) => Ok(out),
                         Err(ChunkErr::TooLarge) => Err(BodyFault::TooLarge),
+                        Err(ChunkErr::Memory) => return EffOutcome::Resource("memory".into()),
                         Err(ChunkErr::TrailerTooLarge) => return EffOutcome::Resource("header_bytes".into()),
                         Err(_) => Err(BodyFault::BadFraming),
                     }
@@ -295,6 +297,7 @@ async fn handle_conn(
     listener: String,
     header_limit: u64,
     live: CancellationToken,
+    memory: Option<http1::MemoryBudget>,
 ) {
     let _ = stream.set_nodelay(true);
     let (mut rd, mut wr) = stream.into_split();
@@ -311,9 +314,8 @@ async fn handle_conn(
             return;
         }
         // header_bytes counts the field section only; the request line is
-        // capped separately. An unreadable head is closed without a response.
+        // bounded by memory. An unreadable head is closed without a response.
         match buf.windows(2).position(|w| w == b"\r\n") {
-            None if buf.len() > REQUEST_LINE_MAX => return,
             Some(le) if (buf.len() - (le + 2)) as u64 > header_limit.saturating_add(4) => return,
             _ => {}
         }
@@ -324,7 +326,11 @@ async fn handle_conn(
         };
         match read {
             Ok(Ok(0)) | Ok(Err(_)) | Err(_) => return,
-            Ok(Ok(k)) => buf.extend_from_slice(&chunk[..k]),
+            Ok(Ok(k)) => {
+                let growth = if buf.len() + k > buf.capacity() { (buf.len() + k).max(buf.capacity().saturating_mul(2)).saturating_sub(buf.capacity()) } else { 0 };
+                if memory.is_some_and(|m| !m.allows(growth)) { return; }
+                buf.extend_from_slice(&chunk[..k]);
+            },
         }
     };
     let header_bytes = http1::field_section_len(&buf, head_end) as u64;
@@ -332,7 +338,9 @@ async fn handle_conn(
         return;
     }
     // Each field line takes at least 4 octets, so header_bytes bounds the count.
-    let mut hdrs = vec![httparse::EMPTY_HEADER; (header_limit as usize / 4 + 1).min(1 << 16)];
+    let count = header_bytes as usize / 4 + 1;
+    if memory.is_some_and(|m| !m.allows(count * std::mem::size_of::<httparse::Header>())) { return; }
+    let mut hdrs = vec![httparse::EMPTY_HEADER; count];
     let mut req = httparse::Request::new(&mut hdrs);
     // A complete but malformed header section (invalid field names or
     // octets, bad target, folding, non-HTTP/1.1) is an invalid request.

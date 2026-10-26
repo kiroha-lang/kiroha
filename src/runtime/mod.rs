@@ -265,12 +265,14 @@ impl From<Value> for Fail {
 pub type BResult = Result<Value, Fail>;
 
 impl<H: Host> Runtime<H> {
-    pub fn new(prog: Program, host: H, config: HostConfig) -> Runtime<H> {
+    pub fn new(prog: Program, mut host: H, config: HostConfig) -> Runtime<H> {
         let mut prelude: Vec<Value> =
             builtins::ALL.iter().map(|b| Value::Func(Rc::new(Function::Builtin(*b)))).collect();
         for a in builtins::ATOMS {
             prelude.push(schema::atom(a));
         }
+        let memory_baseline = crate::alloc::live_bytes();
+        host.set_memory_budget(memory_baseline, config.limits.memory_bytes);
         Runtime {
             prog: Rc::new(prog),
             prelude,
@@ -299,7 +301,7 @@ impl<H: Host> Runtime<H> {
             next_tx: 1,
             next_server: 1,
             root_scope: 0,
-            memory_baseline: crate::alloc::live_bytes(),
+            memory_baseline,
             live_tasks: 0,
         }
     }
@@ -524,6 +526,9 @@ impl<H: Host> Runtime<H> {
         let scope = self.new_scope(None);
         self.root_scope = scope;
         let budget = self.new_budget(scope, abort_after_steps);
+        if abort_after_steps == Some(0) {
+            self.abort_scope(scope, AbortReason::Cancelled);
+        }
         let env = Rc::new(Env { locals: RefCell::new(vec![Value::Null; self.prog.nlocals as usize]), func: None });
         if let Some(ms) = &self.config.limits.deadline_ms {
             match ms.to_u64().and_then(|ms| self.host.now_ms().checked_add(ms)) {
