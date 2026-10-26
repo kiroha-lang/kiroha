@@ -1,0 +1,8 @@
+User=open({id:int,name:str,nickname:optional(maybe(str))});
+users=check(parse("[{\"id\":1,\"name\":\"Ada\"},{\"id\":2,\"name\":\"Lin\",\"nickname\":null}]"),[User]);
+{
+  names:users.map{u=>u?.nickname??u.name},
+  error:try check({id:"wrong",name:"Sam"},User) catch {e=>{code:e.code,path:e.data.path}},
+  dataField:{size:99}["size"]
+}
+// => {"names":["Ada","Lin"],"error":{"code":"validation","path":["id"]},"dataField":99}

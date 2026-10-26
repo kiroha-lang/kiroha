@@ -79,6 +79,7 @@ nav:
       - Move from 0.4 to 0.5: migration-0.5.md
       - Move from 0.3 to 0.4: migration-0.4.md
   - Go deeper:
+      - Write Kiroha with Codex: codex-plugin.md
       - Example programs: examples.md
       - Language specification: spec.md
       - Runtime architecture: architecture.md

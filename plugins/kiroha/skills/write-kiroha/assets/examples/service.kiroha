@@ -1,0 +1,7 @@
+serve({
+  "GET /health":{request=>{ok:true}},
+  "POST /total":{request=>
+    items=input(request,[{price:num,quantity:int}]);
+    reply(200,{total:items.map{item=>item.price*item.quantity}.sum()})
+  }
+},{host:"127.0.0.1",port:8080})

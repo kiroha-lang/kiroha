@@ -1,0 +1,8 @@
+// Requires the task's notes table: notes(id integer generated always as identity, body text).
+// This example writes one row; adapt it only when that write is part of the task.
+Note={id:int,body:str};
+body="A small note";
+tx(db("main")){connection=>
+  row=sql(connection,q`insert into notes(body) values (${body}) returning id,body`).rows.one();
+  check(row,Note)
+}
