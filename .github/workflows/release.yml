@@ -3,6 +3,7 @@ name: Release
 on:
   push:
     tags: ['v[0-9]*']
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -33,6 +34,13 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.96.0
         with:
           targets: ${{ matrix.target }}
+      - uses: actions/cache@v4
+        with:
+          path: |
+            target
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: release-rust1.96-${{ matrix.runner }}-${{ matrix.target }}-${{ hashFiles('Cargo.lock', 'Cargo.toml') }}
       - name: Install build tools
         shell: bash
         run: |
@@ -47,7 +55,9 @@ jobs:
         shell: bash
         run: |
           version=$(awk -F '"' '/^version = / {print $2; exit}' Cargo.toml)
-          test "$GITHUB_REF_NAME" = "v$version"
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+            test "$GITHUB_REF_NAME" = "v$version"
+          fi
       - run: cargo build --release --locked --target '${{ matrix.target }}'
       - name: Smoke test native binary
         shell: bash
@@ -72,6 +82,7 @@ jobs:
           path: dist/*.tar.gz
           if-no-files-found: error
   publish:
+    if: startsWith(github.ref, 'refs/tags/v')
     needs: build
     runs-on: ubuntu-latest
     permissions:
