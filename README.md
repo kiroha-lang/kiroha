@@ -1,6 +1,6 @@
 # Kiroha
 
-**Documentation:** [Learn Kiroha, one small program at a time](https://kiroha-lang.github.io/kiroha/).
+**Documentation (GitHub Pages):** [kiroha-lang.github.io/kiroha](https://kiroha-lang.github.io/kiroha/)
 
 **Kiroha (きろは)** combines the original working name Kiri with *iroha*, the basics of a language. The executable and source extension are `kiroha` and `.kiroha`. See [the naming and migration note](docs/naming.md).
 
