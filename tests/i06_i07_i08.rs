@@ -262,6 +262,10 @@ fn i08_cli_protocol() {
     assert_eq!(run("x", Some("{\"format\":\"wrong\"}")).code, 2);
     assert_eq!(run("1", Some(r#"{"format":"kiroha-host/1","capabilities":{"read":["/a","/a/"]}}"#)).code, 2);
     assert_eq!(run("1", Some(r#"{"format":"kiroha-host/1","limits":{"eval_steps":99999999999999999999999999}}"#)).code, 0);
+    for count in ["4294967296", "1e100001"] {
+        let h = format!(r#"{{"format":"kiroha-host/1","database_pools":{{"unused":{{"dsn_env":"KIROHA_UNUSED_DSN","max_connections":{count}}}}}}}"#);
+        assert_eq!(result(&run("1", Some(&h))), "1", "a valid unused pool count does not allocate connections");
+    }
     assert_eq!(run("1", Some(r#"{"format":"kiroha-host/1","limits":{"source_bytes":0}}"#)).code, 2);
     let r = run("1", Some(r#"{"format":"kiroha-host/1","limits":{"source_bytes":1}}"#));
     assert_eq!(r.code, 0);

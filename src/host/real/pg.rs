@@ -31,8 +31,8 @@ struct Conn {
 
 struct PoolState {
     dsn: String,
-    max: u32,
-    open: u32,
+    max: u64,
+    open: u64,
     idle: Vec<String>,
     notify: Rc<Notify>,
 }
