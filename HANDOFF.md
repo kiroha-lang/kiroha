@@ -10,11 +10,13 @@ MySQL-protocol connections and their statement validator. See
 [database guide](docs/guides/databases.md), spec §11.6 and
 `tests/database_backends.rs`. Plugin 0.3 includes the same guide.
 
-Nine new integration tests pass against MySQL 8.4.4 and MariaDB 11.4.5,
+Ten backend integration tests pass against MySQL 8.4.4 and MariaDB 11.4.5,
 including exact values, JSON differences, cleanup, poisoned transactions,
 canceled handshakes, session reset, lost COMMIT acknowledgment and mixed
-aliases with PostgreSQL 16.4. Complete release gates and hosted CI still
-need to finish before publication. The original uncommitted handoff is
+aliases with PostgreSQL 16.4. All 104 release tests pass without skips, alongside 253 conformance cases,
+Clippy, both TLC models, 8 installer tests, docs/examples and plugin installation
+with Codex 0.164.0. TLS verifies the trusted CA and rejects bad chains/identities.
+Hosted checks and publication still need to finish. The original uncommitted handoff is
 preserved in `HANDOFF-codex.md`; its configuration/testing claims are
 historical and the current tree/test output is authoritative.
 

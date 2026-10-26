@@ -131,8 +131,8 @@ fn mysql_and_mariadb_commit_rollback_and_poison() {
         let source=r#"d=db("main");tx(d){t=>sql(t,q`insert into TABLE_NAME(id,v) values (1,${"first"})`);sql(t,q`insert into TABLE_NAME(id,v) values (2,${"second"})`)};
             stopped=try tx(d){t=>sql(t,q`insert into TABLE_NAME(id,v) values (3,'rollback')`);fail({code:"stop",message:"",data:{}})} catch {e=>e.code};
             poison=try tx(d){t=>try sql(t,q`insert into TABLE_NAME(id,v) values (1,'duplicate')`) catch {e=>null};sql(t,q`insert into TABLE_NAME(id,v) values (4,'poisoned')`)} catch {e=>e.data.sqlstate};
-            [stopped,poison,sql(d,q`select count(*) as n from TABLE_NAME`).rows.one().n]"#.replace("TABLE_NAME",&table);
-        expect(backend, &dsn, &source, "[\"stop\",\"23000\",2]");
+            [stopped,poison,sql(d,q`select count(*) as n from TABLE_NAME`).rows.one().n,sql(d,q`update TABLE_NAME set v=v where id=1`).count,sql(d,q`update TABLE_NAME set v='changed' where id=1`).count]"#.replace("TABLE_NAME",&table);
+        expect(backend, &dsn, &source, "[\"stop\",\"23000\",2,0,1]");
         admin(&dsn, &[&format!("drop table {table}")]);
     }
 }
@@ -170,9 +170,11 @@ fn mysql_and_mariadb_validate_sql_and_result_boundaries() {
             (try sql(d,q`/*! select 1 */`) catch {e=>e.data.reason}),
             (try sql(d,q`select 1e0 as unsupported_float`) catch {e=>e.data.phase}),
             (try sql(d,q`select 1 as x,2 as x`) catch {e=>e.data.phase}),
+            (try sql(d,q`select 1e0 as x where false`) catch {e=>e.data.phase}),
+            (try sql(d,q`select if(1,null,1e0) as x`) catch {e=>e.data.phase}),
             (try sql(d,q`select 1 union all select 2`,{max_rows:1}) catch {e=>e.code}),
             sql(d,q`select 7 as n`).rows.one().n
-        ]"#,"[[\"prepare\",\"statement\"],\"literal_parameter\",\"statement\",\"decode\",\"decode\",\"limit\",7]");
+        ]"#,"[[\"prepare\",\"statement\"],\"literal_parameter\",\"statement\",\"decode\",\"decode\",\"decode\",\"decode\",\"limit\",7]");
     }
 }
 
@@ -402,4 +404,77 @@ fn different_backends_share_one_source_api_and_independent_pools() {
     );
     assert_eq!(r.code, 0, "{} {}", r.stdout, r.stderr);
     assert_eq!(result(&r), format!("[{}]", vec!["7"; dsns.len()].join(",")));
+}
+
+#[test]
+fn mysql_tls_verifies_certificate_and_hostname() {
+    let (Ok(dsn), Ok(ca)) = (
+        std::env::var("KIROHA_TEST_MYSQL_DSN"),
+        std::env::var("KIROHA_TEST_MYSQL_CA"),
+    ) else {
+        eprintln!("SKIP: KIROHA_TEST_MYSQL_DSN and KIROHA_TEST_MYSQL_CA required for verified TLS");
+        return;
+    };
+    let secure = format!(
+        "{dsn}{}require_ssl=true",
+        if dsn.contains('?') { '&' } else { '?' }
+    );
+    let source = r#"sql(db("main"),q`select 42 as n`).rows.one().n"#;
+    let success = run_env(
+        source,
+        Some(&host(Backend::MySql)),
+        &[("KIROHA_BACKEND_TEST_DSN", &secure), ("SSL_CERT_FILE", &ca)],
+    );
+    assert_eq!(success.code, 0, "{} {}", success.stdout, success.stderr);
+    assert_eq!(result(&success), "42");
+    // A trusted CA is insufficient when the IP identity differs from the SAN.
+    let listener = std::net::TcpListener::bind("127.0.0.2:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    listener.set_nonblocking(true).unwrap();
+    let target = options(&dsn).tcp_port();
+    let proxy = std::thread::spawn(move || {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        rt.block_on(async {
+            let listener = tokio::net::TcpListener::from_std(listener).unwrap();
+            let (mut client, _) =
+                tokio::time::timeout(std::time::Duration::from_secs(5), listener.accept())
+                    .await
+                    .unwrap()
+                    .unwrap();
+            let mut server = tokio::net::TcpStream::connect(("127.0.0.1", target))
+                .await
+                .unwrap();
+            tokio::time::timeout(
+                std::time::Duration::from_secs(5),
+                tokio::io::copy_bidirectional(&mut client, &mut server),
+            )
+            .await
+            .ok();
+        });
+    });
+    let mismatch = proxied_dsn(&secure, port).replace("127.0.0.1:", "127.0.0.2:");
+    let rejected = run_env(
+        r#"try sql(db("main"),q`select 1`) catch {e=>[e.code,e.data.phase,e.data.outcome]}"#,
+        Some(&host(Backend::MySql)),
+        &[
+            ("KIROHA_BACKEND_TEST_DSN", &mismatch),
+            ("SSL_CERT_FILE", &ca),
+        ],
+    );
+    proxy.join().unwrap();
+    assert_eq!(result(&rejected), r#"["db","pool","not_sent"]"#);
+    // Same server, without its private CA: verification must reject the chain.
+    let untrusted = run_env(
+        r#"try sql(db("main"),q`select 1`) catch {e=>[e.code,e.data.phase,e.data.outcome]}"#,
+        Some(&host(Backend::MySql)),
+        &[
+            ("KIROHA_BACKEND_TEST_DSN", &secure),
+            ("SSL_CERT_FILE", "/kiroha-test-missing-ca.pem"),
+            ("SSL_CERT_DIR", "/kiroha-test-missing-ca-dir"),
+        ],
+    );
+    assert_eq!(result(&untrusted), r#"["db","pool","not_sent"]"#);
 }
