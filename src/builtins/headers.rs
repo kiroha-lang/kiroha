@@ -95,14 +95,59 @@ pub fn is_json_media(v: &str) -> bool {
     }
 }
 
-/// Syntactically valid `type/subtype *(;param)` media type.
+/// Syntactically valid media type (RFC 9110 §8.3.1):
+/// `type "/" subtype *( OWS ";" OWS parameter )`,
+/// `parameter = token "=" ( token / quoted-string )`.
 pub fn is_media_type(v: &str) -> bool {
-    let mut parts = v.split(';');
-    let mt = parts.next().unwrap_or("").trim();
-    match mt.split_once('/') {
+    let ows = |s: &str| s.trim_matches(|c| c == ' ' || c == '\t').to_string();
+    let b = v.as_bytes();
+    // split on ';' outside quoted strings
+    let mut parts: Vec<String> = Vec::new();
+    let (mut cur, mut quoted, mut i) = (String::new(), false, 0);
+    while i < b.len() {
+        let c = b[i] as char;
+        if quoted && c == '\\' && i + 1 < b.len() {
+            cur.push(c);
+            cur.push(b[i + 1] as char);
+            i += 2;
+            continue;
+        }
+        if c == '"' {
+            quoted = !quoted;
+        }
+        if c == ';' && !quoted {
+            parts.push(std::mem::take(&mut cur));
+        } else {
+            cur.push(c);
+        }
+        i += 1;
+    }
+    if quoted {
+        return false;
+    }
+    parts.push(cur);
+    let mt = ows(&parts[0]);
+    let ok_type = match mt.split_once('/') {
         Some((a, b)) => is_token(a) && is_token(b),
         None => false,
-    }
+    };
+    ok_type
+        && parts[1..].iter().all(|p| {
+            let p = ows(p);
+            match p.split_once('=') {
+                Some((k, val)) => {
+                    is_token(k)
+                        && (is_token(val)
+                            || (val.len() >= 2
+                                && val.starts_with('"')
+                                && val.ends_with('"')
+                                && val[1..val.len() - 1]
+                                    .bytes()
+                                    .all(|c| c == b'\t' || (0x20..0x7f).contains(&c) || c >= 0x80)))
+                }
+                None => false,
+            }
+        })
 }
 
 /// Content-Encoding must be absent or identity.
@@ -142,4 +187,22 @@ pub fn incoming(raw: &[(String, Vec<u8>)]) -> crate::value::Record {
         r.push(&k, Value::array(vals));
     }
     r
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn media_types() {
+        assert!(is_media_type("text/plain"));
+        assert!(is_media_type("text/plain; charset=utf-8"));
+        assert!(is_media_type("text/plain;charset=\"utf-8; x\""));
+        assert!(is_media_type("application/vnd.a+json ; a=b ; c=\"d\""));
+        assert!(!is_media_type("text/plain; q"));
+        assert!(!is_media_type("text/plain; @@@"));
+        assert!(!is_media_type("text/plain; a="));
+        assert!(!is_media_type("text/plain; a=\"open"));
+        assert!(!is_media_type("text"));
+    }
 }

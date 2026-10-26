@@ -95,7 +95,10 @@ const MANIFEST: &str = r#"{
    "expect":{"phase":"value","json":"\"x\""}},
   {"id":"number-quota-counts-coefficient-only",
    "source":"[7 % 1e1000000000, text(1e150000) == text(number(\"1\" + join(map(range(0,150000)){i=>\"0\"},\"\")))]",
-   "expect":{"phase":"value","json":"[7,true]"}}
+   "expect":{"phase":"value","json":"[7,true]"}},
+  {"id":"reply-custom-content-type-must-be-valid",
+   "source":"[(try do {reply(200,encode(\"x\"),{\"Content-Type\":\"text/plain; q\"}); \"ok\"} catch {e=>e.code}),(try do {reply(200,encode(\"x\"),{\"Content-Type\":\"text/plain; charset=utf-8\"}); \"ok\"} catch {e=>e.code})]",
+   "expect":{"phase":"value","json":"[\"argument\",\"ok\"]"}}
  ]}"#;
 
 #[test]

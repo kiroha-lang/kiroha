@@ -89,7 +89,7 @@ root/request scope with `resource`. See
 
 ## Independent audits
 
-Eleven independent read-and-execute audits of sections 2–15 were run against the
+Twelve independent read-and-execute audits of sections 2–15 were run against the
 code (each walked the normative rules section by section and confirmed every
 finding by running programs or custom fixture manifests).
 
@@ -115,6 +115,8 @@ finding by running programs or custom fixture manifests).
 | 10 (full, §8.3 focus) | 13, mostly interruptibility on pathological inputs: handler-result serialization and CLI result conversion not under checkpoints; schema normalization over shared structures; `sort` comparisons; O(n·m) closed-record extras and O(n²) `pick` duplicates; SQL row conversion and adapter row buffering vs memory; gzip decoding vs memory/deadline; PostgreSQL numeric/JSON beyond the number quota reported as catchable `db`/`decode`; JSON escaping and URL encoding loops; unbounded exponent-digit parsing; huge shared scalars postponing checks | All fixed: length-weighted checkpoints (`poll_big`), pointer-equality shortcuts, hash sets for duplicate/extra detection, exact pre-allocation reservations, checkpoints in normalization/sort/escaping/encoding/row conversion, adapter-side memory check while buffering rows, request serialization trips mapped to 504/503, CLI conversion under the root deadline/memory/SIGINT. Regressions in `tests/i06_i07_i08.rs`, `tests/i05_server.rs`, `tests/i01_http.rs`, `tests/i03_i04_postgres.rs` |
 
 | 11 (full, §2–§15) | 2 (§8.3): `sql` result decoding not bounded by the operation timeout (and the adapter converted huge numeric cells without yielding); checkpoints too sparse when JSON/CLI output contains many huge numbers | Fixed: decoding is armed with min(operation, scope deadlines) and expires as an ordinary `sql` timeout; the adapter yields after large cells; number checkpoints are weighted by coefficient size in `dump`, `parse` and wire output. Regressions in `tests/i03_i04_postgres.rs` and `tests/i06_i07_i08.rs`. All normal results re-verified correct; every other subsection "verified, no violation" |
+
+| 12 (full, §2–§15) | 1 (low): `reply` accepted a syntactically invalid custom Content-Type parameter for Bytes bodies | Fixed: media types validated per RFC 9110 §8.3.1 (`token "=" (token / quoted-string)` parameters). Regressions in `src/builtins/headers.rs` unit tests and `tests/prose_regressions.rs`. Every other subsection of §2–§15 "verified, no violation", including normal results, interruptibility, memory quotas, deep nesting, scheduler step counts and PostgreSQL 16 behaviour |
 
 Audit 2 recorded "no new violations" for §2, §3, §4, §5, §6, §7, §8, §9,
 §10 (apart from the fixture header checks), §11 (apart from the two SQL
