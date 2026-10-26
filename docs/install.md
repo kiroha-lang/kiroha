@@ -55,6 +55,10 @@ tools and `brew install llvm protobuf`, then export
 Set `PROTOC_NO_VENDOR=1` and `PROTOC="$(brew --prefix protobuf)/bin/protoc"`
 to use Homebrew's compiler instead of the dependency's older bundled protobuf,
 whose build configuration is incompatible with CMake 4.
+The audited `pg_query` 5 dependency also needs an SDK older than macOS 15.4
+to avoid a conflicting `strchrnul` declaration. The Intel release runner
+selects Xcode 16.2 (macOS 15.2 SDK) and targets macOS 13; source builds with
+newer SDKs can select a compatible Xcode using `DEVELOPER_DIR` and `SDKROOT`.
 
 ```sh
 git clone https://github.com/kiroha-lang/kiroha.git

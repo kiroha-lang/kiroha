@@ -30,6 +30,15 @@ jobs:
       MACOSX_DEPLOYMENT_TARGET: '13.0'
     steps:
       - uses: actions/checkout@v4
+      - name: Select compatible Intel macOS SDK
+        if: runner.os == 'macOS' && runner.arch == 'X64'
+        run: |
+          # pg_query 5's fallback strchrnul conflicts with SDK 15.4+.
+          # Xcode 16.2's SDK retains the audited parser and macOS 13 target.
+          developer_dir=/Applications/Xcode_16.2.app/Contents/Developer
+          test -d "$developer_dir"
+          echo "DEVELOPER_DIR=$developer_dir" >> "$GITHUB_ENV"
+          echo "SDKROOT=$(DEVELOPER_DIR="$developer_dir" xcrun --sdk macosx --show-sdk-path)" >> "$GITHUB_ENV"
       - uses: dtolnay/rust-toolchain@1.96.0
         with:
           targets: ${{ matrix.target }}
