@@ -202,7 +202,9 @@ pub fn is_media_type(v: &str) -> bool {
 pub fn identity_coding(v: Option<&str>) -> bool {
     match v {
         None => true,
-        Some(s) => s.trim().eq_ignore_ascii_case("identity"),
+        // A list of `identity` elements; empty elements are ignored
+        // (RFC 9110 §5.6.1.2), so an empty value means no coding.
+        Some(s) => s.split(',').map(|t| t.trim_matches(|c| c == ' ' || c == '\t')).filter(|t| !t.is_empty()).all(|t| t.eq_ignore_ascii_case("identity")),
     }
 }
 

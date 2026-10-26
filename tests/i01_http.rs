@@ -210,3 +210,48 @@ fn gzip_bomb_within_max_bytes_honours_memory_quota() {
     assert_eq!(r.code, 3, "{}", r.stdout);
     assert!(r.stdout.contains("\"resource\":\"memory\""), "{}", r.stdout);
 }
+
+/// Strict client framing (audit 15): bodyless statuses ignore transfer
+/// codings, header_bytes counts raw octets, invalid chunked framing is a
+/// transport failure.
+#[test]
+fn strict_client_framing() {
+    let big_pad = format!("X-Big:{}a\r\n", " ".repeat(5000));
+    let big_trailer = format!("X-T: {}\r\n", "a".repeat(5000));
+    let (port, _) = fixture_server(move |path, _| match path {
+        "/head-te" => raw("200 OK", &["Transfer-Encoding: gzip, chunked"], b""),
+        "/304-te" => raw("304 Not Modified", &["Transfer-Encoding: gzip, chunked"], b""),
+        "/pad" => format!("HTTP/1.1 200 OK\r\nContent-Length: 0\r\n{big_pad}\r\n").into_bytes(),
+        "/trailer" => format!("HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n2\r\nab\r\n0\r\n{big_trailer}\r\n").into_bytes(),
+        "/ok-chunked" => raw("200 OK", &["Transfer-Encoding: chunked"], b"2;a=\"q\"\r\n[7\r\n1\r\n]\r\n0\r\nX-T: v\r\n\r\n"),
+        "/c1" => raw("200 OK", &["Transfer-Encoding: chunked"], b"2;\x01\r\nab\r\n0\r\n\r\n"),
+        "/c2" => raw("200 OK", &["Transfer-Encoding: chunked"], b"2;a=\"\x01\"\r\nab\r\n0\r\n\r\n"),
+        "/c3" => raw("200 OK", &["Transfer-Encoding: chunked"], b"2;=b\r\nab\r\n0\r\n\r\n"),
+        "/c4" => raw("200 OK", &["Transfer-Encoding: chunked"], b"2 \r\nab\r\n0\r\n\r\n"),
+        "/c5" => raw("200 OK", &["Transfer-Encoding: chunked, chunked"], b"2\r\nab\r\n0\r\n\r\n"),
+        "/c6" => raw("200 OK", &["Transfer-Encoding: chunked", "Content-Length: 2"], b"2\r\nab\r\n0\r\n\r\n"),
+        "/c7" => raw("200 OK", &["Content-Length: 2", "Content-Length: 3"], b"abc"),
+        "/c8" => raw("200 OK", &["Transfer-Encoding: chunked"], b"2\r\nab\r\n0\r\nBad Trailer\r\n\r\n"),
+        _ => raw("404 Not Found", &["Content-Length: 0"], b""),
+    });
+    let b = format!("http://127.0.0.1:{port}");
+    let r = run(
+        &format!(
+            r#"[http("HEAD","{b}/head-te").status, len(http("HEAD","{b}/head-te").body), http("GET","{b}/304-te").status,
+               get("{b}/ok-chunked"),
+               map(["c1","c2","c3","c4","c5","c6","c7","c8"]){{p=>try http("GET","{b}/"+p) catch {{e=>[e.code,e.data.reason]}}}}]"#
+        ),
+        Some(&host(port)),
+    );
+    let framing = r#"["network","framing"]"#;
+    assert_eq!(result(&r), format!("[200,0,304,[7],[{}]]", [framing; 8].join(",")));
+    // header_bytes counts raw field-section octets, including padding and trailers.
+    let small = format!(
+        r#"{{"format":"kiri-host/1","capabilities":{{"http":["http://127.0.0.1:{port}"]}},"limits":{{"header_bytes":1000}}}}"#
+    );
+    for p in ["pad", "trailer"] {
+        let r = run(&format!(r#"try http("GET","{b}/{p}") catch {{e=>e.code}}"#), Some(&small));
+        assert_eq!(r.code, 3, "{p}: {}", r.stdout);
+        assert!(r.stdout.contains("\"resource\":\"header_bytes\""), "{p}: {}", r.stdout);
+    }
+}

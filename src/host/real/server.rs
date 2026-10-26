@@ -2,6 +2,7 @@
 //! reach the runtime unnormalized; framing is decoded here, while admission,
 //! routing and responses are runtime decisions. One request per connection.
 
+use super::http1::{self, ChunkErr};
 use crate::host::{BodyFault, EffOutcome, EffValue, HostEvent, IncomingRequest};
 use crate::value::{err, Value};
 use std::cell::RefCell;
@@ -15,6 +16,8 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 const HEADER_TIMEOUT_MS: u64 = 30_000;
+/// Longest accepted request line (method, target, version).
+const REQUEST_LINE_MAX: usize = 16384;
 
 #[derive(Clone, Copy, Debug)]
 enum Framing {
@@ -55,32 +58,24 @@ fn io_err(reason: &str, outcome: &str) -> EffOutcome {
 }
 
 fn framing_of(headers: &[(String, Vec<u8>)]) -> Framing {
-    let te: Vec<&Vec<u8>> = headers.iter().filter(|(n, _)| n.eq_ignore_ascii_case("transfer-encoding")).map(|(_, v)| v).collect();
-    let cl: Vec<&Vec<u8>> = headers.iter().filter(|(n, _)| n.eq_ignore_ascii_case("content-length")).map(|(_, v)| v).collect();
+    let field = |name: &'static str| headers.iter().filter(move |(n, _)| n.eq_ignore_ascii_case(name)).map(|(_, v)| v.as_slice());
+    let te: Vec<String> = field("transfer-encoding")
+        .flat_map(|v| String::from_utf8_lossy(v).split(',').map(|t| t.trim().to_ascii_lowercase()).collect::<Vec<_>>())
+        .filter(|t| !t.is_empty())
+        .collect();
+    let cl_present = field("content-length").next().is_some();
     if !te.is_empty() {
-        if !cl.is_empty() || te.len() != 1 || !te[0].trim_ascii().eq_ignore_ascii_case(b"chunked") {
+        // Transfer-Encoding overrides Content-Length and indicates smuggling
+        // when both are present (RFC 9112 §6.3): reject.
+        if cl_present || te != ["chunked"] {
             return Framing::Invalid;
         }
         return Framing::Chunked;
     }
-    let mut len: Option<u64> = None;
-    for v in cl {
-        let s = match std::str::from_utf8(v.trim_ascii()) {
-            Ok(s) if !s.is_empty() && s.bytes().all(|c| c.is_ascii_digit()) => s,
-            _ => return Framing::Invalid,
-        };
-        let n: u64 = match s.parse() {
-            Ok(n) => n,
-            Err(_) => return Framing::Invalid,
-        };
-        if len.is_some_and(|l| l != n) {
-            return Framing::Invalid;
-        }
-        len = Some(n);
-    }
-    match len {
-        Some(n) => Framing::Length(n),
-        None => Framing::Empty,
+    match http1::content_length(field("content-length")) {
+        Err(()) => Framing::Invalid,
+        Ok(None) => Framing::Empty,
+        Ok(Some(n)) => Framing::Length(n),
     }
 }
 
@@ -176,7 +171,20 @@ impl Servers {
                         }
                     }
                 }
-                Framing::Chunked => read_chunked(&mut rd, buf, max_body, header_limit).await,
+                Framing::Chunked => {
+                    let mut out: Vec<u8> = Vec::new();
+                    match http1::read_chunked::<_, ()>(&mut rd, buf, max_body, header_limit, |d| {
+                        out.extend_from_slice(d);
+                        Ok(())
+                    })
+                    .await
+                    {
+                        Ok(()) => Ok(out),
+                        Err(ChunkErr::TooLarge) => Err(BodyFault::TooLarge),
+                        // an over-limit trailer section is invalid framing (400)
+                        Err(_) => Err(BodyFault::BadFraming),
+                    }
+                }
             };
             // Watch for client disconnect while the handler runs.
             let token = CancellationToken::new();
@@ -280,131 +288,6 @@ impl Servers {
     }
 }
 
-/// `chunk-size [ chunk-ext ]` (RFC 9112 §7.1.1):
-/// `1*HEXDIG *( BWS ";" BWS ext-name [ BWS "=" BWS ( token / quoted-string ) ] )`.
-fn parse_chunk_size(line: &[u8]) -> Option<u64> {
-    use crate::builtins::headers::{is_token_char, quoted_string_len};
-    let hex_end = line.iter().position(|c| !c.is_ascii_hexdigit()).unwrap_or(line.len());
-    if hex_end == 0 || hex_end > 16 {
-        return None;
-    }
-    let size = u64::from_str_radix(std::str::from_utf8(&line[..hex_end]).ok()?, 16).ok()?;
-    let bws = |mut k: usize| {
-        while k < line.len() && (line[k] == b' ' || line[k] == b'\t') {
-            k += 1;
-        }
-        k
-    };
-    let token_end = |k: usize| {
-        let mut e = k;
-        while e < line.len() && is_token_char(line[e]) {
-            e += 1;
-        }
-        e
-    };
-    let mut k = hex_end;
-    while k < line.len() {
-        k = bws(k);
-        if line.get(k) != Some(&b';') {
-            return None;
-        }
-        k = bws(k + 1);
-        let e = token_end(k);
-        if e == k {
-            return None;
-        }
-        k = e;
-        let after = bws(k);
-        if line.get(after) == Some(&b'=') {
-            k = bws(after + 1);
-            if line.get(k) == Some(&b'"') {
-                k += quoted_string_len(&line[k..])?;
-            } else {
-                let e = token_end(k);
-                if e == k {
-                    return None;
-                }
-                k = e;
-            }
-        }
-    }
-    Some(size)
-}
-
-async fn read_chunked(rd: &mut OwnedReadHalf, mut buf: Vec<u8>, max_body: u64, header_limit: u64) -> Result<Vec<u8>, BodyFault> {
-    let mut out = Vec::new();
-    let mut pos = 0usize;
-    async fn need(rd: &mut OwnedReadHalf, buf: &mut Vec<u8>, upto: usize) -> Result<(), BodyFault> {
-        while buf.len() < upto {
-            let mut chunk = vec![0u8; 16384];
-            match rd.read(&mut chunk).await {
-                Ok(0) | Err(_) => return Err(BodyFault::BadFraming),
-                Ok(k) => buf.extend_from_slice(&chunk[..k]),
-            }
-        }
-        Ok(())
-    }
-    async fn line(rd: &mut OwnedReadHalf, buf: &mut Vec<u8>, pos: &mut usize) -> Result<Vec<u8>, BodyFault> {
-        loop {
-            if let Some(i) = buf[*pos..].windows(2).position(|w| w == b"\r\n") {
-                let l = buf[*pos..*pos + i].to_vec();
-                *pos += i + 2;
-                return Ok(l);
-            }
-            if buf.len() - *pos > 8192 {
-                return Err(BodyFault::BadFraming);
-            }
-            let mut chunk = vec![0u8; 16384];
-            match rd.read(&mut chunk).await {
-                Ok(0) | Err(_) => return Err(BodyFault::BadFraming),
-                Ok(k) => buf.extend_from_slice(&chunk[..k]),
-            }
-        }
-    }
-    loop {
-        let l = line(rd, &mut buf, &mut pos).await?;
-        let size = parse_chunk_size(&l).ok_or(BodyFault::BadFraming)?;
-        if size == 0 {
-            // trailers until empty line; the trailer section is a received
-            // field section bounded by header_bytes (§14.1)
-            let mut trailer_bytes: u64 = 0;
-            loop {
-                let t = line(rd, &mut buf, &mut pos).await?;
-                if t.is_empty() {
-                    return Ok(out);
-                }
-                trailer_bytes += t.len() as u64 + 2;
-                if trailer_bytes > header_limit {
-                    return Err(BodyFault::BadFraming);
-                }
-                // drop consumed bytes so the buffer cannot grow without bound
-                buf.drain(..pos);
-                pos = 0;
-                // trailer-section = *( field-line CRLF ) (RFC 9112 §7.1.2)
-                let ok = match t.iter().position(|&c| c == b':') {
-                    Some(i) => {
-                        let name = std::str::from_utf8(&t[..i]).unwrap_or("");
-                        crate::builtins::headers::valid_field(name, &t[i + 1..])
-                    }
-                    None => false,
-                };
-                if !ok {
-                    return Err(BodyFault::BadFraming);
-                }
-            }
-        }
-        if size > max_body || out.len() as u64 + size > max_body {
-            return Err(BodyFault::TooLarge);
-        }
-        need(rd, &mut buf, pos + size as usize + 2).await?;
-        out.extend_from_slice(&buf[pos..pos + size as usize]);
-        if &buf[pos + size as usize..pos + size as usize + 2] != b"\r\n" {
-            return Err(BodyFault::BadFraming);
-        }
-        pos += size as usize + 2;
-    }
-}
-
 async fn handle_conn(
     stream: TcpStream,
     inner: Rc<RefCell<Inner>>,
@@ -427,8 +310,12 @@ async fn handle_conn(
             bad_request(&mut wr).await;
             return;
         }
-        if buf.len() as u64 > header_limit {
-            return; // unreadable header section: close without a response
+        // header_bytes counts the field section only; the request line is
+        // capped separately. An unreadable head is closed without a response.
+        match buf.windows(2).position(|w| w == b"\r\n") {
+            None if buf.len() > REQUEST_LINE_MAX => return,
+            Some(le) if buf.len() - (le + 2) > header_limit as usize + 4 => return,
+            _ => {}
         }
         let mut chunk = vec![0u8; 8192];
         let read = tokio::select! {
@@ -440,7 +327,7 @@ async fn handle_conn(
             Ok(Ok(k)) => buf.extend_from_slice(&chunk[..k]),
         }
     };
-    if head_end as u64 > header_limit + 4 {
+    if http1::field_section_len(&buf, head_end) as u64 > header_limit {
         return;
     }
     // Each field line takes at least 4 octets, so header_bytes bounds the count.
@@ -488,6 +375,7 @@ async fn handle_conn(
         target,
         headers,
         upgrade,
+        framing_invalid: matches!(framing, Framing::Invalid),
     }));
 }
 

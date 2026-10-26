@@ -10,7 +10,7 @@ source bytes ─▶ lexer ─▶ parser ─▶ resolver ─▶ Program (arena, r
                                          runtime::Runtime<H: Host>
                                   ┌───────────────┴────────────────┐
                            VirtualHost (conformance)        RealHost (CLI run)
-                           virtual clock, fixtures,         tokio LocalSet, hyper+rustls,
+                           virtual clock, fixtures,         tokio LocalSet, httparse+rustls,
                            traces, virtual server           tokio-postgres, httparse server,
                                                             openat/renameat files
 ```
@@ -151,13 +151,25 @@ Runs on a tokio current-thread runtime inside a `LocalSet`; every operation is
 a spawned future racing a `CancellationToken`, reporting `Joined` when
 cancelled.
 
-- **HTTP client** — one hyper HTTP/1.1 connection per request (no pooling,
-  hence no hidden session state); a flag set just before request bytes are
-  written lets a cancelled/timed-out request report `not_sent` precisely; rustls with the system or `SSL_CERT_FILE`
-  trust store; no redirect/retry/cookie logic exists. Raw identity bodies are
-  bounded by `max_bytes + 1`; gzip bodies are decoded incrementally as they
-  arrive so `max_bytes` on the decoded output raises `limit` without reading
-  the rest; the runtime re-validates decoding and limits.
+- **HTTP client** — a small purpose-built HTTP/1.1 client (`src/host/real/http.rs`),
+  one connection per request (no pooling, hence no hidden session state;
+  `connection: close`). It is not a general HTTP library because the
+  specification needs exact control: the response head is parsed with
+  `httparse` from the raw octets, so `header_bytes` counts the received field
+  section exactly (status line and terminal blank line excluded; trailers
+  included) and over-limit input is a host resource abort; body framing is
+  none (HEAD/204/304), exactly `chunked`, a single Content-Length, or
+  close-delimited, and anything else — `Transfer-Encoding` with
+  Content-Length, an unremovable coding such as `gzip, chunked`, conflicting
+  lengths — is `network`/`framing`. Chunked bodies are decoded by the strict
+  parser shared with the server (`src/host/real/http1.rs`: RFC 9112 chunk
+  sizes and extensions, validated and bounded trailers). A flag set just
+  before request bytes are written lets a cancelled/timed-out request report
+  `not_sent` precisely. rustls uses the system or `SSL_CERT_FILE` trust store;
+  there is no redirect/retry/cookie logic. Identity bodies are bounded by
+  `max_bytes`; gzip bodies are decoded incrementally as they arrive so
+  `max_bytes` on the decoded output raises `limit` without reading the rest;
+  the runtime re-validates decoding and limits.
 - **PostgreSQL** — tokio-postgres; parameters are sent in text format with the
   runtime's OIDs (OID 0 for NULL), results are received in binary and
   converted to exact text (numeric is decoded from base-10000 digits, never
@@ -170,12 +182,23 @@ cancelled.
   the raw target and header pairs; body framing (Content-Length/chunked) is
   decoded on request of the runtime with the `max_body` limit; a watcher
   reports client disconnects. One request per connection. The whole header
-  section must arrive within 30 s; on serve cancellation the listener stops
-  accepting immediately, and request heads that complete afterwards are
-  closed.
+  section must arrive within 30 s; `header_bytes` counts the field section
+  only (the request line is capped separately at 16 KiB) and trailers count
+  too; Content-Length and chunk sizes are parsed as saturating numerals, so an
+  over-limit size is `413` rather than a framing error; header-level framing
+  errors are reported to the runtime (`framing_invalid`) so that they take
+  precedence over the Content-Encoding check (`400` before `415`). On serve
+  cancellation the listener stops accepting immediately, and request heads
+  that complete afterwards are closed. A request's in-flight slot is released
+  as soon as its response has been written.
 - **Files** — every path component is opened with `O_NOFOLLOW` relative to
   its parent directory handle; writes go to an exclusive random temp file in
   the target directory, get their mode set, and are installed with `renameat`.
+  Blocking file work is cooperatively cancellable: a cancelled `write` sets a
+  flag that is checked between 1 MiB pieces and immediately before the
+  `renameat`; the temporary file is removed and the effect is reported done
+  only after the blocking thread has stopped, so nothing is replaced after an
+  abort (§13.2) and a parallel join really waits.
 
 ## Checkpoints inside builtin work
 

@@ -146,6 +146,9 @@ pub struct IncomingRequest {
     pub headers: Vec<(String, Vec<u8>)>,
     /// Host-detected transport fault (e.g. upgrade attempt), if any.
     pub upgrade: bool,
+    /// Header-level body framing is invalid (conflicting Content-Length,
+    /// Transfer-Encoding with Content-Length, unsupported coding, ...).
+    pub framing_invalid: bool,
 }
 
 #[derive(Debug)]

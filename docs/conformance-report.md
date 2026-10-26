@@ -12,7 +12,7 @@ Implementation report required by spec §15.3. Token measurements
 | Compiler | rustc 1.96.0 (2026-05-25), release profile |
 | OS | Linux 6.18.54.1-microsoft-standard-WSL2 (x86_64) |
 | PostgreSQL server | PostgreSQL 16.15 (Homebrew build), local, C locale, UTF8 |
-| Key dependencies | tokio 1.54.1, hyper 1.12.0, rustls 0.23.46 (ring), tokio-postgres 0.7.18, tokio-postgres-rustls 0.13.0, pg_query 5.1.1 (libpg_query, PostgreSQL 16 grammar), num-bigint 0.4.8, flate2 1.1.10, httparse 1.10.1 |
+| Key dependencies | tokio 1.54.1, httparse 1.10.1, rustls 0.23.46 (ring), tokio-postgres 0.7.18, tokio-postgres-rustls 0.13.0, pg_query 5.1.1 (libpg_query, PostgreSQL 16 grammar), num-bigint 0.4.8, flate2 1.1.10 |
 
 ## Embedded conformance corpus (§16)
 
@@ -89,7 +89,7 @@ root/request scope with `resource`. See
 
 ## Independent audits
 
-Fourteen independent read-and-execute audits of sections 2–15 were run against the
+Fifteen independent read-and-execute audits of sections 2–15 were run against the
 code (each walked the normative rules section by section and confirmed every
 finding by running programs or custom fixture manifests).
 
@@ -121,6 +121,8 @@ finding by running programs or custom fixture manifests).
 | 13 (full, §2–§15, incl. RFC syntax) | 3 (low–medium): empty media-type parameters (`application/json;`) rejected; http/get/post header and body rules checked after `timeout`/`max_bytes`; malformed chunked trailer fields accepted by the server | Fixed: RFC 9110 §5.6.6 empty parameters accepted; option rules validated in table order; trailer fields validated (RFC 9112 §7.1.2). Regressions in `tests/prose_regressions.rs`, `tests/i05_server.rs`, header unit tests. Every other subsection "verified, no violation" |
 
 | 14 (full, §2–§15, incl. RFC syntax) | 5: chunked trailer section not bounded by `header_bytes` (memory growth); lenient chunk-size lines (whitespace, malformed extensions); bare `"` inside quoted media-type parameters accepted; empty Accept-Encoding / empty list elements rejected; quoted-pairs in `charset` not unescaped | Fixed: trailer section counted against `header_bytes` with buffer draining; RFC 9112 §7.1.1 chunk-size/extension parser; RFC 9110 media-type parser with quoted-string unescaping; empty Accept-Encoding elements accepted. Regressions in `tests/i05_server.rs`, `tests/prose_regressions.rs`, header unit tests. Every other subsection "verified, no violation" |
+
+| 15 (full, §2–§15) | 8: a cancelled `write` still replaced the target after the abort and the join did not wait; HEAD/304 with `Transfer-Encoding: gzip, chunked` failed; client `header_bytes` undercounted (trimmed values, trailers); client accepted invalid chunked framing (extensions, trailing blanks, duplicate chunked); server numerals (Content-Length, chunk size) overflowed to 400 instead of 413 and leading zeros were rejected; server `header_bytes` counted the request line; framing errors lost to the Content-Encoding check (415 instead of 400); `Content-Encoding: identity,` / empty value → 415 | All fixed. The HTTP client no longer uses hyper: a purpose-built strict HTTP/1.1 client counts raw octets and shares a strict framing module (`src/host/real/http1.rs`) with the server; file operations are cooperatively cancellable; in-flight slots are released when the response is written. Regressions in `tests/i01_http.rs`, `tests/i05_server.rs`, `tests/i06_i07_i08.rs` and `src/host/real/http1.rs` unit tests |
 
 Audit 2 recorded "no new violations" for §2, §3, §4, §5, §6, §7, §8, §9,
 §10 (apart from the fixture header checks), §11 (apart from the two SQL

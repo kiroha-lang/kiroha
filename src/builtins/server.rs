@@ -527,7 +527,11 @@ impl<H: Host> Runtime<H> {
             query,
             headers: hdr_record,
         };
-        let ctl = if coding_ok {
+        // Admission stage "read/validate body framing/content-coding/size":
+        // invalid framing is determined first and wins over the coding check.
+        let ctl = if req.framing_invalid {
+            Ctl::Effect(EffOutcome::Err(err::make("framing", "invalid body framing", vec![])))
+        } else if coding_ok {
             Ctl::Dispatch(Effect::ReadBody { request: req.id, max_body }, DispatchOpts::default())
         } else {
             Ctl::Effect(EffOutcome::Err(err::make("media", "content coding", vec![("reason", Value::str("content_encoding"))])))
@@ -545,6 +549,19 @@ impl<H: Host> Runtime<H> {
         let found = self.servers.iter().find_map(|(sid, s)| s.requests.get(&request).map(|r| (*sid, r.scope)));
         if let Some((_, Some(scope))) = found {
             self.abort_scope(scope, AbortReason::Cancelled);
+        }
+    }
+
+    /// Release the in-flight slot of the request handled by `task`.
+    pub fn server_response_sent(&mut self, task: TaskId) {
+        for st in self.servers.values_mut() {
+            if let Some(r) = st.requests.values_mut().find(|r| r.task == Some(task)) {
+                if r.counted {
+                    r.counted = false;
+                    st.inflight -= 1;
+                }
+                return;
+            }
         }
     }
 

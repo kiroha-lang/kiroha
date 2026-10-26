@@ -2,6 +2,7 @@
 
 pub mod files;
 pub mod http;
+pub mod http1;
 pub mod pg;
 pub mod server;
 
@@ -60,6 +61,34 @@ impl RealHost {
                 biased;
                 _ = token.cancelled() => EffOutcome::Joined,
                 o = fut => o,
+            };
+            let _ = tx.send(HostEvent::Done(id, out));
+        });
+    }
+
+    /// Blocking file work with cooperative cancellation: on cancel the flag is
+    /// set but the operation is still awaited, so the effect is reported done
+    /// only after the blocking thread stopped (nothing applies after an abort).
+    fn spawn_file_op<F, Fut>(&mut self, id: u64, make: F)
+    where
+        F: FnOnce(files::Cancel) -> Fut,
+        Fut: std::future::Future<Output = EffOutcome> + 'static,
+    {
+        let flag = files::Cancel::default();
+        let token = CancellationToken::new();
+        self.tokens.insert(id, token.clone());
+        let tx = self.tx.clone();
+        let work = guarded(make(flag.clone()));
+        tokio::task::spawn_local(async move {
+            let mut work = Box::pin(work);
+            let out = tokio::select! {
+                biased;
+                _ = token.cancelled() => {
+                    flag.store(true, std::sync::atomic::Ordering::SeqCst);
+                    // An already-applied replacement keeps its real outcome.
+                    work.await
+                }
+                o = &mut work => o,
             };
             let _ = tx.send(HostEvent::Done(id, out));
         });
@@ -144,10 +173,10 @@ impl Host for RealHost {
                 self.done_now(id, out);
             }
             Effect::ReadRegular { path, max_bytes } => {
-                self.spawn(id, async move { files::read_regular(path, max_bytes).await });
+                self.spawn_file_op(id, move |c| async move { files::read_regular(path, max_bytes, c).await });
             }
             Effect::ReplaceRegular { path, bytes } => {
-                self.spawn(id, async move { files::replace_regular(path, bytes).await });
+                self.spawn_file_op(id, move |c| async move { files::replace_regular(path, bytes, c).await });
             }
             Effect::Http(req) => {
                 let client = self.http.clone();

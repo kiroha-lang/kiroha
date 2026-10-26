@@ -17,17 +17,18 @@ then [`README.md`](README.md) and [`docs/architecture.md`](docs/architecture.md)
 | Item | State |
 | --- | --- |
 | Embedded conformance corpus (`kiri conformance spec.md --json`) | 145 / 145 pass, exit 0 |
-| `cargo test --release` | 57 pass, 0 fail (with PostgreSQL DSN, see §3) |
+| `cargo test --release` | 64 pass, 0 fail (with PostgreSQL DSN, see §3) |
 | `cargo clippy --release --all-targets` | 0 warnings |
 | TLA+ models (`./formal/check.sh`) | Parallel (1,212 states) and Tx (90 states): no violation |
 | Property tests (`tests/properties.rs`) | 13 properties pass; all mutation-checked |
 | Documentation | README, language guide, builtins/values/errors reference, CLI, host config, architecture, formal verification, conformance report, 6 examples |
-| Independent audits | 15 run so far. Findings per audit: 9, 5, 9, 6, 7, 5, 8, 2, 2, 13, 2, 1, 3, 5, then **8 open (audit 15)** |
+| Independent audits | 15 run so far. Confirmed findings per audit: 9, 5, 9, 6, 7, 5, 8, 2, 2, 13, 2, 1, 3, 5, 8 — **all fixed**; audit 16 has not been run yet |
 
-**Audit 15 found 8 violations that are NOT fixed yet** (§5). Nothing else is
-known to be open. Audits 1–14 are fully fixed with regression tests, recorded
-row by row in [`docs/conformance-report.md`](docs/conformance-report.md)
-("Independent audits" table).
+**All findings of audits 1–15 are fixed** with regression tests, recorded row
+by row in [`docs/conformance-report.md`](docs/conformance-report.md)
+("Independent audits" table). Nothing is known to be open. The next step is
+audit 16 (see §4); the project is complete when an audit reports no confirmed
+violation.
 
 ## 2. Code map
 
@@ -79,7 +80,7 @@ D=/tmp/kiri-pg16
 LANG=C LC_ALL=C $B/initdb -D $D -U kiri --auth=trust -E UTF8 --locale=C
 LANG=C LC_ALL=C $B/pg_ctl -D $D -o "-p 55432 -k /tmp -c listen_addresses=127.0.0.1" -l $D/log start
 export KIRI_TEST_PG_DSN="host=127.0.0.1 port=55432 user=kiri dbname=postgres"
-cargo test --release            # 57 tests; without the DSN, I03/I04 print SKIP and pass vacuously
+cargo test --release            # 64 tests; without the DSN, I03/I04 print SKIP and pass vacuously
 ```
 
 `initdb` fails with "invalid locale settings" unless `LANG=C LC_ALL=C` is set.
@@ -112,111 +113,28 @@ Practical rules learned the hard way:
 - When a property/model is added, mutate the implementation once to prove the
   check can fail (this exposed weak checks twice).
 
-## 5. OPEN: audit-15 findings (fix these first)
+## 5. Audit 15 — what was fixed (for context)
 
-Severity order. Re-run each reproducer before and after.
+All eight findings were fixed (see the audit table for the exact list). The
+structural changes worth knowing:
 
-### 5.1 Cancelled `write` still replaces the target after the abort (§13.2, §9.1, §14.2)
-
-- `src/host/real/files.rs` runs `replace_regular` in `spawn_blocking`;
-  `renameat` (~line 156) has no abort check, and `RealHost::cancel`
-  (`src/host/real/mod.rs`) only drops the future, so the blocking thread keeps
-  going and the rename happens after the abort; the parallel join also does not
-  wait for it.
-- Repro (host: read/write on `<R>/out`, `max_file_bytes:300000000`, `out/race` = `OLD\n`):
-  ```
-  s=fold(range(0,27),"x"){(a,i)=>a+a}; b=encode(s);
-  r=try parallel([1,2],2){x=>if x==1 then write("out/race",b) else do {sleep(1); fail({code:"boom",message:"m",data:{}})}} catch {e=>e.code};
-  [r,len(read("out/race"))]
-  ```
-  Actual `["boom",4]` and the file later becomes 134 MB. Expected: old target
-  unchanged and temp file removed (spec: "Abort observed before dispatch of that
-  replacement must leave the old target unchanged"), or the join waits and the
-  outcome is reported accurately.
-- Suggested fix: give `ReplaceRegular` an `Arc<AtomicBool>` cancel flag; on
-  `cancel` set it but **keep awaiting the blocking task** (do not drop it);
-  check the flag immediately before `renameat`, remove the temp file and return
-  "cancelled / not applied" if set. Same treatment is worth giving `read`.
-
-### 5.2 HEAD/304 response with `Transfer-Encoding: gzip, chunked` fails (§10.4)
-
-`src/host/real/http.rs` rejects any non-chunked transfer coding before it
-decides the response is bodyless. Expected: for HEAD/204/304 (no body) ignore
-Transfer-Encoding. Repro: raw server replying `HTTP/1.1 200 OK\r\nTransfer-Encoding: gzip, chunked\r\n\r\n`
-to `http("HEAD",u).status` → should be 200 with empty Bytes.
-
-### 5.3 Client `header_bytes` undercounts (§14.1)
-
-The client counts `name+value+4` from hyper's already-trimmed values and never
-counts trailers. With `header_bytes:1000`: `X-Big:` + 5000 spaces + `a` and a
-5000-octet chunked trailer both succeed; expected `resource` abort (host
-resource). Needs raw octet counting of the field section (excluding the status
-line, excluding the terminal blank line) plus trailers.
-
-### 5.4 Client accepts invalid chunked framing (§10.3/§10.4)
-
-hyper is lenient. Each of these must be `network`/`framing`: chunk line `7;\x01`,
-`2;a="\x01"`, `2;=b`, `7 ` (trailing space after size), header
-`Transfer-Encoding: chunked, chunked`.
-
-> **Recommended for 5.2–5.4 together:** replace hyper in the client
-> (`Client::exchange` in `src/host/real/http.rs`) with a small strict
-> HTTP/1.1 client built on `httparse::Response`:
-> write the request (`host`, caller headers, `content-length` if body,
-> `connection: close`); read the head, counting raw field-section octets
-> (excluding status line and terminal CRLF) against `header_limit` (→
-> `EffOutcome::Resource("header_bytes")`, map `httparse::Error::TooManyHeaders`
-> to the same); skip 1xx (101 → `network invalid_status`); frame the body as
-> none (HEAD/204/304), chunked (only exactly `chunked`), Content-Length
-> (identical duplicates allowed, conflicting → framing), or read-until-close;
-> TE together with Content-Length → framing error; decode chunked with the same
-> strict parser the server uses (§5.5) and validate trailer fields
-> (`headers::valid_field`) and count them against `header_limit`;
-> keep the existing incremental gzip decode with decoded `max_bytes`
-> (`Counter` writer, `limit_error`) and `raw_cap` (`Resource("transport")`);
-> keep setting `sent` just before writing request bytes. Keep behavior that the
-> existing tests in `tests/i01_http.rs` and `tests/i02_tls.rs` rely on.
-
-### 5.5 Server: large numerals in Content-Length and chunk-size (§12.4)
-
-`src/host/real/server.rs`: `Content-Length: 99999999999999999999999` → currently
-400, expected 413 when above `max_body` (RFC 9110 §8.6: parse as saturating
-integer). Chunk size `ffffffffffffffffff` → 413; `00000000000000005` (valid
-5-byte chunk with leading zeros) → currently 400, expected 200. Fix: strip
-leading zeros, treat > 16 significant hex digits as `u64::MAX`; make
-`framing_of` saturate instead of `Framing::Invalid` on overflow.
-Refactor suggestion: move the chunked reader into a generic module
-(`AsyncRead + Unpin`, per-piece sink callback, `max_total`, `header_limit`)
-shared by server and the new client (it already contains `parse_chunk_size` and
-bounded trailer handling).
-
-### 5.6 Server `header_bytes` counts the request line (§14.1)
-
-`handle_conn` measures the buffer starting at the request line. Reproduce with
-`header_bytes:300`, a 230-char path and a 100-octet field section → connection
-closed; expected: admitted (field section ≤ limit). Count only field lines
-(after the first CRLF, excluding the terminal blank line); cap the request line
-separately (e.g. 16 KiB, close if exceeded).
-
-### 5.7 Framing error vs Content-Encoding precedence (§12.2)
-
-POST with `Transfer-Encoding: chunked`, `Content-Length: 3`, `Content-Encoding: gzip`
-→ currently 415; expected 400 (framing is validated before coding in the same
-admission stage). Fix idea: add `framing_invalid: bool` to
-`host::IncomingRequest` (set where `Framing::Invalid` is computed; `false` in
-`virtual_host.rs`), and in `Runtime::server_request`
-(`src/builtins/server.rs`) check it before `coding_ok`, using the same
-`Ctl::Effect(Err(...))` pattern (non-`media` error → 400).
-
-### 5.8 `Content-Encoding: identity,` or empty value → 415 (§12.2)
-
-`headers::identity_coding` (`src/builtins/headers.rs`) compares the whole value.
-Split on `,`, trim OWS, ignore empty elements (RFC 9110 §5.6.1.2); accept if
-every remaining element is `identity` (or none). Used by the server admission
-path, `input`, `post` and `reply`.
-
-After fixing: add regression tests, update the audit table (row 15), commit,
-then run audit 16 (and continue the loop).
+- **The HTTP client no longer uses hyper.** `src/host/real/http.rs` is a small
+  strict HTTP/1.1 client over `httparse` so that raw field-section octets are
+  counted exactly (`header_bytes`), framing is validated per RFC 9112, and
+  unremovable transfer codings are `network`/`framing`.
+- **`src/host/real/http1.rs`** holds the framing code shared by the client and
+  the server: chunk-size/extension parser (saturating numerals), Content-Length
+  parser (RFC 9110 §8.6), generic chunked reader with a piece-wise sink,
+  bounded and validated trailers, field-section measurement.
+- **Server:** `header_bytes` counts the field section only (request line capped
+  at 16 KiB); `IncomingRequest.framing_invalid` lets the runtime report framing
+  errors (400) before the Content-Encoding check (415); a request's in-flight
+  slot is released when its response is written (this removed a real race where
+  a client's immediate next request got a spurious 503).
+- **Files:** `write`/`read` are cooperatively cancellable (`files::Cancel`);
+  `RealHost::spawn_file_op` keeps awaiting the blocking thread after cancel, so
+  nothing is replaced after an abort and joins are honest.
+- `Content-Encoding: identity,` / empty value are treated as no coding.
 
 ## 6. Deliberate choices (documented; audits are told not to re-report them)
 

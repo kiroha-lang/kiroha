@@ -503,6 +503,13 @@ impl<H: Host> Runtime<H> {
                     Some(p) => p,
                     None => return,
                 };
+                if p.op == "send_response" {
+                    // The request's work is complete once its response is on the
+                    // wire: free its in-flight slot now, not when the task is
+                    // later reaped, so an immediately following request is not
+                    // refused (max_inflight counts accepted, unfinished work).
+                    self.server_response_sent(p.task);
+                }
                 let outcome = match (p.timed_out, outcome) {
                     (true, EffOutcome::Joined) => {
                         let (op, ms) = p.timeout.unwrap();

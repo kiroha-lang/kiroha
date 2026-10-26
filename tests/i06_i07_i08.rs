@@ -54,6 +54,28 @@ fn i06_quota_and_permission_by_component() {
     assert_eq!(out.code, 3);
 }
 
+/// A cancelled `write` leaves the old target in place and no temp file (§13.2).
+#[test]
+fn i06_cancelled_write_does_not_replace_target() {
+    let root = tempdir("fs-cancel");
+    let out = root.join("out");
+    std::fs::create_dir_all(&out).unwrap();
+    std::fs::write(out.join("race"), "OLD\n").unwrap();
+    let r = root.to_str().unwrap();
+    let host = format!(
+        r#"{{"format":"kiri-host/1","filesystem_root":"{r}","capabilities":{{"read":["{r}/out"],"write":["{r}/out"]}},"limits":{{"memory_bytes":4000000000,"max_file_bytes":300000000}}}}"#
+    );
+    let src = r#"s=fold(range(0,27),"x"){(a,i)=>a+a}; b=encode(s);
+      r=try parallel([1,2],2){x=>if x==1 then write("out/race",b) else do {sleep(1); fail({code:"boom",message:"m",data:{}})}} catch {e=>e.code};
+      [r,len(read("out/race"))]"#;
+    let res = run(src, Some(&host));
+    assert_eq!(result(&res), r#"["boom",4]"#);
+    std::thread::sleep(std::time::Duration::from_millis(1500));
+    assert_eq!(std::fs::read_to_string(out.join("race")).unwrap(), "OLD\n");
+    let names: Vec<String> = std::fs::read_dir(&out).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().to_string()).collect();
+    assert_eq!(names, vec!["race".to_string()], "no temporary files remain");
+}
+
 #[test]
 fn i07_cpu_bound_cancellation_and_bounded_parallelism() {
     // A pure infinite tail loop is stopped by the root deadline.

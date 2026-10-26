@@ -401,6 +401,7 @@ impl Host for VirtualHost {
                     method: r.method,
                     target: r.target,
                     upgrade: r.headers.iter().any(|(n, _)| n.eq_ignore_ascii_case("upgrade")),
+                    framing_invalid: false,
                     headers: r.headers.iter().map(|(n, v)| (n.clone(), v.chars().map(|c| c as u32 as u8).collect())).collect(),
                 }))
             }

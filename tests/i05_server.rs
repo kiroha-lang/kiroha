@@ -150,6 +150,20 @@ fn routing_framing_limits_and_shutdown() {
     }
     let r = send(port, b"POST /in HTTP/1.1\r\nHost: x\r\nContent-Type: application/json; charset=utf-8;\r\nTransfer-Encoding: chunked\r\n\r\n7\r\n{\"n\":3}\r\n0\r\nX-T: ok\r\n\r\n");
     assert_eq!(body(&r), r#"{"n":3}"#);
+    // Large numerals saturate: Content-Length / chunk sizes above max_body are
+    // 413 (not 400); leading zeros are fine.
+    let r = send(port, b"POST /in HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: 99999999999999999999999\r\n\r\n");
+    assert_eq!(status(&r), "413", "{r}");
+    assert_eq!(chunked("ffffffffffffffffff"), "413");
+    assert_eq!(chunked("00000000000000007"), "200");
+    // Invalid framing is reported before an unsupported Content-Encoding.
+    let r = send(port, b"POST /in HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\nContent-Length: 3\r\nContent-Encoding: gzip\r\n\r\n");
+    assert_eq!(status(&r), "400", "{r}");
+    // `identity,` and an empty Content-Encoding mean no coding.
+    for ce in ["identity,", "", " identity , ,"] {
+        let raw = format!("POST /in HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Encoding: {ce}\r\nContent-Length: 7\r\n\r\n{{\"n\":1}}");
+        assert_eq!(status(&send(port, raw.as_bytes())), "200", "{ce:?}");
+    }
     // Many small header fields within header_bytes are fine.
     let mut many = b"GET /a/fixed HTTP/1.1\r\nHost: x\r\n".to_vec();
     for i in 0..300 {
@@ -193,4 +207,34 @@ fn routing_framing_limits_and_shutdown() {
     assert_eq!(out.status.code(), Some(3));
     assert!(String::from_utf8_lossy(&out.stdout).contains("\"reason\":\"cancelled\""));
     assert!(TcpStream::connect(("127.0.0.1", port)).is_err());
+}
+
+/// header_bytes counts the field section only, not the request line (audit 15).
+#[test]
+fn request_line_is_not_counted_in_header_bytes() {
+    let port = free_port();
+    let dir = tempdir("srv-hb");
+    let sp = dir.join("s.kiri");
+    std::fs::write(&sp, format!(r#"serve({{"GET /a":{{r=>1}}}},{{port:{port}}})"#)).unwrap();
+    let hp = dir.join("h.json");
+    std::fs::write(
+        &hp,
+        format!(r#"{{"format":"kiri-host/1","capabilities":{{"listen":[{{"host":"127.0.0.1","port":{port}}}]}},"limits":{{"header_bytes":300}}}}"#),
+    )
+    .unwrap();
+    let mut child = kiri().arg("run").arg(&sp).arg("--json").arg("--host").arg(&hp).stdout(std::process::Stdio::null()).spawn().unwrap();
+    for _ in 0..100 {
+        if TcpStream::connect(("127.0.0.1", port)).is_ok() {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let long_path = format!("/{}", "a".repeat(230));
+    let raw = format!("GET {long_path} HTTP/1.1\r\nHost: x\r\nX-A: {}\r\n\r\n", "b".repeat(80));
+    let r = send(port, raw.as_bytes());
+    assert_eq!(status(&r), "404", "long request line with a small field section is admitted: {r}");
+    let raw = format!("GET /a HTTP/1.1\r\nHost: x\r\nX-A: {}\r\n\r\n", "b".repeat(400));
+    assert_eq!(send(port, raw.as_bytes()), "", "an oversized field section is closed without a response");
+    let _ = child.kill();
+    let _ = child.wait();
 }

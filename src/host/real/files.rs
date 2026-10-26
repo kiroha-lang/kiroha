@@ -6,6 +6,18 @@
 //! directory and renames it atomically with `renameat`.
 
 use crate::host::{EffOutcome, EffValue};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+
+/// Shared cancellation flag for blocking file work. Cancellation does not drop
+/// the blocking thread: it sets the flag, the thread stops before the atomic
+/// replacement (removing its temporary file) and the caller still waits for it,
+/// so an aborted `write` never replaces the target after the abort (§13.2).
+pub type Cancel = Arc<AtomicBool>;
+
+fn cancelled(c: &Cancel) -> bool {
+    c.load(Ordering::SeqCst)
+}
 use crate::value::{err, Value};
 use rustix::fd::OwnedFd;
 use rustix::fs::{fstat, openat, renameat, unlinkat, AtFlags, FileType, Mode, OFlags, CWD};
@@ -18,6 +30,8 @@ enum FileRes {
     Done,
     Io(&'static str, &'static str, &'static str),
     Resource,
+    /// Stopped by cancellation before the replacement; nothing was applied.
+    Cancelled,
 }
 
 fn io(op: &'static str, reason: &'static str, outcome: &'static str) -> FileRes {
@@ -29,6 +43,7 @@ fn convert(r: FileRes) -> EffOutcome {
         FileRes::Bytes(b) => EffOutcome::Ok(EffValue::Bytes(b)),
         FileRes::Done => EffOutcome::Ok(EffValue::Null),
         FileRes::Resource => EffOutcome::Resource("max_file_bytes".into()),
+        FileRes::Cancelled => EffOutcome::Joined,
         FileRes::Io(op, reason, outcome) => EffOutcome::Err(err::make(
             "io",
             format!("{op}: {reason}"),
@@ -60,11 +75,11 @@ fn open_parent(path: &str) -> Result<(OwnedFd, String), Errno> {
     Ok((fd, last.to_string()))
 }
 
-pub async fn read_regular(path: String, max_bytes: u64) -> EffOutcome {
-    convert(tokio::task::spawn_blocking(move || read_blocking(&path, max_bytes)).await.unwrap_or_else(|_| io("read", "os_error", "not_applied")))
+pub async fn read_regular(path: String, max_bytes: u64, cancel: Cancel) -> EffOutcome {
+    convert(tokio::task::spawn_blocking(move || read_blocking(&path, max_bytes, &cancel)).await.unwrap_or_else(|_| io("read", "os_error", "not_applied")))
 }
 
-fn read_blocking(path: &str, max_bytes: u64) -> FileRes {
+fn read_blocking(path: &str, max_bytes: u64, cancel: &Cancel) -> FileRes {
     let (dir, name) = match open_parent(path) {
         Ok(x) => x,
         Err(e) => return io("read", reason_of(e), "not_applied"),
@@ -86,8 +101,16 @@ fn read_blocking(path: &str, max_bytes: u64) -> FileRes {
     let mut f = std::fs::File::from(fd);
     let mut buf = Vec::new();
     let mut limited = (&mut f).take(max_bytes + 1);
-    if limited.read_to_end(&mut buf).is_err() {
-        return io("read", "os_error", "not_applied");
+    let mut piece = vec![0u8; 1 << 20];
+    loop {
+        if cancelled(cancel) {
+            return FileRes::Cancelled;
+        }
+        match limited.read(&mut piece) {
+            Ok(0) => break,
+            Ok(n) => buf.extend_from_slice(&piece[..n]),
+            Err(_) => return io("read", "os_error", "not_applied"),
+        }
     }
     if buf.len() as u64 > max_bytes {
         return FileRes::Resource;
@@ -95,9 +118,9 @@ fn read_blocking(path: &str, max_bytes: u64) -> FileRes {
     FileRes::Bytes(buf)
 }
 
-pub async fn replace_regular(path: String, bytes: Vec<u8>) -> EffOutcome {
+pub async fn replace_regular(path: String, bytes: Vec<u8>, cancel: Cancel) -> EffOutcome {
     convert(
-        tokio::task::spawn_blocking(move || replace_blocking(&path, &bytes))
+        tokio::task::spawn_blocking(move || replace_blocking(&path, &bytes, &cancel))
             .await
             .unwrap_or_else(|_| io("write", "os_error", "unknown")),
     )
@@ -110,7 +133,7 @@ fn temp_name(name: &str) -> String {
     format!(".{name}.kiri-{hex}.tmp")
 }
 
-fn replace_blocking(path: &str, bytes: &[u8]) -> FileRes {
+fn replace_blocking(path: &str, bytes: &[u8], cancel: &Cancel) -> FileRes {
     let (dir, name) = match open_parent(path) {
         Ok(x) => x,
         Err(e) => return io("write", reason_of(e), "not_applied"),
@@ -127,6 +150,9 @@ fn replace_blocking(path: &str, bytes: &[u8]) -> FileRes {
         Err(Errno::NOENT) => 0o600,
         Err(e) => return io("write", reason_of(e), "not_applied"),
     };
+    if cancelled(cancel) {
+        return FileRes::Cancelled;
+    }
     // 2. exclusive unpredictable temporary file
     let tmp = temp_name(&name);
     let fd = match openat(
@@ -143,7 +169,17 @@ fn replace_blocking(path: &str, bytes: &[u8]) -> FileRes {
     };
     // 3. write, set mode, close
     let mut f = std::fs::File::from(fd);
-    if f.write_all(bytes).is_err() || f.flush().is_err() {
+    for piece in bytes.chunks(1 << 20) {
+        if cancelled(cancel) {
+            cleanup(&dir);
+            return FileRes::Cancelled;
+        }
+        if f.write_all(piece).is_err() {
+            cleanup(&dir);
+            return io("write", "os_error", "not_applied");
+        }
+    }
+    if f.flush().is_err() {
         cleanup(&dir);
         return io("write", "os_error", "not_applied");
     }
@@ -152,6 +188,13 @@ fn replace_blocking(path: &str, bytes: &[u8]) -> FileRes {
         return io("write", "os_error", "not_applied");
     }
     drop(f);
+    // Abort observed before dispatch of the replacement leaves the old target
+    // unchanged (§13.2); after this point the rename is in flight and its
+    // outcome is reported accurately.
+    if cancelled(cancel) {
+        cleanup(&dir);
+        return FileRes::Cancelled;
+    }
     // 4. atomic replacement
     match renameat(&dir, tmp.as_str(), &dir, name.as_str()) {
         Ok(()) => FileRes::Done,
