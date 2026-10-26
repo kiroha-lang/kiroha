@@ -11,8 +11,8 @@ theme:
   name: material
   language: en
   font: false
-  logo: assets/kiroha.svg
-  favicon: assets/kiroha.svg
+  logo: assets/kiroha-icon-128.png
+  favicon: assets/favicon.ico
   features:
     - navigation.sections
     - navigation.indexes
@@ -82,6 +82,7 @@ nav:
       - Move from 0.3 to 0.4: migration-0.4.md
   - Go deeper:
       - Write Kiroha with Codex: codex-plugin.md
+      - Icon and favicon: branding.md
       - Example programs: examples.md
       - Language specification: spec.md
       - Runtime architecture: architecture.md
