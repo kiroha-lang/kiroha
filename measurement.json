@@ -26,12 +26,12 @@
   "documents": {
     "full_markdown": {
       "file": "spec.md",
-      "sha256": "e0d8d070483c40a661d88e075fa5ee557c8748f8536de8c098358bac0bde7c15",
-      "unicode_code_points": 221518,
-      "utf8_bytes": 221628,
+      "sha256": "0ea1793fda41be318eea1371bbeb609db1aad539b6c64936f4a1d58330458f3d",
+      "unicode_code_points": 221515,
+      "utf8_bytes": 221625,
       "tokens": {
-        "o200k_base": 54487,
-        "cl100k_base": 54032
+        "o200k_base": 54484,
+        "cl100k_base": 54029
       }
     },
     "generation_card": {

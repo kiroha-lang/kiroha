@@ -63,7 +63,7 @@ that never executes is still an error.
 | `string` | `"héllo"` | Unicode scalar values |
 | `array` | `[1, "a", [true]]` | heterogeneous, immutable |
 | `record` | `{a:1, "b c":2}` | ordered, immutable |
-| `function` | `{x => x+1}`, `len` | |
+| `function` | `{x => x+1}`, `text` | |
 | `bytes` | `encode("x")` | octets |
 | `schema` | `int`, `maybe(str)` | |
 | `query` | ``q`select 1` `` | opaque SQL |
@@ -175,7 +175,9 @@ To pass an existing function, wrap it: `apply(10){v => g(v)}`. Functions can
 still be ordinary data — stored in records, arrays, or passed to parameters
 that expect them: `fun invoke(f, x)   f(x) end fun invoke invoke(g, 2)`.
 
-Parentheses are always required, even for no arguments: `now()`, `f(){x=>x}`.
+Ordinary calls require parentheses: `now()`, `f(){x=>x}`. For a direct
+member call with no ordinary arguments, the callback may follow the name:
+`xs.map{x=>x+1}`. Use `.sum()` without a callback and `.size` for length.
 
 ## 6. Pipes
 
@@ -183,12 +185,13 @@ Parentheses are always required, even for no arguments: `now()`, `f(){x=>x}`.
 argument: it means `f(lhs, a, b)`. The callback stays separate:
 
 ```kiroha
-(([3, 1, 2].sort()).map{x => x * 2}).sum()     // 12
+[1, 2, 3] | check([int]) | dump()     // "[1,2,3]"
 ```
 
 A pipe stage is always a name or dotted path followed by `(...)`:
-`[1] | map` and `[1] | (map)()` are parse errors. Dotted paths look up record
-fields: `ns = {m: map}; [1] | ns.m(){x => x}`.
+`[1] | check` and `[1] | (check)()` are parse errors. Dotted paths use ordinary
+member selection, including record fields: `ns={show:dump}; [1] | ns.show()`.
+For collection work, use method chains: `[3,1,2].sort().map{x=>x*2}.sum()`.
 
 To pipe the result of `if` or `try`, parenthesize it:
 `(try risky() catch {e => null}) | f()`.

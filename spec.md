@@ -403,10 +403,10 @@ No name may be declared twice in one scope, including parameters and callback sl
 Examples:
 
 ```kiroha
-x=1; fun f() x end fun f; do { x=2; f() }       // 1
+x=1; fun f() x end fun f do { x=2; f() }       // 1
 x=7; do { y=x; x=9; y }          // 7
-fun fac(n) if n<=1 then 1 else n*fac(n-1) end fun fac; fac(5)
-fun apply(x){f} f(x) end fun apply; apply(10){v=>v+1}
+fun fac(n) if n<=1 then 1 else n*fac(n-1) end fun fac fac(5)
+fun apply(x){f} f(x) end fun apply apply(10){v=>v+1}
 ```
 
 `fun f() g() end fun f fun g() 1 end fun g f()` is a check-phase name error even though g would be bound before the call. `if false then unknown else 1` is also a name error. A named function's self-reference is implemented with an immutable recursive cell or equivalent; no general user-visible mutable cell is introduced.
