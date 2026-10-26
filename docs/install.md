@@ -77,4 +77,11 @@ Installer tests use a local release server and cover platform selection,
 version pinning, paths with spaces, failed downloads/checksums, and preservation
 of an existing executable.
 
+[Kiroha v0.3.0](https://github.com/kiroha-lang/kiroha/releases/tag/v0.3.0)
+passed the [four-platform release workflow](https://github.com/kiroha-lang/kiroha/actions/runs/40269471769).
+Latest and pinned installers were then executed from the public download URLs;
+both installed binaries passed all 145 conformance cases. The
+[publication record](completion.md#public-distribution) contains the evidence
+and installed Linux binary checksum.
+
 To remove a default installation, delete `~/.local/bin/kiroha`.

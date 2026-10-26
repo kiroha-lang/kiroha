@@ -54,3 +54,27 @@ see [installation](install.md) for those distribution checks. Hosted workflow
 results are available in [GitHub Actions](https://github.com/kiroha-lang/kiroha/actions).
 Optional fuzzing, sanitizers, Kani
 and mechanically linked proofs remain future work, outside §15.3 acceptance.
+
+## Public distribution
+
+Published on 2026-10-26: [Kiroha v0.3.0](https://github.com/kiroha-lang/kiroha/releases/tag/v0.3.0),
+source `d992c16162236bbb0af27ae50d357f0f580b0e04`.
+The [release workflow](https://github.com/kiroha-lang/kiroha/actions/runs/40269471769)
+passed the PostgreSQL-backed 82 tests, 8 installer tests, Clippy, conformance,
+TLC and token measurement. Each native Linux/macOS × x86_64/ARM64 build also
+passed the 145 conformance cases, exact-decimal execution and system-Bash
+installer tests before publication. The release contains four archives,
+`install.sh` and `SHA256SUMS`; all five listed checksums match GitHub's stored
+asset digests.
+
+Both latest and pinned public `curl | bash` installations succeeded into paths
+containing spaces. Each installed binary reported `kiroha-rs/0.3.0`, evaluated
+`0.1 + 0.2` as exact `0.3`, and passed 145/145 conformance cases. The installed
+Linux x86_64 binary has SHA-256
+`b4d458b174c2e3baf49d0078d964b3da25f3695cd98187ce4925c5c2503e200b`.
+
+Distribution work also removed CPU-speed assumptions from finite-work deadline
+tests by repeating work until cancellation, with a direct expired-deadline
+escaping regression. macOS builds use native protoc; Intel builds select the
+macOS 15.2 SDK to retain the audited SQL parser and macOS 13 deployment target.
+See [installation](install.md) for commands and source-build requirements.

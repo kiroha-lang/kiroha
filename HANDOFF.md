@@ -27,10 +27,15 @@ The checkout remains `/home/mizushima/dev/kiri`.
   organization; the repository is https://github.com/kiroha-lang/kiroha,
   with `origin` configured and default branch `main`.
 - CI is defined in `.github/workflows/verify.yml`, including PostgreSQL 16,
-  Clippy, conformance, TLC and reproducible token measurement. A local pass is
-  not evidence of a hosted CI run.
+  Clippy, conformance, TLC and reproducible token measurement. The
+  [hosted verification](https://github.com/kiroha-lang/kiroha/actions/runs/40269236156)
+  and [release CI](https://github.com/kiroha-lang/kiroha/actions/runs/40269471769)
+  succeeded on the released source `d992c16`.
 - `install.sh` and `.github/workflows/release.yml` provide verified prebuilt
-  releases for Linux/macOS x86_64/ARM64. See [installation](docs/install.md).
+  releases for Linux/macOS x86_64/ARM64. [v0.3.0 is public](https://github.com/kiroha-lang/kiroha/releases/tag/v0.3.0).
+  Latest and pinned public installers were executed successfully, including
+  exact-decimal execution and all 145 conformance cases. See
+  [installation](docs/install.md) and the [publication record](docs/completion.md#public-distribution).
 
 ## Code and design
 
