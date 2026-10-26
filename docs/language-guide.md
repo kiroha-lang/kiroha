@@ -1,6 +1,6 @@
 # Kiroha language guide
 
-This guide teaches Kiroha 0.4.0 / Web1 by example. The normative definition is
+This guide teaches Kiroha 0.5.0 / Web1 by example. The normative definition is
 [`spec.md`](../spec.md); the [built-in reference](reference/builtins.md) lists
 every function. Examples show the result after `//`.
 
@@ -30,7 +30,7 @@ expression is the result.
 ```kiroha
 greeting = "hello";
 names = ["ada", "lin"];
-names | map(){n => greeting + ", " + n}
+names.map{n => greeting + ", " + n}
 // ["hello, ada","hello, lin"]
 ```
 
@@ -63,7 +63,7 @@ that never executes is still an error.
 | `string` | `"héllo"` | Unicode scalar values |
 | `array` | `[1, "a", [true]]` | heterogeneous, immutable |
 | `record` | `{a:1, "b c":2}` | ordered, immutable |
-| `function` | `{x => x+1}`, `len` | |
+| `function` | `{x => x+1}`, `text` | |
 | `bytes` | `encode("x")` | octets |
 | `schema` | `int`, `maybe(str)` | |
 | `query` | ``q`select 1` `` | opaque SQL |
@@ -90,40 +90,41 @@ lambda and catch-handler bodies.
 
 ```kiroha
 total = 1 + 2;              // binding
-fun double(n) then         // function definition
+fun double(n)         // function definition
   n * 2
-end fun double;
+end fun double
 double(total)               // 6
 ```
 
-Every named definition starts with `fun name(parameters) then` and ends with
+Every named definition starts with `fun name(parameters)` and ends with
 `end fun name`. Repeat the exact, case-sensitive opening name at the end;
 omitting it or closing a different function is a parse error. The body is a
-sequence: write local bindings and nested definitions directly, separated by
-semicolons. `fun` and `end` are reserved, but are still legal record keys.
-The old `double(n)=n*2` spelling is invalid in 0.4.0. See the
-[0.3 → 0.4 migration guide](migration-0.4.md).
+sequence: write local bindings and nested definitions directly. Bindings and
+expressions need semicolons between items; definitions delimit themselves.
+No `then` follows the function header. Conditional `if ... then` keeps its `then`. `fun` and `end` are reserved, but are still legal record keys.
+The old `double(n)=n*2` spelling is invalid in 0.5.0. See the
+[0.4 → 0.5 migration guide](migration-0.5.md).
 
 Rules worth remembering:
 
-- **No hoisting.** A name is visible only after its binding. `fun f() then g() end fun f; fun g() then 1 end fun g`
+- **No hoisting.** A name is visible only after its binding. `fun f() g() end fun f fun g() 1 end fun g`
   is a check error.
 - **Named recursion only.** A definition can call itself:
-  `fun fac(n) then if n<=1 then 1 else n*fac(n-1) end fun fac`.
+  `fun fac(n) if n<=1 then 1 else n*fac(n-1) end fun fac`.
 - **No rebinding in one scope.** `x=1; x=2` is a `duplicate_binding` error, but
   inner scopes may shadow: `x=1; do { x=2; x }` is `2`, and the outer `x` is
   still `1`.
-- **Closures capture lexically.** `x=1; fun f() then x end fun f; do { x=2; f() }` is `1`.
+- **Closures capture lexically.** `x=1; fun f() x end fun f do { x=2; f() }` is `1`.
 - **Sequence value.** The final expression is the value; an empty sequence or
   one ending in a binding/definition is `null`. A trailing `;` changes nothing:
   `do { 1; }` is `1`, `do { x=1; }` is `null`.
 - **Proper tail calls.** Tail-recursive loops run in constant space:
 
 ```kiroha
-fun count(n, acc) then
+fun count(n, acc)
   next = acc + 1;
   if n == 0 then acc else count(n - 1, next)
-end fun count;
+end fun count
 count(100000, 0)            // 100000
 ```
 
@@ -147,16 +148,19 @@ Every call has two channels: ordinary arguments in parentheses and at most one
 **trailing lambda**. Builtins such as `map` take their callback this way:
 
 ```kiroha
-map([1, 2, 3]){x => x * 10}     // [10,20,30]
-fold([1, 2, 3], 0){(acc, x) => acc + x}   // 6
+[1, 2, 3].map{x => x * 10}     // [10,20,30]
+[1, 2, 3].fold(0){(acc, x) => acc + x}   // 6
 ```
 
 A user function declares the callback slot after its parameters:
 
 ```kiroha
-fun apply(x){f} then f(x) end fun apply;
+fun apply(x){f} f(x) end fun apply
 apply(10){v => v + 1}           // 11
 ```
+
+A full `{IDENT}` immediately after the parameter list declares the slot.
+For a first-body shorthand record, use `{x:x}` or `do{{x}}`.
 
 The slot is a separate, **required** channel. These are all errors:
 
@@ -169,9 +173,11 @@ apply(10){g}               parse error: the trailing callback must be a lambda l
 
 To pass an existing function, wrap it: `apply(10){v => g(v)}`. Functions can
 still be ordinary data — stored in records, arrays, or passed to parameters
-that expect them: `fun invoke(f, x)  then  f(x) end fun invoke; invoke(g, 2)`.
+that expect them: `fun invoke(f, x)   f(x) end fun invoke invoke(g, 2)`.
 
-Parentheses are always required, even for no arguments: `now()`, `f(){x=>x}`.
+Ordinary calls require parentheses: `now()`, `f(){x=>x}`. For a direct
+member call with no ordinary arguments, the callback may follow the name:
+`xs.map{x=>x+1}`. Use `.sum()` without a callback and `.size` for length.
 
 ## 6. Pipes
 
@@ -179,12 +185,13 @@ Parentheses are always required, even for no arguments: `now()`, `f(){x=>x}`.
 argument: it means `f(lhs, a, b)`. The callback stays separate:
 
 ```kiroha
-[3, 1, 2] | sort() | map(){x => x * 2} | sum()     // 12
+[1, 2, 3] | check([int]) | dump()     // "[1,2,3]"
 ```
 
 A pipe stage is always a name or dotted path followed by `(...)`:
-`[1] | map` and `[1] | (map)()` are parse errors. Dotted paths look up record
-fields: `ns = {m: map}; [1] | ns.m(){x => x}`.
+`[1] | check` and `[1] | (check)()` are parse errors. Dotted paths use ordinary
+member selection, including record fields: `ns={show:dump}; [1] | ns.show()`.
+For collection work, use method chains: `[3,1,2].sort().map{x=>x*2}.sum()`.
 
 To pipe the result of `if` or `try`, parenthesize it:
 `(try risky() catch {e => null}) | f()`.
@@ -218,7 +225,7 @@ Precedence, highest first:
 - `??` replaces only `null`: `0 ?? 7` is `0`, `null ?? 7` is `7`.
 
 ```kiroha
-fun grade(n)  then  if n >= 90 then "A" else if n >= 80 then "B" else "C" end fun grade;
+fun grade(n)   if n >= 90 then "A" else if n >= 80 then "B" else "C" end fun grade
 grade(85)                       // "B"
 ```
 
@@ -249,14 +256,14 @@ Ordinary runtime failures are records `{code, message, data}` and can be
 caught:
 
 ```kiroha
-fun safe_div(a, b)  then  try a / b catch {e => e.code} end fun safe_div;
+fun safe_div(a, b)   try a / b catch {e => e.code} end fun safe_div
 [safe_div(1, 4), safe_div(1, 0)]       // [0.25,"number"]
 ```
 
 Raise your own with `fail`:
 
 ```kiroha
-fun check_age(n)  then  if n < 0 then fail({code:"bad_age", message:"negative", data:{n}}) else n end fun check_age;
+fun check_age(n)   if n < 0 then fail({code:"bad_age", message:"negative", data:{n}}) else n end fun check_age
 try check_age(-1) catch {e => e.data}  // {"n":-1}
 ```
 
@@ -298,10 +305,10 @@ Collections are immutable; functions return new values.
 ```kiroha
 orders = [{c:"a", n:2}, {c:"b", n:5}, {c:"a", n:1}];
 [
-  orders | filter(){o => o.n > 1} | len(),
-  orders | sort(){o => o.n} | map(){o => o.n},
-  orders | group(){o => o.c} | map(){g => {c:g.key, total: g.items | map(){o => o.n} | sum()}},
-  orders | unique(){o => o.c} | len()
+  orders.filter{o => o.n > 1}.size,
+  orders.sort{o => o.n}.map{o => o.n},
+  orders.group{o => o.c}.map{g => {c:g.key, total: g.items.map{o => o.n}.sum()}},
+  orders.unique{o => o.c}.size
 ]
 // [2,[1,2,5],[{"c":"a","total":3},{"c":"b","total":5}],2]
 ```
@@ -309,7 +316,7 @@ orders = [{c:"a", n:2}, {c:"b", n:5}, {c:"a", n:1}];
 Text and JSON:
 
 ```kiroha
-[split("a,b,,c", ","), join(["x","y"], "-"), replace("aaaa", "aa", "b"),
+["a,b,,c".split(","), ["x","y"].join("-"), "aaaa".replace("aa", "b"),
  text(1.50), number("1.25e2"), parse("{\"a\":[1]}"), dump({a:[1, 2.0]})]
 // [["a","b","","c"],"x-y","bb","1.5",125,{"a":[1]},"{\"a\":[1,2]}"]
 ```
@@ -322,14 +329,14 @@ Records: `keys`, `has`, `pick`, `merge` (shallow, right wins, positions kept),
 Everything is sequential unless you ask for concurrency with `parallel`:
 
 ```kiroha
-urls | parallel(4){u => get(u)}     // at most 4 requests in flight, results in input order
+urls.parallel(4){u => get(u)}     // at most 4 requests in flight, results in input order
 ```
 
 The first failure cancels the remaining children and is re-raised. To collect
 per-item failures, catch inside the callback:
 
 ```kiroha
-urls | parallel(4){u => try {ok:get(u)} catch {e => {error:e.code}}}
+urls.parallel(4){u => try {ok:get(u)} catch {e => {error:e.code}}}
 ```
 
 `retry` re-runs a zero-argument callback with exponential backoff, only when
@@ -396,7 +403,7 @@ Transactions:
 
 ```kiroha
 tx(d){t =>
-  row = sql(t, q`insert into users(name) values (${"ada"}) returning id`).rows | one();
+  row = sql(t, q`insert into users(name) values (${"ada"}) returning id`).rows.one();
   sql(t, q`insert into audit(user_id) values (${row.id})`);
   row
 }
@@ -413,10 +420,10 @@ transaction; `sql(d, ...)`, HTTP and files inside the callback are independent.
 d = db("main");
 serve({
   "GET /health": {r => {ok:true}},
-  "GET /users/:id": {r => sql(d, q`select id, name from users where id = ${number(r.params.id)}::int`).rows | one()},
+  "GET /users/:id": {r => sql(d, q`select id, name from users where id = ${number(r.params.id)}::int`).rows.one()},
   "POST /users": {r =>
     u = input(r, {name:str});
-    reply(201, sql(d, q`insert into users(name) values (${u.name}) returning id`).rows | one())
+    reply(201, sql(d, q`insert into users(name) values (${u.name}) returning id`).rows.one())
   }
 }, {port: 8080})
 ```

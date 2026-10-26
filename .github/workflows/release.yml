@@ -116,19 +116,21 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cat > release-notes.md <<'EOF'
-          Kiroha 0.4.0 / Web1 reference implementation.
+          Kiroha 0.5.0 / Web1 reference implementation.
 
-          Named functions now use an explicit opening and matching named end:
+          Compact function definitions omit header `then` and the separator after the named end.
+          Collection operations use receiver methods (`xs.map{f}`, `xs.fold(0){f}`),
+          and length is the `.size` property. Conditional `if ... then` is unchanged:
 
           ```text
-          fun fac(n) then
+          fun fac(n)
             if n <= 1 then 1 else n * fac(n - 1)
-          end fun fac;
+          end fun fac
           fac(5)
           ```
 
-          This is a syntax change from 0.3.0. See
-          https://github.com/kiroha-lang/kiroha/blob/main/docs/migration-0.4.md.
+          This is a syntax and API change from 0.4.0. See
+          https://github.com/kiroha-lang/kiroha/blob/main/docs/migration-0.5.md.
 
           Install the latest verified binary (Linux/WSL or macOS, x86_64/ARM64):
 
@@ -137,7 +139,7 @@ jobs:
           ```
 
           The installer verifies SHA-256 and defaults to `~/.local/bin`.
-          Pin a version with `bash -s -- --version 0.4.0`, or set `KIROHA_INSTALL_DIR`.
+          Pin a version with `bash -s -- --version 0.5.0`, or set `KIROHA_INSTALL_DIR`.
           Linux binaries require glibc 2.35+; macOS binaries target macOS 13+.
           See the repository's installation and language documentation for details.
           EOF

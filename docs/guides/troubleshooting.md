@@ -37,9 +37,9 @@ terminals. [Installation options](../install.md) explain alternate directories.
 Repeat the opening name after `end fun`, with the same spelling:
 
 ```kiroha
-fun double(n) then
+fun double(n)
   n * 2
-end fun double;
+end fun double
 
 double(3)
 // 6

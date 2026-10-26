@@ -6,7 +6,7 @@ unknown options are usage errors. `SOURCE` is a file path or `-` for stdin.
 
 | Command | Behavior |
 | --- | --- |
-| `kiroha --version` | One JSON line: `{"implementation","language":"0.4.0","profile":"Web1","cli":"kiroha-cli/1","conformance":"kiroha-conformance/1"}` |
+| `kiroha --version` | One JSON line: `{"implementation","language":"0.5.0","profile":"Web1","cli":"kiroha-cli/1","conformance":"kiroha-conformance/1"}` |
 | `kiroha check SOURCE --json` | Lex, parse and resolve only — no evaluation, no effects |
 | `kiroha run SOURCE --json [--host HOST.json]` | Evaluate with the given (or default, deny-all) host |
 | `kiroha spec --compact` | Print the embedded generation card exactly, with its final LF |

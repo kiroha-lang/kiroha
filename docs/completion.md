@@ -1,5 +1,33 @@
 # Web1 acceptance record
 
+## 0.5.0 compact functions and collection members (2026-10-26)
+
+Function headers no longer use `then`; `end fun name` delimits the definition,
+so its following semicolon is optional. Conditional `if ... then` retains
+`then`. Collection operations are receiver methods, for example
+`xs.map{f}`, `xs.fold(0){f}` and `xs.parallel(4){f}`. Length is `x.size`.
+The public surface is 31 global functions, 19 methods, one property and five
+schema atoms. Old global collection names are removed. See
+[migration](migration-0.5.md) for the complete mapping and record collisions.
+
+The parser represents members independently of builtin names. Bound methods
+hold an immutable receiver and an ordinary callable target; invocation shares
+the existing arity/callback path. This provides a base for future extensions,
+without adding user extension declarations in this release.
+
+Validation covers compact bodies and separators, retained conditional syntax,
+all receiver kinds, method aliases, record-field collisions, diagnostic
+positions, callback preflight and observable receiver/argument/callback order.
+Local verification passes **86 tests with PostgreSQL enabled**, **213/213
+conformance cases** (38 added), eight installer tests and warning-free Clippy.
+TLC explores 1212/90 states. The compact card measures 2797/2778 tokens; exact
+measurement reproduction passes. The strict documentation build, 20 executable
+beginner programs, 23 content pages, internal links and desktop/mobile browser
+flows pass (1440×900 and 390×844; no page/console errors).
+
+The dated 0.3 independent audit and
+0.4 release records below remain historical evidence for those versions.
+
 ## 0.4.0 named-function revision (2026-10-26)
 
 Named functions now use `fun name(params) then sequence end fun name`.

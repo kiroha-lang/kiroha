@@ -1,13 +1,22 @@
 # Built-in reference
 
-Kiroha 0.4.0 / Web1 has exactly **51 callable prelude names** and **5 schema
-atoms**. They are ordinary bindings: user code may shadow them. Normative text:
+Kiroha 0.5.0 / Web1 has **31 global functions, 19 collection methods, one `.size` property and 5 schema
+atoms**. Globals are ordinary bindings and may be shadowed. Members are selected
+by receiver kind; they are not global names. Normative text:
 [`spec.md`](../../spec.md) §7–§13.
 
 **Notation.** `f(a, b=default){cb}`: `=` marks a builtin default (applied only
 when the argument or option is *omitted* — explicit `null` never requests a
 default). `{cb}` is a required trailing callback, `[{cb}]` an optional one.
 "Accepts n" means callable with n ordinary arguments and no callback.
+
+Collection members use a receiver: `xs.map{f}`, `xs.fold(0){f}`, `xs.sum()`.
+Zero ordinary arguments may omit `()` before a trailing callback. `.size`
+returns a number directly. A saved method retains its receiver:
+`m=[1,2].map; m(){x=>x+1}`. Registered record members take precedence over
+fields; use `r["size"]` or `r["keys"]` to read colliding data. Other fields keep
+ordinary dot access. A member type error reports the receiver at position 0,
+then explicit arguments starting at 1.
 
 **General validation order (§7.2).** Explicit arguments left to right, then
 option fields in the order listed in each table, then unknown option names
@@ -18,7 +27,7 @@ non-record options value is `type`. Callback signature mismatches are `arity`
 with `reason:"callback_signature"`. User callback failures propagate
 unchanged.
 
-- [Data](#data): len, range, map, filter, fold, each, flat, take, sort, group, unique, sum
+- [Data](#data): size, range, map, filter, fold, each, flat, take, sort, group, unique, sum
 - [Records](#records): keys, has, pick, merge, one
 - [Text and JSON](#text-and-json): split, join, replace, text, number, parse, dump, encode, decode
 - [Schemas](#schemas): str, num, int, bool, json, check, maybe, optional, open
@@ -32,21 +41,21 @@ unchanged.
 
 | Function | Result | Errors / notes |
 | --- | --- | --- |
-| `len(x)` | Integer length: array items, record fields, string **scalars**, bytes octets | `type` for other kinds. `len("😀")` is 1 |
+| `x.size` | Integer length: array items, record fields, string **scalars**, bytes octets | `type` for other kinds. `"😀".size` is 1 |
 | `range(start, stop, step=1)` | Integers `start + k*step` before the exclusive `stop` | All integers (`type` if not number, `argument` if fractional); `step=0` → `argument`. Wrong direction or equal endpoints → `[]` |
-| `map(xs){f}` | `[f(x) ...]` in order | `f` accepts 1 |
-| `filter(xs){f}` | Items where `f(x)` is `true` | `f` must return bool (`type`) |
-| `fold(xs, init){f}` | Left fold `f(acc, x)`; `init` when empty | `f` accepts 2 |
-| `each(xs){f}` | `null`; runs `f(x)` for effects | |
-| `flat(xs)` | One-level concatenation | Every item must be an array (`type`), checked first |
-| `take(xs, n)` | First `min(n, len)` items | `n` nonnegative integer |
-| `sort(xs)[{f}]` | Stable ascending sort by key (identity when omitted) | Keys all numbers or all strings (`type` otherwise, including a single invalid key). Each key computed once, in order |
-| `group(xs){f}` | `[{key, items}]` in first-seen order | Keys must be JSON (`type`); equality is JSON equality (`1 == 1.0`, record order ignored); first key value kept |
-| `unique(xs)[{f}]` | First item per JSON-equal key | As `group` |
-| `sum(xs)` | Exact sum; `[]` → 0 | All items numbers (`type`) |
+| `xs.map{f}` | `[f(x) ...]` in order | `f` accepts 1 |
+| `xs.filter{f}` | Items where `f(x)` is `true` | `f` must return bool (`type`) |
+| `xs.fold(init){f}` | Left fold `f(acc, x)`; `init` when empty | `f` accepts 2 |
+| `xs.each{f}` | `null`; runs `f(x)` for effects | |
+| `xs.flat()` | One-level concatenation | Every item must be an array (`type`), checked first |
+| `xs.take(n)` | First `min(n, len)` items | `n` nonnegative integer |
+| `xs.sort() / xs.sort{f}` | Stable ascending sort by key (identity when omitted) | Keys all numbers or all strings (`type` otherwise, including a single invalid key). Each key computed once, in order |
+| `xs.group{f}` | `[{key, items}]` in first-seen order | Keys must be JSON (`type`); equality is JSON equality (`1 == 1.0`, record order ignored); first key value kept |
+| `xs.unique() / xs.unique{f}` | First item per JSON-equal key | As `group` |
+| `xs.sum()` | Exact sum; `[]` → 0 | All items numbers (`type`) |
 
 ```kiroha
-[range(5, 0, -2), sort([{n:2},{n:1}]){x => x.n}, unique([1, 1.0, {a:1,b:2}, {b:2,a:1}])]
+[range(5, 0, -2), [{n:2},{n:1}].sort{x => x.n}, [1, 1.0, {a:1,b:2}, {b:2,a:1}].unique()]
 // [[5,3,1],[{"n":1},{"n":2}],[1,{"a":1,"b":2}]]
 ```
 
@@ -54,11 +63,11 @@ unchanged.
 
 | Function | Result | Errors / notes |
 | --- | --- | --- |
-| `keys(r)` | Keys in insertion order | |
-| `has(r, k)` | Own-key presence (`null` values count as present) | `k` string |
-| `pick(r, ks)` | New record with keys in `ks` order | All `ks` strings and unique (checked first, `argument` for duplicates); absent key → `missing {key}`; never inserts null |
-| `merge(a, b)` | Shallow merge; `b` wins; existing keys keep position; new keys append | Both records |
-| `one(xs)` | The only item | Other lengths → `cardinality {expected:1, actual}` |
+| `r.keys()` | Keys in insertion order | |
+| `r.has(k)` | Own-key presence (`null` values count as present) | `k` string |
+| `r.pick(ks)` | New record with keys in `ks` order | All `ks` strings and unique (checked first, `argument` for duplicates); absent key → `missing {key}`; never inserts null |
+| `a.merge(b)` | Shallow merge; `b` wins; existing keys keep position; new keys append | Both records |
+| `xs.one()` | The only item | Other lengths → `cardinality {expected:1, actual}` |
 
 ## Text and JSON
 
@@ -66,9 +75,9 @@ All text operations are literal scalar sequences — no regex, no locale.
 
 | Function | Result | Errors / notes |
 | --- | --- | --- |
-| `split(s, sep)` | Parts, keeping empty leading/trailing parts. `split("", ",")` → `[""]` | `sep` nonempty (`argument`) |
-| `join(xs, sep)` | Strings joined; empty `sep` allowed | Items strings (`type`) |
-| `replace(s, old, new)` | All non-overlapping occurrences left to right; replacement not rescanned | `old` nonempty |
+| `s.split(sep)` | Parts, keeping empty leading/trailing parts. `"".split(",")` → `[""]` | `sep` nonempty (`argument`) |
+| `xs.join(sep)` | Strings joined; empty `sep` allowed | Items strings (`type`) |
+| `s.replace(old, new)` | All non-overlapping occurrences left to right; replacement not rescanned | `old` nonempty |
 | `text(x)` | String unchanged; number/bool/null canonical spelling | Other kinds `type` |
 | `number(s)` | Exact number from a complete signed JSON number | Non-string `type`; bad spelling (spaces, `+1`, `01`, `NaN`) → `number {reason:"invalid_syntax"}` |
 | `parse(s)` | Strict JSON with exact numbers and ordered records | `json {reason, offset}`; reasons `syntax`, `duplicate_key`, `surrogate`, `bom`, `trailing` |
@@ -99,7 +108,7 @@ into the error.
 
 ## Runtime
 
-### `parallel(xs, n){f}`
+### `xs.parallel(n){f}`
 
 Runs `f(item)` with at most `n` (positive integer) callbacks active, starting
 in index order; returns results in input order. Empty `xs` returns `[]`

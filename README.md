@@ -6,22 +6,21 @@
 
 Kiroha is a small, strict, immutable expression language for programs that
 manipulate JSON, call web services, serve HTTP APIs and use PostgreSQL. It was
-designed to be written by LLMs: the whole callable surface is 51 prelude
-functions, numbers are exact decimals, every effect is explicit and
+designed to be written by LLMs: the standard surface is 31 global functions, 19 collection methods
+and one `.size` property, numbers are exact decimals, every effect is explicit and
 capability-checked, and there is exactly one way to pass a callback — a
 mandatory trailing lambda.
 
 ```kiroha
 User = open({id:int, name:str, active:bool});
 
-get("https://api.example/users")
-  | check([User])
-  | filter(){u => u.active}
-  | map(){u => {id:u.id, name:u.name}}
+check(get("https://api.example/users"), [User])
+  .filter{u => u.active}
+  .map{u => {id:u.id, name:u.name}}
 ```
 
 This repository is a complete Rust implementation of the
-**Kiroha 0.4.0 / Web1** specification ([`spec.md`](spec.md)), including the
+**Kiroha 0.5.0 / Web1** specification ([`spec.md`](spec.md)), including the
 `kiroha` command-line tool, a deterministic conformance runner and production
 adapters for HTTP/1.1 (+ verified TLS), PostgreSQL 16, an HTTP server and the
 local filesystem.
@@ -30,13 +29,13 @@ local filesystem.
 
 | Area | State |
 | --- | --- |
-| Embedded conformance corpus (spec §16) | **175 / 175 pass**, including 30 named-function cases (`kiroha conformance spec.md --json`) |
+| Embedded conformance corpus (spec §16) | **213 / 213 pass**, including compact definitions and receiver members (`kiroha conformance spec.md --json`) |
 | Integration scenarios I01–I08 (spec §15.3) | All pass (`cargo test`, PostgreSQL 16.15 for I03/I04) |
 | Extra prose-rule regressions | Pass (`tests/prose_regressions.rs`) |
 | Formal verification | TLA+ models of `parallel` and `tx` model-checked with TLC; property-based tests of decimals and JSON against oracles ([details](docs/formal-verification.md)) |
-| 51 prelude functions + 5 schema atoms | Implemented; inventory matches the generation card |
+| 31 globals + 19 methods + size + 5 schema atoms | Implemented; inventory matches the generation card |
 | CLI protocol `kiroha-cli/1` | Implemented |
-| Acceptance | 83 tests pass with PostgreSQL; the 0.3 baseline passed audit 23, and the 0.4 syntax has dedicated delimiter/scope regressions ([record](docs/completion.md)) |
+| Acceptance | 86 tests pass with PostgreSQL; compact syntax and members have dedicated regressions; the dated 0.3 baseline passed audit 23 ([record](docs/completion.md)) |
 
 Details, versions and known deviations are in
 [docs/conformance-report.md](docs/conformance-report.md).
@@ -69,7 +68,7 @@ kiroha --version
 ## Quick start
 
 ```sh
-echo 'fun fac(n) then if n<=1 then 1 else n*fac(n-1) end fun fac; fac(20)' > fac.kiroha
+echo 'fun fac(n) if n<=1 then 1 else n*fac(n-1) end fun fac fac(20)' > fac.kiroha
 kiroha check fac.kiroha --json      # lex, parse and resolve only
 kiroha run fac.kiroha --json        # evaluate
 # {"protocol":"kiroha-cli/1","ok":true,"result":{"t":"number","v":"2432902008176640000"}}
@@ -100,8 +99,9 @@ See [the examples and their setup instructions](examples/README.md) for runnable
 | Document | Contents |
 | --- | --- |
 | [Language guide](docs/language-guide.md) | Tutorial: syntax, callbacks, scope, pipes, errors, schemas, concurrency, HTTP, SQL, servers |
-| [0.4 migration](docs/migration-0.4.md) | `fun name(...) then ... end fun name`, body sequences and reserved words |
-| [Built-in reference](docs/reference/builtins.md) | All 51 functions and 5 schema atoms: signatures, defaults, validation, errors |
+| [0.5 migration](docs/migration-0.5.md) | Compact definitions, collection methods and `.size` |
+| [0.4 migration](docs/migration-0.4.md) | `fun name(...) ... end fun name`, body sequences and reserved words |
+| [Built-in reference](docs/reference/builtins.md) | All globals, collection members and 5 schema atoms: signatures, defaults, validation, errors |
 | [Values and numbers](docs/reference/values-and-numbers.md) | Value kinds, exact decimals, canonical spelling, JSON, equality |
 | [Errors and aborts](docs/reference/errors.md) | Error codes and data, aborts, precedence |
 | [CLI](docs/cli.md) | Commands, envelopes, wire values, exit codes |
@@ -110,7 +110,7 @@ See [the examples and their setup instructions](examples/README.md) for runnable
 | [Architecture](docs/architecture.md) | Implementation design: CEK machine, scheduler, adapters, memory accounting |
 | [Conformance report](docs/conformance-report.md) | Test results, environment, deviations |
 | [Formal verification](docs/formal-verification.md) | TLA+ models (scheduler, transactions) and property-based tests (decimals, JSON) |
-| [Specification](spec.md) | The normative Kiroha 0.4.0 / Web1 contract |
+| [Specification](spec.md) | The normative Kiroha 0.5.0 / Web1 contract |
 | [Acceptance record](docs/completion.md) | Requirement-by-requirement completion evidence and final independent audit |
 | [Handoff](HANDOFF.md) | Completed state, verification and maintenance workflow |
 

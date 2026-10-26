@@ -1,5 +1,8 @@
 # Kiroha 0.3 → 0.4: explicit named functions
 
+> This is the historical 0.3 → 0.4 guide. For current syntax, continue with
+> [0.4 → 0.5](migration-0.5.md).
+
 Kiroha 0.4.0 makes the start and end of each named function explicit:
 
 ```kiroha

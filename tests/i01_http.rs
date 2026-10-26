@@ -115,9 +115,9 @@ fn statuses_headers_and_bodyless() {
     let b = format!("http://127.0.0.1:{port}");
     let src = format!(
         r#"r=http("GET","{b}/json"); t=http("DELETE","{b}/teapot");
-        [r.status,r.headers["x-a"],r.headers["set-cookie"],get("{b}/json"),t.status,len(t.body),
-         http("GET","{b}/204").status, len(http("GET","{b}/205").body), http("GET","{b}/304").status,
-         len(http("HEAD","{b}/head",{{max_bytes:0}}).body),
+        [r.status,r.headers["x-a"],r.headers["set-cookie"],get("{b}/json"),t.status,t.body.size,
+         http("GET","{b}/204").status, http("GET","{b}/205").body.size, http("GET","{b}/304").status,
+         http("HEAD","{b}/head",{{max_bytes:0}}).body.size,
          (try http("GET","{b}/205bad") catch {{e=>[e.code,e.data.reason]}}),
          http("GET","{b}/redirect").status, (try get("{b}/redirect") catch {{e=>[e.code,e.data.status]}})]"#
     );
@@ -235,7 +235,7 @@ fn many_response_header_fields_within_header_bytes() {
         out.extend_from_slice(b"\r\n");
         out
     });
-    let r = run(&format!(r#"len(keys(http("GET","http://127.0.0.1:{port}/").headers))"#), Some(&host(port)));
+    let r = run(&format!(r#"http("GET","http://127.0.0.1:{port}/").headers.keys().size"#), Some(&host(port)));
     assert_eq!(result(&r), "151");
 }
 
@@ -269,7 +269,7 @@ fn gzip_bomb_within_max_bytes_honours_memory_quota() {
     let host = format!(
         r#"{{"format":"kiroha-host/1","capabilities":{{"http":["http://127.0.0.1:{port}"]}},"limits":{{"memory_bytes":100000000}}}}"#
     );
-    let r = run(&format!(r#"len(http("GET","http://127.0.0.1:{port}/",{{max_bytes:2000000000}}).body)"#), Some(&host));
+    let r = run(&format!(r#"http("GET","http://127.0.0.1:{port}/",{{max_bytes:2000000000}}).body.size"#), Some(&host));
     assert_eq!(r.code, 3, "{}", r.stdout);
     assert!(r.stdout.contains("\"resource\":\"memory\""), "{}", r.stdout);
 }
@@ -305,9 +305,9 @@ fn strict_client_framing() {
     let b = format!("http://127.0.0.1:{port}");
     let r = run(
         &format!(
-            r#"[http("HEAD","{b}/head-te").status, len(http("HEAD","{b}/head-te").body), http("GET","{b}/304-te").status,
+            r#"[http("HEAD","{b}/head-te").status, http("HEAD","{b}/head-te").body.size, http("GET","{b}/304-te").status,
                get("{b}/ok-chunked"),
-               map(["c1","c2","c3","c4","c5","c6","c7","c8","c9","c10"]){{p=>try http("GET","{b}/"+p) catch {{e=>[e.code,e.data.reason]}}}}]"#
+               ["c1","c2","c3","c4","c5","c6","c7","c8","c9","c10"].map{{p=>try http("GET","{b}/"+p) catch {{e=>[e.code,e.data.reason]}}}}]"#
         ),
         Some(&host(port)),
     );
@@ -330,7 +330,7 @@ fn strict_client_framing() {
         assert!(r.stdout.contains("\"resource\":\"header_bytes\""), "{p}: {}", r.stdout);
     }
     // Exactly 68 field octets (43 head + 25 trailer) are allowed.
-    let r = run(&format!(r#"len(http("GET","{b}/combined").body)"#), Some(&small.replace("1000", "68")));
+    let r = run(&format!(r#"http("GET","{b}/combined").body.size"#), Some(&small.replace("1000", "68")));
     assert_eq!(result(&r), "0");
     let r = run(&format!(r#"http("GET","{b}/many-interim").status"#), Some(&host(port)));
     assert_eq!(result(&r), "200", "informational responses have no count limit");

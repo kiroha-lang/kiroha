@@ -20,7 +20,7 @@ code; the correspondence is maintained by hand (comments in each module name
 the Rust functions it models). They verify the *design* of those state
 machines for every interleaving; they do not mechanically prove the Rust code.
 
-### `Parallel.tla` — `parallel(xs, n){f}`
+### `Parallel.tla` — `xs.parallel(n){f}`
 
 Mirrors `create_group` / `start_child` / `child_done` in `src/runtime/mod.rs`.
 Each child may succeed, fail, or hold forever; an ancestor abort may arrive at

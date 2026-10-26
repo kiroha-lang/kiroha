@@ -1,6 +1,6 @@
 {
   "format": "kiroha-measurement/2",
-  "language": "0.4.0/Web1",
+  "language": "0.5.0/Web1",
   "status": "tokenization_only",
   "runtime_execution_evidence": null,
   "generation_evaluation_evidence": null,
@@ -26,21 +26,21 @@
   "documents": {
     "full_markdown": {
       "file": "spec.md",
-      "sha256": "3e22b0d33de34bfec86bdeb1a55c5ece44948b85338d0f454ef66001112158b6",
-      "unicode_code_points": 212125,
-      "utf8_bytes": 212229,
+      "sha256": "0ea1793fda41be318eea1371bbeb609db1aad539b6c64936f4a1d58330458f3d",
+      "unicode_code_points": 221515,
+      "utf8_bytes": 221625,
       "tokens": {
-        "o200k_base": 52083,
-        "cl100k_base": 51631
+        "o200k_base": 54484,
+        "cl100k_base": 54029
       }
     },
     "generation_card": {
-      "sha256": "f4c2d6a65a1354fcc9247546b9af9a120e7ac8eac5e8ee46cea646e4191fa3c6",
-      "unicode_code_points": 11266,
-      "utf8_bytes": 11266,
+      "sha256": "9feee0742a060f5e68f615adc1f57bf335bda5bc921ae537603bed5cb1fbdd5b",
+      "unicode_code_points": 12008,
+      "utf8_bytes": 12008,
       "tokens": {
-        "o200k_base": 2638,
-        "cl100k_base": 2618
+        "o200k_base": 2797,
+        "cl100k_base": 2778
       },
       "target_tokens_each_encoding": 4096,
       "within_target": true
@@ -48,46 +48,46 @@
   },
   "embedded_blocks": {
     "generation_card": {
-      "sha256": "f4c2d6a65a1354fcc9247546b9af9a120e7ac8eac5e8ee46cea646e4191fa3c6",
-      "unicode_code_points": 11266,
-      "utf8_bytes": 11266,
+      "sha256": "9feee0742a060f5e68f615adc1f57bf335bda5bc921ae537603bed5cb1fbdd5b",
+      "unicode_code_points": 12008,
+      "utf8_bytes": 12008,
       "tokens": {
-        "o200k_base": 2638,
-        "cl100k_base": 2618
+        "o200k_base": 2797,
+        "cl100k_base": 2778
       }
     },
     "conformance": {
-      "sha256": "f9b1a2fffbadca86636c7b0d55914d7752cb54bddcc3f3d779da9fac52eeb123",
-      "unicode_code_points": 56781,
-      "utf8_bytes": 56837,
+      "sha256": "ffdd6de3fa4959f0b5f9a41202cc0a2f96ab5c25d2a4d1cc3bf33ca881ca93f4",
+      "unicode_code_points": 61754,
+      "utf8_bytes": 61815,
       "tokens": {
-        "o200k_base": 17809,
-        "cl100k_base": 17548
+        "o200k_base": 19283,
+        "cl100k_base": 19023
       }
     },
     "measurement_corpus": {
-      "sha256": "b864b321aad010ab0bddbdcd0685282f3f85030d8329432f58ac3860745a2a0a",
-      "unicode_code_points": 2370,
-      "utf8_bytes": 2370,
+      "sha256": "af28ade2d8ad0c710a4eb43eb5eb2914fee7a78941e8e7bb3850ceeb94200e97",
+      "unicode_code_points": 2352,
+      "utf8_bytes": 2352,
       "tokens": {
-        "o200k_base": 709,
-        "cl100k_base": 707
+        "o200k_base": 703,
+        "cl100k_base": 701
       }
     },
     "measurement_script": {
-      "sha256": "62f99df05ca8b982920f2eb5969dcd884f768b0fc7640b5579e2b687b55fb944",
-      "unicode_code_points": 8949,
-      "utf8_bytes": 8949,
+      "sha256": "05a86b8a0eb033e90d2bd714737e22da963a5996c09254bf846a1474eba0e4c3",
+      "unicode_code_points": 9379,
+      "utf8_bytes": 9379,
       "tokens": {
-        "o200k_base": 2140,
-        "cl100k_base": 2112
+        "o200k_base": 2244,
+        "cl100k_base": 2216
       }
     }
   },
   "specified_surface": {
-    "callable_count": 51,
-    "callable_names": [
-      "len",
+    "native_operation_count": 51,
+    "native_operation_names": [
+      "size",
       "range",
       "map",
       "filter",
@@ -139,6 +139,65 @@
       "uuid",
       "log"
     ],
+    "global_function_count": 31,
+    "global_function_names": [
+      "range",
+      "text",
+      "number",
+      "parse",
+      "dump",
+      "encode",
+      "decode",
+      "check",
+      "maybe",
+      "optional",
+      "open",
+      "sleep",
+      "retry",
+      "pages",
+      "fail",
+      "http",
+      "get",
+      "post",
+      "url",
+      "db",
+      "sql",
+      "tx",
+      "serve",
+      "input",
+      "reply",
+      "env",
+      "read",
+      "write",
+      "now",
+      "uuid",
+      "log"
+    ],
+    "method_count": 19,
+    "method_names": [
+      "map",
+      "filter",
+      "fold",
+      "each",
+      "flat",
+      "take",
+      "sort",
+      "group",
+      "unique",
+      "sum",
+      "keys",
+      "has",
+      "pick",
+      "merge",
+      "one",
+      "split",
+      "join",
+      "replace",
+      "parallel"
+    ],
+    "properties": [
+      "size"
+    ],
     "schema_atoms": [
       "str",
       "num",
@@ -146,14 +205,14 @@
       "bool",
       "json"
     ],
-    "conformance_case_count": 175,
+    "conformance_case_count": 213,
     "expected_case_phases": {
       "abort": 6,
-      "check": 11,
+      "check": 31,
       "lex": 8,
-      "parse": 28,
+      "parse": 32,
       "runtime": 35,
-      "value": 87
+      "value": 101
     },
     "conformance_execution": "not run by this script"
   },
@@ -165,17 +224,17 @@
         "id": "example-1",
         "task": "HTTP JSON validation, filtering and projection",
         "sources": {
-          "kiroha": "User=open({id:int,name:str,active:bool});\nget(\"https://api.example/users\") | check([User]) | filter(){u=>u.active} | map(){u=>{id:u.id,name:u.name}}",
+          "kiroha": "User=open({id:int,name:str,active:bool});\n((get(\"https://api.example/users\") | check([User])).filter{u=>u.active}).map{u=>{id:u.id,name:u.name}}",
           "typescript_same_sdk": "const User=open({id:int,name:str,active:bool});\ncheck(await get(\"https://api.example/users\"),[User]).filter(u=>u.active).map(u=>({id:u.id,name:u.name}))"
         },
         "measurements": {
           "kiroha": {
-            "sha256": "f44fa82aab07c67fb33684cd0f14ad6a55572ee171e8edfa7bc425f3f2fe3074",
-            "unicode_code_points": 148,
-            "utf8_bytes": 148,
+            "sha256": "4813ea1a4fd114e5e9f6d346a331e8a8a99c52380f7d57613a0239d73e26b9d6",
+            "unicode_code_points": 144,
+            "utf8_bytes": 144,
             "tokens": {
-              "o200k_base": 46,
-              "cl100k_base": 48
+              "o200k_base": 45,
+              "cl100k_base": 47
             }
           },
           "typescript_same_sdk": {
@@ -190,12 +249,12 @@
         },
         "comparison": {
           "o200k_base": {
-            "kiroha_minus_baseline_tokens": 3,
-            "savings_percent": -6.98
+            "kiroha_minus_baseline_tokens": 2,
+            "savings_percent": -4.65
           },
           "cl100k_base": {
-            "kiroha_minus_baseline_tokens": 3,
-            "savings_percent": -6.67
+            "kiroha_minus_baseline_tokens": 2,
+            "savings_percent": -4.44
           }
         }
       },
@@ -241,17 +300,17 @@
         "id": "example-3",
         "task": "JSON API with two-write transaction",
         "sources": {
-          "kiroha": "d=db(\"main\");\nserve({\"POST /users\":{r=>\n  u=input(r,{name:str,email:str});\n  tx(d){t=>\n    row=sql(t,q`insert into users(name,email) values (${u.name},${u.email}) returning id`).rows | one();\n    sql(t,q`insert into audit(user_id) values (${row.id})`);\n    reply(201,row)\n  }\n}})",
+          "kiroha": "d=db(\"main\");\nserve({\"POST /users\":{r=>\n  u=input(r,{name:str,email:str});\n  tx(d){t=>\n    row=sql(t,q`insert into users(name,email) values (${u.name},${u.email}) returning id`).rows.one();\n    sql(t,q`insert into audit(user_id) values (${row.id})`);\n    reply(201,row)\n  }\n}})",
           "typescript_same_sdk": "const d=db(\"main\");\nserve({\"POST /users\":async r=>{\n  const u=input(r,{name:str,email:str});\n  return tx(d,async t=>{\n    const row=one((await sql(t,q`insert into users(name,email) values (${u.name},${u.email}) returning id`)).rows);\n    await sql(t,q`insert into audit(user_id) values (${row.id})`);\n    return reply(201,row)\n  })\n}})"
         },
         "measurements": {
           "kiroha": {
-            "sha256": "f138cced58aac35dabadad1ee02c2f0663d729386152ed72de0121389dd5d829",
-            "unicode_code_points": 279,
-            "utf8_bytes": 279,
+            "sha256": "67ded710cb77b77a071db6c68ce747d7730ddf822a75774eeacc9a4d1e7d95cb",
+            "unicode_code_points": 277,
+            "utf8_bytes": 277,
             "tokens": {
-              "o200k_base": 88,
-              "cl100k_base": 87
+              "o200k_base": 87,
+              "cl100k_base": 86
             }
           },
           "typescript_same_sdk": {
@@ -266,60 +325,60 @@
         },
         "comparison": {
           "o200k_base": {
-            "kiroha_minus_baseline_tokens": -7,
-            "savings_percent": 7.37
+            "kiroha_minus_baseline_tokens": -8,
+            "savings_percent": 8.42
           },
           "cl100k_base": {
-            "kiroha_minus_baseline_tokens": -7,
-            "savings_percent": 7.45
+            "kiroha_minus_baseline_tokens": -8,
+            "savings_percent": 8.51
           }
         }
       }
     ],
     "aggregate": {
       "o200k_base": {
-        "kiroha_tokens": 182,
+        "kiroha_tokens": 180,
         "baseline_tokens": 191,
-        "kiroha_minus_baseline_tokens": -9,
-        "weighted_savings_percent": 4.71
+        "kiroha_minus_baseline_tokens": -11,
+        "weighted_savings_percent": 5.76
       },
       "cl100k_base": {
-        "kiroha_tokens": 183,
+        "kiroha_tokens": 181,
         "baseline_tokens": 192,
-        "kiroha_minus_baseline_tokens": -9,
-        "weighted_savings_percent": 4.69
+        "kiroha_minus_baseline_tokens": -11,
+        "weighted_savings_percent": 5.73
       }
     }
   },
   "canonical_callback_examples": [
     {
-      "source": "urls | parallel(4){u=>get(u)}",
-      "sha256": "5b8d05828c6392dd68f5b280537e55ac9d468f2f02de186a7b5c7bcef0ac8728",
-      "unicode_code_points": 29,
-      "utf8_bytes": 29,
+      "source": "urls.parallel(4){u=>get(u)}",
+      "sha256": "db1c3215ddbe1d6d3e408a4a306617b099aebbf16b0dba5f0708b8fd429d8da8",
+      "unicode_code_points": 27,
+      "utf8_bytes": 27,
       "tokens": {
-        "o200k_base": 11,
-        "cl100k_base": 11
+        "o200k_base": 10,
+        "cl100k_base": 10
       }
     },
     {
-      "source": "users | map(){u=>u.name}",
-      "sha256": "6ff873cfa06dc74661e64efdbfcb8f238de119c99e15cd3e0e41e0c28ab253e9",
-      "unicode_code_points": 24,
-      "utf8_bytes": 24,
+      "source": "users.map{u=>u.name}",
+      "sha256": "341dbbb5d8fe520bdc93ae20e446bc46e8f5767ddc1781cdc0cbe8e1015bf0e2",
+      "unicode_code_points": 20,
+      "utf8_bytes": 20,
       "tokens": {
-        "o200k_base": 9,
-        "cl100k_base": 9
+        "o200k_base": 8,
+        "cl100k_base": 8
       }
     },
     {
-      "source": "fun apply(x){f} then f(x) end fun apply; apply(10){v=>v+1}",
-      "sha256": "75df0a8a97bf74d8ab3aa854daf244c58d62948c70c14c94196aa64b05375c37",
-      "unicode_code_points": 58,
-      "utf8_bytes": 58,
+      "source": "fun apply(x){f} f(x) end fun apply apply(10){v=>v+1}",
+      "sha256": "2e13562089e0797a03c793547ec13c7bbe385f38a352f6973993ddb259de22eb",
+      "unicode_code_points": 52,
+      "utf8_bytes": 52,
       "tokens": {
-        "o200k_base": 24,
-        "cl100k_base": 24
+        "o200k_base": 22,
+        "cl100k_base": 22
       }
     }
   ],

@@ -67,9 +67,9 @@ No trailing fractional zeros, no `+` in exponents, `0` for zero.
 
 ## Strings
 
-Length, ordering and comparison use Unicode scalar values: `len("😀")` is 1,
+Length, ordering and comparison use Unicode scalar values: `"😀".size` is 1,
 `"a" < "aa"` (a proper prefix sorts first), and ordering is by code point, so
-`sort(["😀","","a"])` is `["","a","😀"]`. No normalization or locale rules
+`["😀","","a"].sort()` is `["","a","😀"]`. No normalization or locale rules
 apply.
 
 ## JSON

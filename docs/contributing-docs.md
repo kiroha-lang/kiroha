@@ -28,7 +28,7 @@ python scripts/docs/check_site.py site
 python scripts/docs/check_examples.py --kiroha target/release/kiroha
 ```
 
-The last command needs a built or installed Kiroha 0.4.0 executable. Pass its
+The last command needs a Kiroha executable built from the current revision. Pass its
 path after `--kiroha`, or use `--kiroha kiroha` if it is on PATH.
 The beginner examples are executed, and the HTTP walkthrough is checked
 against a temporary local server.

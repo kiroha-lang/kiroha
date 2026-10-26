@@ -12,8 +12,8 @@ Open a terminal and run:
 kiroha --version
 ```
 
-You should see one line of JSON that includes `kiroha-rs/0.4.0` and the language
-version `0.4.0`. If your shell says `command not found`, try:
+You should see one line of JSON that includes `kiroha-rs/0.5.0` and the language
+version `0.5.0`. If your shell says `command not found`, try:
 
 ```sh
 export PATH="$HOME/.local/bin:$PATH"
@@ -92,16 +92,16 @@ The Kiroha value itself is a number.
 Try this in the same file:
 
 ```kiroha
-fun add_tax(price) then
+fun add_tax(price)
   tax = price * 0.1;
   price + tax
-end fun add_tax;
+end fun add_tax
 
 add_tax(20)
 // 22
 ```
 
-`fun add_tax(price) then` starts the function. `end fun add_tax` closes it
+`fun add_tax(price)` starts the function. `end fun add_tax` closes it
 with the same name. Between them, `tax` is a local value, and the last
 expression becomes the function's result.
 

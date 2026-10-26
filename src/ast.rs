@@ -98,6 +98,7 @@ pub enum Node {
     Call { callee: NodeId, args: Vec<NodeId>, cb: Option<NodeId> },
     Pipe { left: NodeId, head: NodeId, fields: Vec<Rc<str>>, args: Vec<NodeId>, cb: Option<NodeId> },
     Get { recv: NodeId, key: NodeId, optional: bool },
+    Member { recv: NodeId, name: Rc<str>, optional: bool },
     Unary { op: UnOp, e: NodeId },
     Binary { op: BinOp, l: NodeId, r: NodeId },
     If { c: NodeId, t: NodeId, e: NodeId },

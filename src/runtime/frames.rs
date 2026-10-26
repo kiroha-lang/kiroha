@@ -17,6 +17,7 @@ pub enum Frame {
     PipeArgs { node: NodeId, f: Value, args: Vec<Value>, env: Rc<Env> },
     GetRecv { node: NodeId, env: Rc<Env> },
     GetKey { node: NodeId, recv: Value },
+    Member { node: NodeId },
     Unary { node: NodeId },
     BinLeft { node: NodeId, env: Rc<Env> },
     BinRight { node: NodeId, left: Value },
