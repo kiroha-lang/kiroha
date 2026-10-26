@@ -32,7 +32,7 @@ those bytes with a JSON content type. It is a small server for this example;
 
 The server needs permission to listen and to read the file. Save this as
 `server.host.json`, replacing **both** occurrences of `/absolute/path/to/example`
-with the absolute path of the folder containing `items.json` (run `pwd` in the
+with the absolute path of the folder containing `items.json` (run `pwd -P` in the
 folder to see it):
 
 ```json
