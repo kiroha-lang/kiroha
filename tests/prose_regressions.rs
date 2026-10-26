@@ -200,6 +200,22 @@ fn zero_step_abort_precedes_every_expression_and_effect() {
     assert!(all, "{}", kiroha::json::dump(&report));
 }
 
+#[test]
+fn command_counts_never_turn_numeric_quota_failure_into_zero() {
+    let template = r#"{"format":"kiroha-conformance/1","language":"0.3.0/Web1","scheduler":"virtual-fifo/1","cases":[{"id":"count","source":"sql(db(\"main\"),q`select 1`).count","host":{"capabilities":{"databases":["main"]}},"fixtures":[{"id":"pool","op":"pool","match":{},"ok":"p"},{"id":"acq","op":"acquire","match":{},"ok":"c"},{"id":"q","op":"execute","match":{},"ok":{"columns":[],"rows":[],"count":"COUNT","outcome":"committed"}},{"id":"rel","op":"release","match":{},"ok":null}],"expect":EXPECT}]}"#;
+    for (count, expected) in [
+        ("1".repeat(100001), r#"{"phase":"abort","reason":"resource","data":{"resource":"number"}}"#.to_string()),
+        ("0".repeat(100001), r#"{"phase":"value","json":"0"}"#.to_string()),
+        (format!("1{}", "0".repeat(100001)), r#"{"phase":"value","json":"1e100001"}"#.to_string()),
+        ("18446744073709551616".to_string(), r#"{"phase":"value","json":"18446744073709551616"}"#.to_string()),
+    ] {
+        let manifest = template.replace("COUNT", &count).replace("EXPECT", &expected);
+        let cases = parse_manifest(&manifest).unwrap();
+        let (report, all) = run_all(&cases);
+        assert!(all, "{}", kiroha::json::dump(&report));
+    }
+}
+
 
 #[test]
 fn unmatched_effect_with_pending_timer_is_a_prompt_harness_failure() {

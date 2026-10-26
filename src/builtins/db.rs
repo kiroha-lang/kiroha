@@ -115,13 +115,20 @@ pub fn convert_rows(raw: &RawRows, max_rows: u64) -> Result<Value, Fail> {
             return Err(decode());
         }
     }
+    if crate::interrupt::poll_big(raw.count.len()) { return Err(Fail::Interrupted); }
     if raw.count.is_empty() || !raw.count.bytes().all(|c| c.is_ascii_digit()) {
         return Err(decode());
     }
-    let count = crate::decimal::Decimal::parse_json(raw.count.trim_start_matches('0'))
-        .ok()
-        .flatten()
-        .unwrap_or_else(crate::decimal::Decimal::zero);
+    let digits = raw.count.trim_start_matches('0');
+    let count = if digits.is_empty() {
+        crate::decimal::Decimal::zero()
+    } else {
+        match crate::decimal::Decimal::parse_json(digits) {
+            Ok(Some(count)) => count,
+            Ok(None) => return Err(decode()),
+            Err(_) => return Err(Fail::Abort(AbortReason::Resource("number"))),
+        }
+    };
     if raw.rows.len() as u64 > max_rows {
         return Err(Fail::Err(err::make(
             "limit",
