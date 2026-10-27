@@ -1,6 +1,6 @@
 # Built-in reference
 
-The development version has **30 global functions, 19 collection methods, one `.size` property and 5 schema
+Kiroha 0.8.0 has **30 global functions, 19 collection methods, one `.size` property and 5 schema
 atoms**. Globals are ordinary bindings and may be shadowed. Members are selected
 by receiver kind; they are not global names. Normative text:
 [`spec.md`](../../spec.md) §7–§13.
@@ -214,11 +214,11 @@ Returns the configured pool handle for alias `name` (needs the
 `d` is a database handle or a live transaction handle owned by the current
 task; `Q` must be a query literal (a string is `type`).
 
-The development version also provides SQL blocks: `sql[T](d){...}` validates
+Kiroha also provides SQL blocks: `sql[T](d){...}` validates
 each returned row as `T` and returns `[T]`; `sql(d){...}` returns the usual
 `{rows, count}`. Either form accepts options after `d`. Validation occurs after
-SQL execution. See the [database guide](../guides/databases.md#sql-blocks-unreleased)
-for details; these forms are not in the released 0.7.0 binary.
+SQL execution. See the [database guide](../guides/databases.md#sql-blocks)
+for details.
 
 | Option | Default | Domain |
 | --- | --- | --- |

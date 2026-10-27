@@ -119,3 +119,10 @@ jobs:
         run: |
           python scripts/plugin.py check --kiroha target/release/kiroha
           python scripts/plugin.py package
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify the Claude Code plugin
+        run: |
+          npm install --global @anthropic-ai/claude-code@2.1.310
+          python scripts/check_plugin_claude.py

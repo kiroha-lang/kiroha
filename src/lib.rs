@@ -1,4 +1,4 @@
-//! Kiroha 0.7.0 / Web1 language and runtime.
+//! Kiroha 0.8.0 / Web1 language and runtime.
 //!
 //! Pipeline: [`lexer`] → [`parser`] → [`resolve`] → [`typecheck`] produce a resolved
 //! [`ast::Program`]; [`runtime::Runtime`] evaluates it against a

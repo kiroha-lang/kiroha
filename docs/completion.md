@@ -1,5 +1,15 @@
 # Web1 acceptance record
 
+## 0.8.0 validation and SQL syntax
+
+Kiroha 0.8.0 replaces the global `check` function with `.as[Type]` and
+`.as(schema)`, and adds typed and untyped SQL blocks. The current conformance
+corpus contains 263 cases, including validation, SQL binding and compatibility
+checks. The [migration guide](migration-0.8.md) explains the breaking change;
+the database guide describes row validation and transaction behavior.
+
+The dated 0.7.0 and earlier records below remain historical evidence.
+
 ## 0.7.0 shared database adapters (2026-10-26)
 
 PostgreSQL 16, MySQL 8.4 and MariaDB 11.4 now use one pool/lease abstraction,

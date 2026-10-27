@@ -128,24 +128,38 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
       - name: Prepare checksums and installer
         run: |
+          python -m pip install PyYAML==6.0.3
+          kiroha_plugin_version=$(python -c 'import json; print(json.load(open("plugins/kiroha/plugin.json"))["version"])')
+          python scripts/plugin.py package --output "dist/kiroha-plugin-${kiroha_plugin_version}.zip"
           cp install.sh dist/install.sh
           cd dist
-          sha256sum kiroha-*.tar.gz install.sh > SHA256SUMS
+          sha256sum kiroha-*.tar.gz kiroha-plugin-*.zip install.sh > SHA256SUMS
       - name: Publish verified release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           cat > release-notes.md <<'EOF'
-          Kiroha 0.7.0 / Web1 reference implementation.
+          Kiroha 0.8.0 / Web1 reference implementation.
+
+          This release replaces the global `check` function with `.as[Type]`
+          and `.as(schema)` validation. The `kiroha check` CLI command remains.
+          Typed SQL blocks return validated rows; untyped blocks retain
+          `{rows, count}`. Holes remain bound SQL parameters. See the migration
+          guide: https://kiroha-lang.github.io/kiroha/migration-0.8/.
 
           PostgreSQL, MySQL 8.4 and MariaDB 11.4 share the db/sql/tx API.
           Host pool configuration selects the backend; leases, deadlines, transaction
           poisoning, cleanup and outcomes use the same runtime machinery.
           Exact decimal bindings avoid host floats. SQL dialects and native type
           differences are documented at https://kiroha-lang.github.io/kiroha/guides/databases/.
-          The Kiroha Codex plugin 0.3 includes the matching database guidance.
+          Kiroha plugin 0.4 supports both Codex and Claude Code.
+          Claude Code installation: https://kiroha-lang.github.io/kiroha/claude-plugin/.
+          The release assets include the self-contained plugin ZIP and its checksum.
 
           Install the latest verified binary (Linux/WSL or macOS, x86_64/ARM64):
 
@@ -154,7 +168,7 @@ jobs:
           ```
 
           The installer verifies SHA-256 and defaults to `~/.local/bin`.
-          Pin a version with `bash -s -- --version 0.7.0`, or set `KIROHA_INSTALL_DIR`.
+          Pin a version with `bash -s -- --version 0.8.0`, or set `KIROHA_INSTALL_DIR`.
           Linux binaries require glibc 2.35+; macOS binaries target macOS 13+.
           See the repository's installation and language documentation for details.
           EOF

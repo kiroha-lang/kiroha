@@ -1,4 +1,4 @@
-Kiroha 0.7.0 / Web1
+Kiroha 0.8.0 / Web1
 Write only this language/API. No imports, host escape, invented methods or implicit variables. Task URLs, credentials, DB schemas and requirements are separate input.
 
 CORE
@@ -66,7 +66,7 @@ Network/timeout outcome not_sent only when proven, otherwise unknown. Failed req
 DATABASE
 db(name): configured borrowed database pool,reused,no close. Host selects postgresql(default)/mysql/mariadb.
 sql(d,Q,o={}): one parameterized SELECT/INSERT/UPDATE/DELETE (PG16 also MERGE, WITH allowed); backend SQL syntax, no SELECT INTO/DDL/session/transaction control. Query only; no literal $n(PG)/?(MySQL/MariaDB) parameters. o={timeout:10000,max_rows:10000}. Returns {rows:[record],count:int}, count server command count. Outside tx autocommit.
-Unreleased: sql[T](d,o?){SQL ${expr}} validates all rows as T and returns [T]; sql(d,o?){SQL ${expr}} returns {rows,count}. Holes bind values as in q literals; validation happens after SQL execution.
+sql[T](d,o?){SQL ${expr}} validates all rows as T and returns [T]; sql(d,o?){SQL ${expr}} returns {rows,count}. Holes bind values as in q literals; validation happens after SQL execution.
 Bind null/bool/string/exact-number/Bytes/JSON records-arrays, not SQL arrays. PG: numeric/jsonb/bytea/bool map naturally. MySQL/MariaDB: large/fractional numbers bind exact text; CAST(... AS DECIMAL(p,s)) for numeric semantics. BOOL=>int, binary=>Bytes, MySQL JSON=>json, MariaDB JSON=>str then parse/check. Results integer/decimal exact, text str, NULL null. Float/date/time/unsupported types need SQL casts. Duplicate columns/mapping/limit errors; autocommit may have committed.
 tx(d,o={timeout:10000}){f}: f(t), pinned read-committed transaction. Normal unpoisoned result commits; otherwise rollback attempt. Every sql(t) failure after live owned t accepted poisons with first failure even if caught. t task-confined/expires on callback return; parallel children cannot use it even n1. No nested tx same task. Only explicit sql(t) joins; sql(d),HTTP/files independent.
 tx timeout aborts callback and is catchable only outside tx. Ancestor abort wins, then tx timeout, then first SQL error, then other callback error. Lost COMMIT acknowledgment=>db outcome unknown; no replay.

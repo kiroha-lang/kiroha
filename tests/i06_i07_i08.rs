@@ -306,7 +306,7 @@ fn i08_cli_protocol() {
     assert_eq!(result(&out), r#"[1,"a"]"#);
     // spec card and version
     let out = finish(kiroha().args(["spec", "--compact"]).output().unwrap());
-    assert!(out.stdout.starts_with("Kiroha 0.7.0 / Web1\n") && out.stdout.ends_with("do not infer absent APIs.\n"));
+    assert!(out.stdout.starts_with("Kiroha 0.8.0 / Web1\n") && out.stdout.ends_with("do not infer absent APIs.\n"));
     let out = finish(kiroha().arg("--version").output().unwrap());
     assert!(out.stdout.contains("\"cli\":\"kiroha-cli/1\""));
     // conformance corpus passes

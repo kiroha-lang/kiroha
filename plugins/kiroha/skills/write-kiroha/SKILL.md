@@ -5,14 +5,15 @@ description: Write, review, migrate and debug Kiroha (.kiroha) programs when the
 
 # Write Kiroha
 
-Target **Kiroha 0.7.0 / Web1** development source. The `.as` syntax here is
-unreleased; the published 0.7.0 binary uses the older `check` function. Help with the requested program, explanation or
+Target **Kiroha 0.8.0 / Web1**. Help with the requested program, explanation or
 source change; match the user's scope. Resolve paths below from this skill's
 directory, including when it is installed outside the user's project.
 
 Read [the generation card](references/generation-card.md) before writing or
 reviewing code. It is extracted verbatim from the language specification, not
 an approximation of JavaScript, Kotlin or Scala.
+
+For migration from 0.7, read [the 0.8 migration guide](references/migration-0.8.md).
 
 ## Write the program
 
@@ -53,7 +54,7 @@ Read only the additional material needed for the task:
 | CLI, installing a matching runtime, tagged JSON, validation | [Runtime workflow](references/runtime.md) |
 | HTTP/listen/DB/file capabilities, pools or budgets | [Host configuration](references/host-config.md) |
 | SQL dialects, portable queries, DB types | [Database guide](references/databases.md) |
-| Updating older source | [0.6 migration](references/migration-0.6.md) |
+| Updating older source | [0.8 migration](references/migration-0.8.md), [0.6 migration](references/migration-0.6.md) |
 
 ## Types
 

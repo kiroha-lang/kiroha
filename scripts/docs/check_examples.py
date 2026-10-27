@@ -61,6 +61,14 @@ def main():
                 expected = match[1]
             run(args.kiroha, source, expected)
             count += 1
+    migration = fences(ROOT / 'docs/migration-0.8.md', 'kiroha')
+    assert len(migration) == 3
+    for source, expected in zip(migration[:2], ('3', '1')):
+        run(args.kiroha, source, expected)
+        count += 1
+    sql_check = subprocess.run([args.kiroha, 'check', '-', '--json'],
+                               input=migration[2], text=True, capture_output=True, timeout=20)
+    assert sql_check.returncode == 0, sql_check.stdout + sql_check.stderr
     page = ROOT / 'docs/guides/http.md'
     items, server_host, client_host = [json.loads(s) for s in fences(page, 'json')]
     server_source, client_source = fences(page, 'kiroha')

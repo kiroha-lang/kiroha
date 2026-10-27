@@ -60,9 +60,9 @@ The result is `{rows, count}`. Each row is a record. Use `.as[Greeting]` to esta
 the shape of columns before doing shape-specific work. Duplicate column names
 are errors: give joined or calculated columns distinct aliases.
 
-### SQL blocks (unreleased)
+### SQL blocks
 
-On the development version, a SQL block can validate every row against a type
+A SQL block can validate every row against a type
 and return the resulting array directly:
 
 ```kiroha
@@ -81,7 +81,7 @@ does not poison that transaction. Use `.one()` when exactly one row is needed.
 Without a type, `sql(d){...}` returns the usual `{rows, count}`. Options work
 in both forms, for example `sql[Greeting](d, {max_rows:10}){select ...}`.
 Holes use the same parameter binding and SQL safety checks as query literals.
-The old ``sql(d, q`…`)`` form remains available in released Kiroha 0.7.0.
+The earlier ``sql(d, q`…`)`` form remains available.
 
 SQL block braces inside quoted SQL text, dollar quotes and comments do not end
 the block. A literal `${` is written `\${`; interpolation is otherwise recognized

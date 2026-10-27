@@ -78,11 +78,13 @@ nav:
       - Errors and aborts: reference/errors.md
       - Command line: cli.md
       - Host configuration: host-config.md
+      - Move from 0.7 to 0.8: migration-0.8.md
       - Move from 0.5 to 0.6: migration-0.6.md
       - Move from 0.4 to 0.5: migration-0.5.md
       - Move from 0.3 to 0.4: migration-0.4.md
   - Go deeper:
       - Write Kiroha with Codex: codex-plugin.md
+      - Write Kiroha with Claude Code: claude-plugin.md
       - Icon and favicon: branding.md
       - Example programs: examples.md
       - Language specification: spec.md

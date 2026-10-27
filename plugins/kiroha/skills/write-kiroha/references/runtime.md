@@ -1,6 +1,6 @@
 # Runtime workflow
 
-The bundled card and examples target **Kiroha 0.7.0 / Web1**. This plugin
+The bundled card and examples target **Kiroha 0.8.0 / Web1**. This plugin
 provides instructions and source, not a runtime binary or MCP tool.
 
 ## Find a matching executable
@@ -14,8 +14,8 @@ If installing a runtime is part of the task, the official installer supports
 an isolated destination. Choose a task-local `INSTALL_DIR`, then use:
 
 ```sh
-curl -fsSL https://github.com/kiroha-lang/kiroha/releases/download/v0.7.0/install.sh \
-  | bash -s -- --version 0.7.0 --install-dir "$INSTALL_DIR"
+curl -fsSL https://github.com/kiroha-lang/kiroha/releases/download/v0.8.0/install.sh \
+  | bash -s -- --version 0.8.0 --install-dir "$INSTALL_DIR"
 "$INSTALL_DIR/kiroha" --version
 ```
 

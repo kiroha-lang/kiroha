@@ -2,10 +2,9 @@
 
 The **Kiroha** plugin gives an agent the language guidance it needs to write,
 review, migrate and debug `.kiroha` programs. Its `write-kiroha` skill targets
-Kiroha 0.7.0: explicit structural types, simple generics, compact named functions and collection methods.
+Kiroha 0.8.0: explicit structural types, simple generics, compact named functions and collection methods.
 
-The development plugin documents unreleased `.as` validation; the published
-0.7.0 executable still uses the earlier `check` function.
+Version 0.4 of the plugin targets Kiroha 0.8 and covers `.as` validation and SQL blocks. The same skill is also available for [Claude Code](claude-plugin.md).
 
 It includes the canonical generation card, API and host references, a migration
 guide and eight complete example programs. References travel with the plugin,
@@ -42,7 +41,7 @@ orders by customer and calculates exact totals. Check and run it locally.
 ```
 
 ```text
-Use $kiroha:write-kiroha to migrate this 0.5 program to 0.6, keeping its behavior.
+Use $kiroha:write-kiroha to migrate this 0.7 program to 0.8, keeping its behavior.
 ```
 
 ```text
@@ -64,7 +63,7 @@ codex plugin marketplace upgrade kiroha-lang
 codex plugin add kiroha@kiroha-lang
 ```
 
-The plugin version is **0.3.0**, independently of the language version **0.7.0**.
+The plugin version is **0.4.0**, independently of the language version **0.8.0**.
 Its examples and bundled card are checked against that language version.
 
 ## Develop the plugin
@@ -98,7 +97,9 @@ eight programs, and executes pure examples, HTTP/pagination fixtures, file I/O
 and a live HTTP service. The database example is statically checked and documents
 its expected table and write; it is not run against an arbitrary database.
 
-The package command writes and inspects `target/plugins/kiroha-0.3.0.zip`.
+The package command writes and inspects `target/plugins/kiroha-0.4.0.zip`.
+The [0.8.0 release](https://github.com/kiroha-lang/kiroha/releases/tag/v0.8.0)
+also provides this ZIP and its SHA-256 checksum.
 The ZIP contains only the self-contained plugin, including its license. It
 excludes the marketplace, repository, runtime binary and dependencies. Normal
 CI checks synchronization, executes the examples and builds the package.

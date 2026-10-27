@@ -1,0 +1,18 @@
+{
+  "name": "kiroha",
+  "version": "0.4.0",
+  "description": "Write, review and migrate Kiroha 0.8 programs with runnable examples.",
+  "author": {
+    "name": "Kiroha contributors",
+    "url": "https://github.com/kiroha-lang"
+  },
+  "homepage": "https://kiroha-lang.github.io/kiroha/claude-plugin/",
+  "repository": "https://github.com/kiroha-lang/kiroha",
+  "license": "MIT",
+  "keywords": [
+    "kiroha",
+    "programming-language",
+    "code-generation"
+  ],
+  "icon": "./.claude-plugin/icon.png"
+}
