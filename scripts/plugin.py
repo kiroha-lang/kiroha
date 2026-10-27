@@ -65,7 +65,7 @@ def generated():
     assert spec.count(start) == spec.count(end) == 1
     card = spec.split(start)[1].split(end)[0]
     result = {SKILL / 'references/generation-card.md': card}
-    for source in ('reference/builtins.md', 'host-config.md', 'guides/databases.md', 'types.md', 'migration-0.6.md'):
+    for source in ('reference/builtins.md', 'host-config.md', 'guides/databases.md', 'types.md', 'migration-0.6.md', 'migration-0.8.md'):
         text = (ROOT / 'docs' / source).read_text()
         def absolute(m):
             label, link = m.groups()

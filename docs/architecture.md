@@ -1,6 +1,6 @@
 # Architecture
 
-This document describes how this implementation realizes the Kiroha 0.7.0 /
+This document describes how this implementation realizes the Kiroha 0.8.0 /
 Web1 contract. Language-visible behavior is fixed by [`spec.md`](../spec.md);
 everything here is an engineering choice.
 

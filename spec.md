@@ -1,10 +1,10 @@
-# Kiroha 0.7.0 — Web1 Language and Runtime Specification
+# Kiroha 0.8.0 — Web1 Language and Runtime Specification
 
-**Revision:** 0.7.0 · **Profile:** Web1 · **Date:** 2026-10-26
+**Revision:** 0.8.0 · **Profile:** Web1 · **Date:** 2026-10-27
 **Deliverables:** this self-contained implementation specification and `measurement.json`.
 
-SQL blocks and `.as[...]` / `.as(schema)` validation are unreleased development
-changes. The released 0.7.0 binary uses the earlier `check` function instead.
+Version 0.8.0 adds SQL blocks and `.as[...]` / `.as(schema)` validation.
+The earlier 0.7.0 release uses the `check` function instead.
 
 Kiroha is a small, strict, immutable expression language for LLM-generated programs that manipulate JSON, call web services, serve APIs and use PostgreSQL, MySQL or MariaDB. Its single canonical callback syntax is a mandatory trailing lambda, with a matching declaration-side callback slot:
 
@@ -46,7 +46,7 @@ The declaration and call both have an ordinary argument channel and a separate c
 
 Sections 2–16 are the normative implementation contract. MUST/MUST NOT express conformance requirements. SHOULD is used only for explicitly optional engineering advice. Examples and test expectations must agree with the normative rules; an implementation may not silently choose a different behavior to match its host language.
 
-This file replaces the Kiroha 0.5.0 specification as the implementation authority for 0.7.0. It defines lexical/syntactic rules, static resolution, values, evaluation, 30 global functions, 19 collection methods and the size property, external effects, host configuration, a CLI and an embedded conformance corpus. No prior chat, hidden design document, skill, existing implementation or unstated API is needed to determine Kiroha semantics.
+This file replaces the Kiroha 0.7.0 specification as the implementation authority for 0.8.0. It defines lexical/syntactic rules, static resolution, values, evaluation, 30 global functions, 19 collection methods and the size property, external effects, host configuration, a CLI and an embedded conformance corpus. No prior chat, hidden design document, skill, existing implementation or unstated API is needed to determine Kiroha semantics.
 
 This revision has a Rust reference implementation in this repository. Embedded cases remain normative acceptance requirements; recorded execution results are in `docs/conformance-report.md`. Token measurements report document/source length only. Finite review and tests do not prove that every future implementation will be bug-free.
 
@@ -71,7 +71,7 @@ The generation surface is small because common work has explicit runtime/library
 | Portability | Host-independent values; explicit I/O and configuration boundaries |
 | Tests | Embedded machine-readable cases plus required real integration scenarios |
 
-The 0.3.0 baseline fixed details not settled by the prior short contract: grammar disambiguation, comparison nonchaining, scalar-based strings, canonical decimal/JSON spelling, static error timing, callback preflight, complete error data, timeout/cleanup scopes, URL/header/framing policies, SQL parsing/typing, filesystem replacement, CLI/wire formats and conformance fixtures. It also treats HTTP 205 as bodyless. The 0.4.0 revision introduced explicit `fun` and matching named ends. Version 0.5.0 removes function-header `then`, makes a separator after a definition optional, and moves collection operations to receiver methods with `.size` for length. Conditional `then` remains mandatory. The native operation inventory remains 50 entries; its public surface is 30 globals, 19 methods and one property. Version 0.7.0 adds explicit structural types, lightweight checking and simple generics, with no implicit any. Token counts below measure length, not generation success.
+The 0.3.0 baseline fixed details not settled by the prior short contract: grammar disambiguation, comparison nonchaining, scalar-based strings, canonical decimal/JSON spelling, static error timing, callback preflight, complete error data, timeout/cleanup scopes, URL/header/framing policies, SQL parsing/typing, filesystem replacement, CLI/wire formats and conformance fixtures. It also treats HTTP 205 as bodyless. The 0.4.0 revision introduced explicit `fun` and matching named ends. Version 0.5.0 removes function-header `then`, makes a separator after a definition optional, and moves collection operations to receiver methods with `.size` for length. Conditional `then` remains mandatory. The 0.8.0 public native operation inventory has 50 entries; its public surface is 30 globals, 19 methods and one property. Version 0.7.0 added explicit structural types, lightweight checking and simple generics, with no implicit any. Version 0.8.0 adds SQL blocks and replaces the global `check` function with `.as` validation. Token counts below measure length, not generation success.
 
 ### 0.4 Agent build instruction
 
@@ -85,7 +85,7 @@ The exact text between the text fence below is extracted by `kiroha spec --compa
 
 <!-- KIROHA_GENERATION_CARD_BEGIN -->
 ```text
-Kiroha 0.7.0 / Web1
+Kiroha 0.8.0 / Web1
 Write only this language/API. No imports, host escape, invented methods or implicit variables. Task URLs, credentials, DB schemas and requirements are separate input.
 
 CORE
@@ -153,7 +153,7 @@ Network/timeout outcome not_sent only when proven, otherwise unknown. Failed req
 DATABASE
 db(name): configured borrowed database pool,reused,no close. Host selects postgresql(default)/mysql/mariadb.
 sql(d,Q,o={}): one parameterized SELECT/INSERT/UPDATE/DELETE (PG16 also MERGE, WITH allowed); backend SQL syntax, no SELECT INTO/DDL/session/transaction control. Query only; no literal $n(PG)/?(MySQL/MariaDB) parameters. o={timeout:10000,max_rows:10000}. Returns {rows:[record],count:int}, count server command count. Outside tx autocommit.
-Unreleased: sql[T](d,o?){SQL ${expr}} validates all rows as T and returns [T]; sql(d,o?){SQL ${expr}} returns {rows,count}. Holes bind values as in q literals; validation happens after SQL execution.
+sql[T](d,o?){SQL ${expr}} validates all rows as T and returns [T]; sql(d,o?){SQL ${expr}} returns {rows,count}. Holes bind values as in q literals; validation happens after SQL execution.
 Bind null/bool/string/exact-number/Bytes/JSON records-arrays, not SQL arrays. PG: numeric/jsonb/bytea/bool map naturally. MySQL/MariaDB: large/fractional numbers bind exact text; CAST(... AS DECIMAL(p,s)) for numeric semantics. BOOL=>int, binary=>Bytes, MySQL JSON=>json, MariaDB JSON=>str then parse/check. Results integer/decimal exact, text str, NULL null. Float/date/time/unsupported types need SQL casts. Duplicate columns/mapping/limit errors; autocommit may have committed.
 tx(d,o={timeout:10000}){f}: f(t), pinned read-committed transaction. Normal unpoisoned result commits; otherwise rollback attempt. Every sql(t) failure after live owned t accepted poisons with first failure even if caught. t task-confined/expires on callback return; parallel children cannot use it even n1. No nested tx same task. Only explicit sql(t) joins; sql(d),HTTP/files independent.
 tx timeout aborts callback and is catchable only outside tx. Ancestor abort wins, then tx timeout, then first SQL error, then other callback error. Lost COMMIT acknowledgment=>db outcome unknown; no replay.
@@ -326,7 +326,7 @@ q`select ${do { x=2; x+1 }}`
 
 Evaluation produces an opaque Query containing exactly `holes+1` decoded literal segments and a sequence of hole values. Holes evaluate once, in source order. Construction does not contact a database, serialize values, or validate SQL. Section 11 defines when a hole is legal as a SQL parameter.
 
-#### SQL blocks (unreleased)
+#### SQL blocks
 
 An unqualified `sql`, optionally followed by `[TypeExpr]`, and an argument list
 can be followed by a SQL block `{...}`. The argument list contains a database or
@@ -551,7 +551,7 @@ cannot be reified by `.as[T]`. Neither form resolves a `check` binding.
 After a non-optional `.as`, brackets containing a syntactically valid TypeExpr
 are interpreted as validation; use `r["as"][key]` for an ambiguous field
 index. Other `.as` field access remains ordinary member access. The earlier
-global `check` function is not present in the development prelude. A stored
+global `check` function is not present in the 0.8 prelude. A stored
 function field named `as` is called as `r["as"](arg)`; `r.as(arg)` is reserved
 for validation.
 Generic aliases require concrete arguments, such as `Box<num>`. `schema<T>`
@@ -1501,7 +1501,7 @@ A complete Web1 implementation ships an executable named kiroha with these comma
 
 The --json flag is mandatory for check/run/conformance in this version; a human-oriented mode is an optional separate extension and cannot change this protocol. `fmt`, a REPL, debugger, package manager and language server are optional future tools, not required or advertised as implemented by this specification.
 
---version has fields `{"implementation":"<name/version>","language":"0.7.0","profile":"Web1","cli":"kiroha-cli/1","conformance":"kiroha-conformance/1"}`. check success is `{"protocol":"kiroha-cli/1","ok":true,"phase":"check"}`.
+--version has fields `{"implementation":"<name/version>","language":"0.8.0","profile":"Web1","cli":"kiroha-cli/1","conformance":"kiroha-conformance/1"}`. check success is `{"protocol":"kiroha-cli/1","ok":true,"phase":"check"}`.
 
 run success is `{"protocol":"kiroha-cli/1","ok":true,"result":WireValue}`. An ordinary/runtime or frontend failure is `{"protocol":"kiroha-cli/1","ok":false,"phase":Phase,"error":Error,"span":SpanOrNull}`. Frontend phases are lex/parse/check; runtime is runtime. A source span has byte offsets `{start,end,line,column}` with end exclusive. Span can be null for host-originated runtime failures, not for frontend diagnostics. Static error records use the same outer code/message/data shape.
 
@@ -1571,7 +1571,7 @@ The corpus below is normative test input, with **no execution result asserted by
 
 The manifest is the single JSON fence between standalone lines `<!-- KIROHA_CONFORMANCE_BEGIN -->` and `<!-- KIROHA_CONFORMANCE_END -->`. Match marker **whole lines**, not occurrences inside prose or the embedded extraction script. The generation card, measurement corpus and measurement script use the same extraction rule with their respective marker names. Require exactly one begin and end, correct order, exactly one fence with the declared language and no extra content inside the markers. Preserve the payload's final LF.
 
-Manifest root keys are exactly `format`, `language`, `scheduler`, `cases`. Values are `kiroha-conformance/1`, `0.7.0/Web1`, `virtual-fifo/1`, and a nonempty case array. IDs must be unique.
+Manifest root keys are exactly `format`, `language`, `scheduler`, `cases`. Values are `kiroha-conformance/1`, `0.8.0/Web1`, `virtual-fifo/1`, and a nonempty case array. IDs must be unique.
 
 ### 16.2 Case and expectation schema
 
@@ -1662,7 +1662,7 @@ All following cases are independent. A reference runtime is not included. Extrac
 ```json
 {
   "format": "kiroha-conformance/1",
-  "language": "0.7.0/Web1",
+  "language": "0.8.0/Web1",
   "scheduler": "virtual-fifo/1",
   "cases": [
     {"id":"lex-leading-zero","source":"01","expect":{"phase":"lex","code":"lexical"}},
@@ -1991,7 +1991,7 @@ The next block is source data, not executed conformance evidence.
 ```json
 {
   "format": "kiroha-measurement-corpus/1",
-  "language": "0.7.0/Web1",
+  "language": "0.8.0/Web1",
   "status": "handwritten_sources_not_executed",
   "baseline": "TypeScript snippets using a proposed SDK with the same contracts; SDK/binding not implemented. Native array helpers are used only in the first case. An async expression harness supplies context. Imports and harness wrappers are excluded symmetrically. No executed-equivalence claim.",
   "cases": [
@@ -2043,7 +2043,7 @@ import tiktoken
 
 PIN = "0.14.0"
 ENCODINGS = ("o200k_base", "cl100k_base")
-LANGUAGE = "0.7.0/Web1"
+LANGUAGE = "0.8.0/Web1"
 
 def fail(message):
     raise SystemExit(message)

@@ -138,14 +138,20 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cat > release-notes.md <<'EOF'
-          Kiroha 0.7.0 / Web1 reference implementation.
+          Kiroha 0.8.0 / Web1 reference implementation.
+
+          This release replaces the global `check` function with `.as[Type]`
+          and `.as(schema)` validation. The `kiroha check` CLI command remains.
+          Typed SQL blocks return validated rows; untyped blocks retain
+          `{rows, count}`. Holes remain bound SQL parameters. See the migration
+          guide: https://kiroha-lang.github.io/kiroha/migration-0.8/.
 
           PostgreSQL, MySQL 8.4 and MariaDB 11.4 share the db/sql/tx API.
           Host pool configuration selects the backend; leases, deadlines, transaction
           poisoning, cleanup and outcomes use the same runtime machinery.
           Exact decimal bindings avoid host floats. SQL dialects and native type
           differences are documented at https://kiroha-lang.github.io/kiroha/guides/databases/.
-          The Kiroha Codex plugin 0.3 includes the matching database guidance.
+          The Kiroha Codex plugin 0.4 targets this release.
 
           Install the latest verified binary (Linux/WSL or macOS, x86_64/ARM64):
 
@@ -154,7 +160,7 @@ jobs:
           ```
 
           The installer verifies SHA-256 and defaults to `~/.local/bin`.
-          Pin a version with `bash -s -- --version 0.7.0`, or set `KIROHA_INSTALL_DIR`.
+          Pin a version with `bash -s -- --version 0.8.0`, or set `KIROHA_INSTALL_DIR`.
           Linux binaries require glibc 2.35+; macOS binaries target macOS 13+.
           See the repository's installation and language documentation for details.
           EOF

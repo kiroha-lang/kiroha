@@ -2,7 +2,7 @@
 
 # Types and simple generics
 
-Kiroha 0.6 checks types before running a program. Type inference is local:
+Kiroha checks types before running a program. Type inference is local:
 variable bindings use their initializer, lambdas use an expected function type
 or parameter annotations, and a generic call matches its arguments. Named
 function parameters are annotated. The checker does not infer a whole program's
@@ -169,8 +169,8 @@ runtime validation with `v.as[Point]` keeps the closed-record contract
 and rejects extras; use `v.as[open(Point)]` when extras should be accepted. Runtime
 validation also enforces data-dependent rules beyond static types.
 
-These validation forms are unreleased; the published 0.7.0 binary still uses
-the earlier `check` function. A record field named `as` remains available as
+Kiroha 0.7 used the earlier `check` function; see the
+[0.8 migration guide](https://kiroha-lang.github.io/kiroha/migration-0.8/). A record field named `as` remains available as
 `r.as`, and indexed access can be written `r["as"][key]` when a type-shaped
 index would otherwise be parsed as validation. Use `r["as"](arg)` to call a
 function stored in that field, since `r.as(arg)` is validation syntax.

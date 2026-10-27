@@ -2,8 +2,8 @@
 
 # Welcome to Kiroha
 
-The development documentation includes unreleased `.as[...]` and `.as(schema)`
-validation. The published 0.7.0 release uses the earlier `check` function.
+Kiroha 0.8 uses `.as[...]` and `.as(schema)` for validation. If you are
+upgrading from 0.7, see the [migration guide](migration-0.8.md).
 
 <div class="welcome-intro" markdown>
 Start with something small. Read a little data, write a clear function,
