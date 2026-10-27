@@ -118,6 +118,18 @@ fn mysql_and_mariadb_parameter_and_result_types() {
         );
     }
 }
+
+#[test]
+fn mysql_and_mariadb_sql_blocks_bind_and_validate() {
+    for (backend, dsn) in backends() {
+        expect(backend, &dsn, r#"type Name={name:str}; d=db("main"); name="x'); drop table t; --";
+            names=sql[Name](d){select cast(${name} as char) as name};
+            count=sql(d){select 1 as n union all select 2}.count;
+            bad=try sql[Name](d){select 1 as name} catch {e=>e.code};
+            [names.one().name,count,bad]"#,
+            r#"["x'); drop table t; --",2,"validation"]"#);
+    }
+}
 #[test]
 fn mysql_and_mariadb_commit_rollback_and_poison() {
     for (backend, dsn) in backends() {

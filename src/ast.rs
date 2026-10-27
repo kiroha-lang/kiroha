@@ -110,6 +110,8 @@ pub enum Node {
     Do { items: Vec<NodeId> },
     Try { e: NodeId, name: Rc<str>, slot: u32, items: Vec<NodeId> },
     Query { segments: Rc<Vec<String>>, holes: Vec<NodeId> },
+    /// A type expression reified as a schema for a typed SQL block.
+    SqlSchema { annotation: crate::types::TypeExpr, schema: Option<Value> },
     Group(NodeId),
     Bind { name: Rc<str>, slot: u32, e: NodeId, annotation: Option<crate::types::TypeExpr> },
     TypeDecl { name: Rc<str>, params: Vec<crate::types::TypeParam>, body: crate::types::TypeExpr, alias: u32 },

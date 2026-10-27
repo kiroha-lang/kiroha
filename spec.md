@@ -3,6 +3,9 @@
 **Revision:** 0.7.0 · **Profile:** Web1 · **Date:** 2026-10-26
 **Deliverables:** this self-contained implementation specification and `measurement.json`.
 
+SQL block syntax described below is an unreleased development addition and is
+not present in the released 0.7.0 binary.
+
 Kiroha is a small, strict, immutable expression language for LLM-generated programs that manipulate JSON, call web services, serve APIs and use PostgreSQL, MySQL or MariaDB. Its single canonical callback syntax is a mandatory trailing lambda, with a matching declaration-side callback slot:
 
 ```kiroha
@@ -150,6 +153,7 @@ Network/timeout outcome not_sent only when proven, otherwise unknown. Failed req
 DATABASE
 db(name): configured borrowed database pool,reused,no close. Host selects postgresql(default)/mysql/mariadb.
 sql(d,Q,o={}): one parameterized SELECT/INSERT/UPDATE/DELETE (PG16 also MERGE, WITH allowed); backend SQL syntax, no SELECT INTO/DDL/session/transaction control. Query only; no literal $n(PG)/?(MySQL/MariaDB) parameters. o={timeout:10000,max_rows:10000}. Returns {rows:[record],count:int}, count server command count. Outside tx autocommit.
+Unreleased: sql[T](d,o?){SQL ${expr}} validates all rows as T and returns [T]; sql(d,o?){SQL ${expr}} returns {rows,count}. Holes bind values as in q literals; validation happens after SQL execution.
 Bind null/bool/string/exact-number/Bytes/JSON records-arrays, not SQL arrays. PG: numeric/jsonb/bytea/bool map naturally. MySQL/MariaDB: large/fractional numbers bind exact text; CAST(... AS DECIMAL(p,s)) for numeric semantics. BOOL=>int, binary=>Bytes, MySQL JSON=>json, MariaDB JSON=>str then parse/check. Results integer/decimal exact, text str, NULL null. Float/date/time/unsupported types need SQL casts. Duplicate columns/mapping/limit errors; autocommit may have committed.
 tx(d,o={timeout:10000}){f}: f(t), pinned read-committed transaction. Normal unpoisoned result commits; otherwise rollback attempt. Every sql(t) failure after live owned t accepted poisons with first failure even if caught. t task-confined/expires on callback return; parallel children cannot use it even n1. No nested tx same task. Only explicit sql(t) joins; sql(d),HTTP/files independent.
 tx timeout aborts callback and is catchable only outside tx. Ancestor abort wins, then tx timeout, then first SQL error, then other callback error. Lost COMMIT acknowledgment=>db outcome unknown; no replay.
@@ -248,7 +252,7 @@ Suffix      = TypeArgs | Arguments, [ Lambda ]
             | "[", Expr, "]" | "?[", Expr, "]";
 Arguments   = "(", [ Expr, { ",", Expr } ], ")";
 
-Primary     = "null" | "true" | "false" | NUMBER | STRING | IDENT
+Primary     = "null" | "true" | "false" | NUMBER | STRING | IDENT | SqlBlock
             | Array | Record | Lambda | QUERY
             | "(", Expr, ")" | "do", "{", Sequence, "}";
 Array       = "[", [ Expr, { ",", Expr } ], "]";
@@ -256,6 +260,7 @@ Record      = "{", [ Field, { ",", Field } ], "}";
 Field       = (WORD | STRING), ":", Expr | IDENT;
 Lambda      = "{", LambdaHead, "=>", Sequence, "}";
 LambdaHead  = Param | "(", ")" | "(", Param, ",", Params, ")";
+SqlBlock    = "sql", [ "[", TypeExpr, "]" ], "(", Expr, [ ",", Expr ], ")", SQL_TEXT;
 ```
 
 Additional mandatory parsing constraints:
@@ -319,6 +324,36 @@ q`select ${do { x=2; x+1 }}`
 ```
 
 Evaluation produces an opaque Query containing exactly `holes+1` decoded literal segments and a sequence of hole values. Holes evaluate once, in source order. Construction does not contact a database, serialize values, or validate SQL. Section 11 defines when a hole is legal as a SQL parameter.
+
+#### SQL blocks (unreleased)
+
+An unqualified `sql`, optionally followed by `[TypeExpr]`, and an argument list
+can be followed by a SQL block `{...}`. The argument list contains a database or
+transaction expression and optionally an options expression. A syntactically
+valid trailing lambda remains a callback, preserving calls to a shadowing
+`sql` binding. An unqualified `sql` still resolves like an ordinary binding.
+
+The block contains SQL text with `${Expr}` holes; holes use the same parser,
+evaluation order and SQL validation as query literals. `\${` contributes a
+literal `${`. Newlines and other text are preserved. Interpolation is recognized
+even inside SQL quotes or comments; the SQL safety checker rejects such holes.
+For block delimiting, single quotes, double quotes, backticks, PostgreSQL dollar
+quotes, `--`/`#` line comments and nested `/* ... */` comments protect braces.
+Backslash escapes the next character inside quoted strings or identifiers, and
+doubled quote characters remain inside the quote. Braces outside these contexts
+balance; the matching `}` ends the block. PostgreSQL `#>`, `#>>`, and `#-` are
+operators rather than hash comments. Dialect-specific text requiring different
+delimiter rules can use the existing `q` query literal.
+
+`sql(d){text}` has the same behavior as ``sql(d,q`text`)``, including
+evaluation order, permissions, options, errors and `{rows,count}`. The typed
+`sql[T](d,o?){text}` additionally validates the complete returned rows array
+against `[T]` and returns it with static type `[T]`. `T` must be reifiable as a
+runtime schema; closed records reject extra columns. The validation uses the
+standard `check` behavior, independent of a local binding named `check`.
+Validation occurs after SQL returns: it cannot undo an autocommit write, and
+catching its error inside a transaction does not poison that transaction. An
+uncaught validation error still exits the transaction callback and rolls it back.
 
 ## 3. Values, decimal arithmetic, and serialization
 
@@ -1744,6 +1779,11 @@ All following cases are independent. A reference runtime is not included. Extrac
     {"id":"host-environment-clock-random-and-atomic-log-line","source":"v={token:env(\"TOKEN\"),at:now(),id:uuid()};log(v);v.merge({missing:try env(\"MISSING\") catch {e=>e.code}})","host":{"capabilities":{"env":["TOKEN","MISSING"],"clock":true,"random":true,"log":true},"environment":{"TOKEN":"demo"}},"fixtures":[{"id":"env","op":"environment","match":{"name":"TOKEN"},"ok":"demo"},{"id":"clock","op":"utc_now","match":{},"ok":{"unix_ms":123}},{"id":"random","op":"random_bytes","match":{"count":16},"ok":{"bytes_base64":"AAAAAAAAAAAAAAAAAAAAAA=="}},{"id":"log","op":"log_line","match":{"line":"{\"token\":\"demo\",\"at\":\"1970-01-01T00:00:00.123Z\",\"id\":\"00000000-0000-4000-8000-000000000000\"}\n"},"ok":null},{"id":"missing","op":"environment","match":{"name":"MISSING"},"error":{"code":"env","message":"fixture diagnostic","data":{"name":"MISSING"}}}],"expect":{"phase":"value","json":"{\"token\":\"demo\",\"at\":\"1970-01-01T00:00:00.123Z\",\"id\":\"00000000-0000-4000-8000-000000000000\",\"missing\":\"env\"}","trace":["env:start","env:ok","clock:start","clock:ok","random:start","random:ok","log:start","log:ok","missing:start","missing:error"]}},
     {"id":"host-file-replacement-and-normalized-read-path","source":"write(\"/fixtures/./out\",encode(\"é\"));decode(read(\"/fixtures//out\"))","host":{"capabilities":{"write":["/fixtures"],"read":["/fixtures"]}},"fixtures":[{"id":"write","op":"replace_regular","match":{"path":"/fixtures/out","bytes_base64":"w6k="},"ok":null},{"id":"read","op":"read_regular","match":{"path":"/fixtures/out"},"ok":{"bytes_base64":"w6k="}}],"expect":{"phase":"value","json":"\"é\"","trace":["write:start","write:ok","read:start","read:ok"]}},
     {"id":"host-default-denies-every-external-capability","source":"[(try env(\"TOKEN\") catch {e=>e.code}),(try read(\"/fixtures/x\") catch {e=>e.code}),(try write(\"/fixtures/x\",encode(\"x\")) catch {e=>e.code}),(try now() catch {e=>e.code}),(try uuid() catch {e=>e.code}),(try log(null) catch {e=>e.code}),(try db(\"main\") catch {e=>e.code}),(try http(\"GET\",\"https://fixture.invalid/\") catch {e=>e.code}),(try serve({}) catch {e=>e.code})]","fixtures":[],"expect":{"phase":"value","json":"[\"permission\",\"permission\",\"permission\",\"permission\",\"permission\",\"permission\",\"permission\",\"permission\",\"permission\"]","trace":[]}},
+    {"id":"sql-block-typed-parameter","source":"type Name={name:str}; name=\"x'); drop table t; --\"; sql[Name](db(\"main\"),{max_rows:2}){select ${name} as name}.one().name","host":{"capabilities":{"databases":["main"]}},"fixtures":[{"id":"pool","op":"pool","match":{"alias":"main"},"ok":"p"},{"id":"acq","op":"acquire","match":{"pool":"p"},"ok":"c"},{"id":"q","op":"execute","match":{"connection":"c","parameters":[{"oid":25,"value":"x'); drop table t; --"}],"sql":"select  $1  as name"},"ok":{"columns":[{"name":"name","oid":25}],"rows":[["x'); drop table t; --"]],"count":"1","outcome":"committed"}},{"id":"rel","op":"release","match":{"connection":"c","disposition":"reset"},"ok":null}],"expect":{"phase":"value","json":"\"x'); drop table t; --\""}},
+    {"id":"sql-block-untyped-count","source":"r=sql(db(\"main\"),{max_rows:2}){select 1 as name}; [r.count,r.rows.size]","host":{"capabilities":{"databases":["main"]}},"fixtures":[{"id":"pool","op":"pool","match":{"alias":"main"},"ok":"p"},{"id":"acq","op":"acquire","match":{"pool":"p"},"ok":"c"},{"id":"q","op":"execute","match":{"connection":"c"},"ok":{"columns":[{"name":"name","oid":25}],"rows":[["a"],["b"]],"count":"2","outcome":"committed"}},{"id":"rel","op":"release","match":{"connection":"c","disposition":"reset"},"ok":null}],"expect":{"phase":"value","json":"[2,2]"}},
+    {"id":"sql-block-typed-mismatch","source":"type Name={name:int}; sql[Name](db(\"main\")){select 1 as name}","host":{"capabilities":{"databases":["main"]}},"fixtures":[{"id":"pool","op":"pool","match":{"alias":"main"},"ok":"p"},{"id":"acq","op":"acquire","match":{"pool":"p"},"ok":"c"},{"id":"q","op":"execute","match":{"connection":"c"},"ok":{"columns":[{"name":"name","oid":25}],"rows":[["bad"]],"count":"1","outcome":"committed"}},{"id":"rel","op":"release","match":{"connection":"c","disposition":"reset"},"ok":null}],"expect":{"phase":"runtime","code":"validation"}},
+    {"id":"sql-block-typed-empty","source":"type Name={name:int}; sql[Name](db(\"main\")){select 1 as name}","host":{"capabilities":{"databases":["main"]}},"fixtures":[{"id":"pool","op":"pool","match":{"alias":"main"},"ok":"p"},{"id":"acq","op":"acquire","match":{"pool":"p"},"ok":"c"},{"id":"q","op":"execute","match":{"connection":"c"},"ok":{"columns":[{"name":"name","oid":25}],"rows":[],"count":"0","outcome":"committed"}},{"id":"rel","op":"release","match":{"connection":"c","disposition":"reset"},"ok":null}],"expect":{"phase":"value","json":"[]"}},
+    {"id":"sql-block-hole-in-quote","source":"try sql(db(\"main\")){select '${\"bad\"}' as name} catch {e=>e.data.reason}","host":{"capabilities":{"databases":["main"]}},"fixtures":[{"id":"pool","op":"pool","match":{"alias":"main"},"ok":"p"}],"expect":{"phase":"value","json":"\"hole_context\"","trace":["pool:start","pool:ok"]}},
     {"id":"host-sql-all-parameter-kinds-and-exact-result-mapping","source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value d=db(\"main\");r=sql(d,q`select ${null}::text as z, ${true}::boolean as b, ${\"x'); drop table t; --\"}::text as s, ${9007199254740993.25}::numeric as n, ${encode(\"é\")}::bytea as raw, ${{a:1}}::jsonb as obj, ${[1,2]}::jsonb as arr`);x=r.rows.one();{count:r.count,row:{z:x.z,b:x.b,s:x.s,n:x.n,raw:decode(kiroha_runtime_value(x).raw),obj:x.obj,arr:x.arr}}","host":{"capabilities":{"databases":["main"]}},"fixtures":[{"id":"pool","op":"pool","match":{"alias":"main"},"ok":"pool-main"},{"id":"acquire","op":"acquire","match":{"pool":"pool-main"},"ok":"conn-1"},{"id":"query","op":"execute","match":{"connection":"conn-1","sql":"select  $1 ::text as z,  $2 ::boolean as b,  $3 ::text as s,  $4 ::numeric as n,  $5 ::bytea as raw,  $6 ::jsonb as obj,  $7 ::jsonb as arr","parameters":[{"oid":0,"value":null},{"oid":16,"value":"true"},{"oid":25,"value":"x'); drop table t; --"},{"oid":1700,"value":"9007199254740993.25"},{"oid":17,"value":"w6k="},{"oid":3802,"value":"{\"a\":1}"},{"oid":3802,"value":"[1,2]"}]},"ok":{"columns":[{"name":"z","oid":25},{"name":"b","oid":16},{"name":"s","oid":25},{"name":"n","oid":1700},{"name":"raw","oid":17},{"name":"obj","oid":3802},{"name":"arr","oid":3802}],"rows":[[null,"t","x'); drop table t; --","9007199254740993.25","\\xc3a9","{\"a\":1}","[1,2]"]],"count":"1","outcome":"committed"}},{"id":"release","op":"release","match":{"connection":"conn-1","disposition":"reset"},"ok":null}],"expect":{"phase":"value","json":"{\"count\":1,\"row\":{\"z\":null,\"b\":true,\"s\":\"x'); drop table t; --\",\"n\":9007199254740993.25,\"raw\":\"é\",\"obj\":{\"a\":1},\"arr\":[1,2]}}","trace":["pool:start","pool:ok","acquire:start","acquire:ok","query:start","query:ok","release:start","release:ok"]}},
     {"id":"host-sql-preflight-before-acquire","source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value d=db(\"main\");[(try kiroha_runtime_value(sql)(d,\"select 1\") catch {e=>e.code}),(try sql(d,q`select 1;select 2`) catch {e=>[e.code,e.data.phase,e.data.reason]}),(try sql(d,q`select $1`) catch {e=>[e.code,e.data.phase,e.data.reason]}),(try sql(d,q`select '${\"x\"}'`) catch {e=>[e.code,e.data.phase,e.data.reason]}),(try sql(d,q`select ${{f:{x:any=>x}}}`) catch {e=>[e.code,e.data.phase,e.data.outcome]})]","host":{"capabilities":{"databases":["main"]}},"fixtures":[{"id":"pool","op":"pool","match":{"alias":"main"},"ok":"pool-main"}],"expect":{"phase":"value","json":"[\"type\",[\"db\",\"prepare\",\"multiple_statements\"],[\"db\",\"prepare\",\"literal_parameter\"],[\"db\",\"prepare\",\"hole_context\"],[\"db\",\"bind\",\"not_sent\"]]","trace":["pool:start","pool:ok"]}},
     {"id":"host-sql-zero-row-unsupported-metadata-still-fails","source":"sql(db(\"main\"),q`select current_date where false`)","host":{"capabilities":{"databases":["main"]}},"fixtures":[{"id":"pool","op":"pool","match":{"alias":"main"},"ok":"pool-main"},{"id":"acquire","op":"acquire","match":{"pool":"pool-main"},"ok":"conn-1"},{"id":"query","op":"execute","match":{"connection":"conn-1","sql":"select current_date where false","parameters":[]},"ok":{"columns":[{"name":"current_date","oid":1082}],"rows":[],"count":"0","outcome":"committed"}},{"id":"release","op":"release","match":{"connection":"conn-1","disposition":"reset"},"ok":null}],"expect":{"phase":"runtime","code":"db","trace":["pool:start","pool:ok","acquire:start","acquire:ok","query:start","query:ok","release:start","release:ok"],"data":{"phase":"decode","outcome":"committed"}}},

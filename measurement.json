@@ -26,21 +26,21 @@
   "documents": {
     "full_markdown": {
       "file": "spec.md",
-      "sha256": "b18d406aa11edd1c6bbe1c2c116d22bc9af1f0fc5758021fdd7da7635115df3f",
-      "unicode_code_points": 246091,
-      "utf8_bytes": 246205,
+      "sha256": "2f02f4ba4b7dc7785553c997eeecfbc85985bef11affa0ae23269ea2b6d71087",
+      "unicode_code_points": 251267,
+      "utf8_bytes": 251381,
       "tokens": {
-        "o200k_base": 60550,
-        "cl100k_base": 60042
+        "o200k_base": 61949,
+        "cl100k_base": 61393
       }
     },
     "generation_card": {
-      "sha256": "c9dfc31155fca7cae4c17b482d79724a234aac104f723dbc5275fc8d339be4a2",
-      "unicode_code_points": 13460,
-      "utf8_bytes": 13460,
+      "sha256": "fca113f445c073f689c653241862ed2add7403978377c83b990eb67b0eed0304",
+      "unicode_code_points": 13660,
+      "utf8_bytes": 13660,
       "tokens": {
-        "o200k_base": 3156,
-        "cl100k_base": 3132
+        "o200k_base": 3209,
+        "cl100k_base": 3185
       },
       "target_tokens_each_encoding": 4096,
       "within_target": true
@@ -48,21 +48,21 @@
   },
   "embedded_blocks": {
     "generation_card": {
-      "sha256": "c9dfc31155fca7cae4c17b482d79724a234aac104f723dbc5275fc8d339be4a2",
-      "unicode_code_points": 13460,
-      "utf8_bytes": 13460,
+      "sha256": "fca113f445c073f689c653241862ed2add7403978377c83b990eb67b0eed0304",
+      "unicode_code_points": 13660,
+      "utf8_bytes": 13660,
       "tokens": {
-        "o200k_base": 3156,
-        "cl100k_base": 3132
+        "o200k_base": 3209,
+        "cl100k_base": 3185
       }
     },
     "conformance": {
-      "sha256": "49bdda1545065c55b267ffc56f6b2695280e4f0efa7e592632a29cae5b20ca0c",
-      "unicode_code_points": 71284,
-      "utf8_bytes": 71345,
+      "sha256": "e24655f4362dc60449309ccd80334cdf7b34eee87e341d732b8fd5e2eb4a2462",
+      "unicode_code_points": 74085,
+      "utf8_bytes": 74146,
       "tokens": {
-        "o200k_base": 21962,
-        "cl100k_base": 21680
+        "o200k_base": 22815,
+        "cl100k_base": 22490
       }
     },
     "measurement_corpus": {
@@ -205,14 +205,14 @@
       "bool",
       "json"
     ],
-    "conformance_case_count": 253,
+    "conformance_case_count": 258,
     "expected_case_phases": {
       "abort": 6,
       "check": 50,
       "lex": 8,
       "parse": 32,
-      "runtime": 35,
-      "value": 122
+      "runtime": 36,
+      "value": 126
     },
     "conformance_execution": "not run by this script"
   },

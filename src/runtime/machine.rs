@@ -286,6 +286,7 @@ impl<H: Host> Runtime<H> {
             Node::Instantiate { callee, schema, .. } => match schema {
                 Some(value) => Ctl::Ret(value.clone()), None => Ctl::Eval(*callee, env),
             },
+            Node::SqlSchema { schema, .. } => Ctl::Ret(schema.as_ref().expect("type-checked SQL schema").clone()),
             Node::NumOverflow => self.fail_ctl(t, Fail::Abort(AbortReason::Resource("number"))),
             Node::Name { var, .. } => Ctl::Ret(self.read_var(*var, &env)),
             Node::Array(elems) => {

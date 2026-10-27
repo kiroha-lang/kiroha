@@ -638,6 +638,14 @@ impl Checker<'_> {
                     self.instantiate_function(callee, Some(args), span)?
                 }
             }
+            Node::SqlSchema { annotation, .. } => {
+                let target = self.annotation(&annotation)?;
+                let value = self.schema_value(&target, span)?;
+                if let Node::SqlSchema { schema, .. } = &mut self.program.nodes[id as usize] {
+                    *schema = Some(value);
+                }
+                ty(Type::Schema(target))
+            }
             Node::Array(items) => {
                 let expected_elem = expected.and_then(|t| match &*self.solver.resolve(t) {
                     Type::Array(e) => Some(e.clone()),

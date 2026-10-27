@@ -116,6 +116,38 @@ fn i03_parameters_results_and_restrictions() {
 }
 
 #[test]
+fn sql_blocks_use_postgresql_parameters_and_validate_rows() {
+    need_pg!();
+    let r = pg(r#"type Name={name:str}; d=db("main"); name="x'); drop table t; --";
+        names=sql[Name](d){select ${name}::text as name};
+        quoted=sql[Name](d){select $日本$}$日本$ as name};
+        count=sql(d){select 1 as n union all select 2}.count;
+        bad=try sql[Name](d){select 1 as name} catch {e=>e.code};
+        [names.one().name,quoted.one().name,count,bad]"#);
+    assert_eq!(r.code, 0, "{} {}", r.stdout, r.stderr);
+    assert_eq!(result(&r), r#"["x'); drop table t; --","}",2,"validation"]"#);
+}
+
+#[test]
+fn sql_block_validation_respects_transaction_boundaries() {
+    need_pg!();
+    let table = format!("kiroha_sql_block_{}", std::process::id());
+    struct Cleanup(String);
+    impl Drop for Cleanup {
+        fn drop(&mut self) { admin(&format!("drop table if exists {}", self.0)); }
+    }
+    admin(&format!("create table {table}(id integer primary key)"));
+    let _cleanup = Cleanup(table.clone());
+    let source = r#"type Row={name:str}; d=db("main");
+        caught=tx(d){t=>try sql[Row](t){insert into TABLE_NAME values (1) returning id} catch {e=>e.code}};
+        uncaught=try tx(d){t=>sql[Row](t){insert into TABLE_NAME values (2) returning id}} catch {e=>e.code};
+        [caught,uncaught,sql(d){select count(*) as n from TABLE_NAME}.rows.one().n]"#.replace("TABLE_NAME", &table);
+    let r = pg(&source);
+    assert_eq!(r.code, 0, "{} {}", r.stdout, r.stderr);
+    assert_eq!(result(&r), r#"["validation","validation",1]"#);
+}
+
+#[test]
 fn i04_transactions_and_pool_hygiene() {
     need_pg!();
     admin("drop table if exists kiroha_t; create table kiroha_t(id serial primary key, v int unique)");
