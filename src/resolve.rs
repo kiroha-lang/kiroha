@@ -247,7 +247,7 @@ impl<'a> Resolver<'a> {
     fn expr(&mut self, id: NodeId) -> Result<(), Diagnostic> {
         let node = self.prog.node(id).clone();
         match node {
-            Node::Lit(_) | Node::NumOverflow => Ok(()),
+            Node::Lit(_) | Node::NumOverflow | Node::Intrinsic(_) => Ok(()),
             Node::Array(es) => {
                 for e in es {
                     self.expr(e)?;
@@ -340,9 +340,9 @@ impl<'a> Resolver<'a> {
                 }
                 Ok(())
             }
-            Node::SqlSchema { mut annotation, .. } => {
+            Node::TypeSchema { mut annotation, .. } => {
                 self.type_expr(&mut annotation)?;
-                if let Node::SqlSchema { annotation: stored, .. } = &mut self.prog.nodes[id as usize] { *stored = annotation; }
+                if let Node::TypeSchema { annotation: stored, .. } = &mut self.prog.nodes[id as usize] { *stored = annotation; }
                 Ok(())
             }
             Node::Group(e) => self.expr(e),

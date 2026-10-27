@@ -118,7 +118,7 @@ fn i07_cpu_bound_cancellation_and_bounded_parallelism() {
     for src in [
         "fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value x=dump(range(0,3000000));kiroha_runtime_value(parse(x)).size",
         "range(0,2000000)==range(0,2000000)",
-        "check(range(0,3000000),[int])",
+        "(range(0,3000000)).as([int])",
         "xs=range(0,3000000);[xs,xs,xs,xs,xs,xs,xs,xs,xs,xs,xs,xs,xs,xs,xs,xs].flat().size",
         "s=dump(range(0,3000000));s2=s+s+s+s+s+s+s+s;s3=s2+s2+s2+s2;(s3+s3).size",
         "s=dump(range(0,3000000));(s+s+s+s).replace(\"1\", \"aaaaaaaaaaaaaaaa\").size",
@@ -131,7 +131,7 @@ fn i07_cpu_bound_cancellation_and_bounded_parallelism() {
     // JSON schema checks and JSON key hashing over huge shared structures
     // observe the deadline.
     for src in [
-        "fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value z=kiroha_runtime_value(range(0,60).fold)([1]){(a,i)=>[a,a]}; check(z,json)",
+        "fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value z=kiroha_runtime_value(range(0,60).fold)([1]){(a,i)=>[a,a]}; (z).as(json)",
         "fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value z=kiroha_runtime_value(range(0,60).fold)([1]){(a,i)=>[a,a]}; [z,z].unique()",
         "fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value z=kiroha_runtime_value(range(0,60).fold)([1]){(a,i)=>[a,a]}; pages(z){c=>{items:[],next:null}}",
     ] {
@@ -145,7 +145,7 @@ fn i07_cpu_bound_cancellation_and_bounded_parallelism() {
     // JSON escaping, URL encoding, hashing/equality of huge shared strings.
     let big = "s=range(0,24).fold(\"x\"){(a,i)=>a+a};";
     for src in [
-        "fun d(x:any,n:any):any if n==0 then x else d({a:x,b:x},n-1) end fun d check(1,maybe(d(json,26)))".to_string(),
+        "fun d(x:any,n:any):any if n==0 then x else d({a:x,b:x},n-1) end fun d (1).as(maybe(d(json,26)))".to_string(),
         format!("{big} range(0,3000).map{{i=>s}}.sort()"),
         "c=range(0,26).fold(\"\\u0001\"){(a,i)=>a+a}; dump(c).size".to_string(),
         format!("{big} url(\"https://a.example\",[s.replace(\"x\", \" \")]).size"),
@@ -160,7 +160,7 @@ fn i07_cpu_bound_cancellation_and_bounded_parallelism() {
     // Former O(n^2) paths are linear: closed-record extras and pick duplicates.
     for (src, want) in [
         (
-            "fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value v=parse(\"{\"+range(0,100000).map{i=>\"\\\"k\"+text(i)+\"\\\":{}\"}.join(\",\")+\"}\"); kiroha_runtime_value(check)(v,v).size",
+            "fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value v=parse(\"{\"+range(0,100000).map{i=>\"\\\"k\"+text(i)+\"\\\":{}\"}.join(\",\")+\"}\"); v.as(kiroha_runtime_value(v)).size",
             "100000",
         ),
         ("try {}.pick(range(0,150000).map{i=>text(i)}) catch {e=>e.code}", "\"missing\""),

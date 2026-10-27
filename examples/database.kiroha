@@ -5,7 +5,7 @@ type Inserted = {id:int};
 d = db("main");
 sql(d, q`select 1 as ready`);
 created = tx(d){t =>
-  row = check(sql(t, q`insert into kiroha_demo(name, meta) values (${"ada"}, ${{tags:["x"]}}) returning id`).rows.one(), Inserted);
+  row = (sql(t, q`insert into kiroha_demo(name, meta) values (${"ada"}, ${{tags:["x"]}}) returning id`).rows.one()).as[Inserted];
   sql(t, q`insert into kiroha_demo_audit(demo_id) values (${row.id})`);
   row
 };

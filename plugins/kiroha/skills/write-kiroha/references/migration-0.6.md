@@ -13,7 +13,7 @@ See [Types and simple generics](https://kiroha-lang.github.io/kiroha/types/) for
 | `Point = {x:num, y:num};` | `type Point = {x:num, y:num};` |
 | `User = open({id:int, name:str});` | `type User = open({id:int, name:str});` |
 
-Anonymous schema descriptions still work in `check`, `input`, `maybe`,
+Anonymous schema descriptions still work in `.as(schema)`, `input`, `maybe`,
 `optional` and `open`. An ordinary value binding does not introduce a type
 name for annotations. Use `type Box<T> = {value:T};` for a generic alias.
 
@@ -39,7 +39,7 @@ a function type. There is no automatic generalization or implicit `any`.
 
 ## Validate external data
 
-`get` and `parse` produce `json`. Use `check(value, TypeName)` before reading
+`get` and `parse` produce `json`. Use `value.as[TypeName]` before reading
 a particular data shape, and use `input(request, TypeName)` for requests.
 SQL rows contain dynamically described column values; validate a row's
 expected schema before using specific columns as numbers, strings or bytes.

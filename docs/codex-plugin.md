@@ -4,6 +4,9 @@ The **Kiroha** plugin gives an agent the language guidance it needs to write,
 review, migrate and debug `.kiroha` programs. Its `write-kiroha` skill targets
 Kiroha 0.7.0: explicit structural types, simple generics, compact named functions and collection methods.
 
+The development plugin documents unreleased `.as` validation; the published
+0.7.0 executable still uses the earlier `check` function.
+
 It includes the canonical generation card, API and host references, a migration
 guide and eight complete example programs. References travel with the plugin,
 so the agent can read them without a documentation server. The plugin needs

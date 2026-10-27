@@ -8,10 +8,13 @@ fn specification_card_and_runtime_have_the_same_api() {
         let signature = columns[2].trim_matches('`');
         Some(signature.split(['(', '{']).next().unwrap().rsplit('.').next().unwrap())
     }).collect();
-    let actual: Vec<_> = kiroha::builtins::ALL.iter().map(|b| b.name()).collect();
+    let actual: Vec<_> = kiroha::builtins::ALL.iter()
+        .filter(|b| **b != kiroha::builtins::Builtin::Validate)
+        .map(|b| b.name()).collect();
     assert_eq!(names, actual);
-    assert_eq!(actual.len(), 51);
-    assert_eq!(kiroha::builtins::GLOBALS.len(), 31);
+    assert_eq!(actual.len(), 50);
+    assert_eq!(kiroha::builtins::GLOBALS.len(), 30);
+    assert!(!kiroha::builtins::GLOBALS.contains(&kiroha::builtins::Builtin::Validate));
     assert_eq!(kiroha::methods::ALL.len(), 20);
     assert_eq!(kiroha::methods::ALL.iter().filter(|m| m.property).count(), 1);
     let card = kiroha::conformance::extract_block(spec, "GENERATION_CARD", "text").unwrap();

@@ -2,7 +2,7 @@
 
 # Built-in reference
 
-Kiroha 0.7.0 / Web1 has **31 global functions, 19 collection methods, one `.size` property and 5 schema
+The development version has **30 global functions, 19 collection methods, one `.size` property and 5 schema
 atoms**. Globals are ordinary bindings and may be shadowed. Members are selected
 by receiver kind; they are not global names. Normative text:
 [`spec.md`](https://kiroha-lang.github.io/kiroha/spec/) §7–§13.
@@ -32,7 +32,7 @@ unchanged.
 - [Data](#data): size, range, map, filter, fold, each, flat, take, sort, group, unique, sum
 - [Records](#records): keys, has, pick, merge, one
 - [Text and JSON](#text-and-json): split, join, replace, text, number, parse, dump, encode, decode
-- [Schemas](#schemas): str, num, int, bool, json, check, maybe, optional, open
+- [Schemas](#schemas): str, num, int, bool, json, `.as`, maybe, optional, open
 - [Runtime](#runtime): parallel, sleep, retry, pages, fail
 - [HTTP client](#http-client): http, get, post, url
 - [Database](#database): db, sql, tx
@@ -97,7 +97,8 @@ All text operations are literal scalar sequences — no regex, no locale.
 | `maybe(S)` | `null` or `S`; repeated `maybe` collapses; rejects `optional` operand |
 | `optional(S)` | Field may be absent (not null). Only valid directly as a record field |
 | `open(R)` | Record schema allowing extra JSON fields (preserved). Idempotent; only records |
-| `check(v, S)` | Normalizes `S` fully, then validates `v`; returns `v` unchanged |
+| `(v).as(S)` | Normalizes `S` fully, then validates `v`; returns `v` unchanged |
+| `v.as[T]` | Validates `v` against reifiable type `T`; returns it with type `T` |
 
 Errors: malformed schema → `schema {path, reason}` with reasons
 `invalid_description`, `array_arity`, `optional_position`, `nested_optional`,

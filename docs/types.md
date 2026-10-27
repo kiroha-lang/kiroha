@@ -136,7 +136,7 @@ Type parameters are erased at runtime. To validate generic data, pass a
 ```kiroha
 type Point = {x:num, y:num};
 fun validate<T>(value:json, description:schema<T>):T
-  check(value, description)
+  value.as(description)
 end fun validate
 
 validate({x:1, y:2}, Point)
@@ -150,20 +150,28 @@ JSON before using a particular record or array shape:
 
 ```kiroha
 type Point = {x:num, y:num};
-point = check(parse("{\"x\":1,\"y\":2}"), Point);
+point = parse("{\"x\":1,\"y\":2}").as[Point];
 point.x + point.y
 // 3
 ```
 
-Named concrete data types can be used as validation descriptors in `check`
-and `input`, including instantiated aliases such as `Box<num>`. Function
+`.as[Point]` validates the value at runtime and gives the result type `Point`.
+For a schema value computed at runtime, including a `schema<T>` parameter,
+use `value.as(description)`. Named concrete types can also be descriptors for
+`input`, including instantiated aliases such as `Box<num>`. Function
 types, `schema<T>` types and erased type parameters are annotation types;
 they cannot themselves be reified as validation descriptors.
 
 Static structural compatibility permits extra record fields. Explicit
-runtime validation with `check(v, Point)` keeps the closed-record contract
-and rejects extras; use `open(Point)` when extras should be accepted. Runtime
+runtime validation with `v.as[Point]` keeps the closed-record contract
+and rejects extras; use `v.as[open(Point)]` when extras should be accepted. Runtime
 validation also enforces data-dependent rules beyond static types.
+
+These validation forms are unreleased; the published 0.7.0 binary still uses
+the earlier `check` function. A record field named `as` remains available as
+`r.as`, and indexed access can be written `r["as"][key]` when a type-shaped
+index would otherwise be parsed as validation. Use `r["as"](arg)` to call a
+function stored in that field, since `r.as(arg)` is validation syntax.
 
 ## Use dynamic typing explicitly
 
@@ -177,7 +185,7 @@ try value + "x" catch {error => error.code}
 checking. Runtime checks still apply. It propagates through code that uses
 it, including a lambda called by an explicitly dynamic callee. It does not
 turn off checking of unrelated expressions: `value:any = 1 + "x"` still has
-an invalid initializer. Use `check` rather than `any` when you want to
+an invalid initializer. Use `.as[...]` rather than `any` when you want to
 establish a data contract.
 
 Type errors use the `check` phase and cannot be caught by `try`. Useful codes

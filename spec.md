@@ -3,8 +3,8 @@
 **Revision:** 0.7.0 · **Profile:** Web1 · **Date:** 2026-10-26
 **Deliverables:** this self-contained implementation specification and `measurement.json`.
 
-SQL block syntax described below is an unreleased development addition and is
-not present in the released 0.7.0 binary.
+SQL blocks and `.as[...]` / `.as(schema)` validation are unreleased development
+changes. The released 0.7.0 binary uses the earlier `check` function instead.
 
 Kiroha is a small, strict, immutable expression language for LLM-generated programs that manipulate JSON, call web services, serve APIs and use PostgreSQL, MySQL or MariaDB. Its single canonical callback syntax is a mandatory trailing lambda, with a matching declaration-side callback slot:
 
@@ -46,7 +46,7 @@ The declaration and call both have an ordinary argument channel and a separate c
 
 Sections 2–16 are the normative implementation contract. MUST/MUST NOT express conformance requirements. SHOULD is used only for explicitly optional engineering advice. Examples and test expectations must agree with the normative rules; an implementation may not silently choose a different behavior to match its host language.
 
-This file replaces the Kiroha 0.5.0 specification as the implementation authority for 0.7.0. It defines lexical/syntactic rules, static resolution, values, evaluation, 31 global functions, 19 collection methods and the size property, external effects, host configuration, a CLI and an embedded conformance corpus. No prior chat, hidden design document, skill, existing implementation or unstated API is needed to determine Kiroha semantics.
+This file replaces the Kiroha 0.5.0 specification as the implementation authority for 0.7.0. It defines lexical/syntactic rules, static resolution, values, evaluation, 30 global functions, 19 collection methods and the size property, external effects, host configuration, a CLI and an embedded conformance corpus. No prior chat, hidden design document, skill, existing implementation or unstated API is needed to determine Kiroha semantics.
 
 This revision has a Rust reference implementation in this repository. Embedded cases remain normative acceptance requirements; recorded execution results are in `docs/conformance-report.md`. Token measurements report document/source length only. Finite review and tests do not prove that every future implementation will be bug-free.
 
@@ -71,7 +71,7 @@ The generation surface is small because common work has explicit runtime/library
 | Portability | Host-independent values; explicit I/O and configuration boundaries |
 | Tests | Embedded machine-readable cases plus required real integration scenarios |
 
-The 0.3.0 baseline fixed details not settled by the prior short contract: grammar disambiguation, comparison nonchaining, scalar-based strings, canonical decimal/JSON spelling, static error timing, callback preflight, complete error data, timeout/cleanup scopes, URL/header/framing policies, SQL parsing/typing, filesystem replacement, CLI/wire formats and conformance fixtures. It also treats HTTP 205 as bodyless. The 0.4.0 revision introduced explicit `fun` and matching named ends. Version 0.5.0 removes function-header `then`, makes a separator after a definition optional, and moves collection operations to receiver methods with `.size` for length. Conditional `then` remains mandatory. The native operation inventory remains 51 entries; its public surface is 31 globals, 19 methods and one property. Version 0.7.0 adds explicit structural types, lightweight checking and simple generics, with no implicit any. Token counts below measure length, not generation success.
+The 0.3.0 baseline fixed details not settled by the prior short contract: grammar disambiguation, comparison nonchaining, scalar-based strings, canonical decimal/JSON spelling, static error timing, callback preflight, complete error data, timeout/cleanup scopes, URL/header/framing policies, SQL parsing/typing, filesystem replacement, CLI/wire formats and conformance fixtures. It also treats HTTP 205 as bodyless. The 0.4.0 revision introduced explicit `fun` and matching named ends. Version 0.5.0 removes function-header `then`, makes a separator after a definition optional, and moves collection operations to receiver methods with `.size` for length. Conditional `then` remains mandatory. The native operation inventory remains 50 entries; its public surface is 30 globals, 19 methods and one property. Version 0.7.0 adds explicit structural types, lightweight checking and simple generics, with no implicit any. Token counts below measure length, not generation success.
 
 ### 0.4 Agent build instruction
 
@@ -108,7 +108,7 @@ Types: primitives str/num/int/bool/null/json, opaque bytes/query/database/transa
 
 SCHEMAS
 Atoms str,num,int,bool,json. Prefer named type declarations; schema<T> describes a validator. [S]=homogeneous array of any length; {k:S}=closed required-field record. maybe(S) adds null. optional(S) permits field absence, not null; only immediate field schema. open(recordSchema) allows/preserves extra JSON fields. No literal scalar schemas/unions.
-Static width compatibility allows extras; runtime check of a closed record rejects them. check(v,S) fully validates S then v, returns unchanged v; no defaults/coercion/stripping. Malformed schema=>schema; mismatch=>validation data={path,expected,actual}, no payload. optional(maybe(str)) accepts absent/null/string; maybe(optional(str)) invalid.
+Static width compatibility allows extras; runtime check of a closed record rejects them. v.as(S) fully validates S then v, returns unchanged v; v.as[T] validates against type T; no defaults/coercion/stripping. Malformed schema=>schema; mismatch=>validation data={path,expected,actual}, no payload. optional(maybe(str)) accepts absent/null/string; maybe(optional(str)) invalid.
 
 DATA (callbacks sequential unless parallel)
 x.size: array/record/string-scalars/Bytes length.
@@ -131,7 +131,7 @@ number(s): complete signed JSON-number string, no whitespace.
 parse(s): strict one JSON value, exact decimals; duplicate keys/surrogates/BOM invalid.
 dump(v): compact JSON, ordered keys, exact numbers; non-JSON errors.
 encode(s): UTF8 Bytes; decode(b): strict UTF8, preserves valid BOM scalar.
-check,maybe,optional,open as above.
+Validation uses `.as[T]` or `.as(schema)`; maybe, optional, open as above.
 
 RUNTIME
 xs.parallel(n){f}: positive n, at most n active f(item), input-order results. First observed failure stops starts, cancels/joins siblings, rethrows. Effects remain. Catch inside f for per-item failures.
@@ -171,7 +171,7 @@ LOCAL
 env(name): explicitly exposed string; absent=>env.
 read(path): Bytes; write(path,Bytes): atomic replacement/null,preserve0777,new0600; no parent creation/symlinks/.. components. Host path/byte permissions.
 now(): UTC YYYY-MM-DDTHH:mm:ss.sssZ; uuid(): randomUUIDv4; log(v): dump(v)+LF stderr/null. Explicit secrets are not redacted.
-These are the 31 global functions, 19 methods and size property. Use task-provided bindings/schemas; do not infer absent APIs.
+These are the 30 global functions, 19 methods and size property. Use task-provided bindings/schemas; do not infer absent APIs.
 ```
 <!-- KIROHA_GENERATION_CARD_END -->
 
@@ -249,6 +249,7 @@ Unary       = ("!" | "-"), Unary | Postfix;
 Postfix     = Primary, { Suffix };
 Suffix      = TypeArgs | Arguments, [ Lambda ]
             | ("." | "?."), WORD, [ Lambda ]
+            | ".", "as", "[", TypeExpr, "]" | ".", "as", "(", Expr, ")"
             | "[", Expr, "]" | "?[", Expr, "]";
 Arguments   = "(", [ Expr, { ",", Expr } ], ")";
 
@@ -350,7 +351,7 @@ evaluation order, permissions, options, errors and `{rows,count}`. The typed
 `sql[T](d,o?){text}` additionally validates the complete returned rows array
 against `[T]` and returns it with static type `[T]`. `T` must be reifiable as a
 runtime schema; closed records reject extra columns. The validation uses the
-standard `check` behavior, independent of a local binding named `check`.
+the standard validation behavior, independent of local names.
 Validation occurs after SQL returns: it cannot undo an autocommit write, and
 catching its error inside a transaction does not poison that transaction. An
 uncaught validation error still exits the transaction callback and rolls it back.
@@ -541,16 +542,27 @@ use. Explicitly specialized `input<T>` requires its schema argument.
 ### 4.4 Validation bridge and diagnostics
 
 Concrete aliases of data/opaque types may be used as runtime validation schemas:
-`type Point={x:num,y:num}; check(v,Point)` returns type `Point` on success.
+`type Point={x:num,y:num}; v.as[Point]` returns type `Point` on success.
+The suffix `.as[T]` reifies a concrete type and validates the receiver at runtime;
+`.as(S)` instead accepts a schema descriptor expression, including `schema<T>`
+parameters. Both evaluate the receiver once before the descriptor, return it
+unchanged, and use the validation rules of Section 6. An erased type parameter
+cannot be reified by `.as[T]`. Neither form resolves a `check` binding.
+After a non-optional `.as`, brackets containing a syntactically valid TypeExpr
+are interpreted as validation; use `r["as"][key]` for an ambiguous field
+index. Other `.as` field access remains ordinary member access. The earlier
+global `check` function is not present in the development prelude. A stored
+function field named `as` is called as `r["as"](arg)`; `r.as(arg)` is reserved
+for validation.
 Generic aliases require concrete arguments, such as `Box<num>`. `schema<T>`
-values carry a validation result type and let generic code call `check(value,s)`.
+values carry a validation result type and let generic code call `value.as(s)`.
 Function/schema types and erased parameters cannot themselves be reified as
 validation schemas (`type_reification`). `type Dynamic=any` accepts any runtime
 kind, `type Empty=never` accepts no value, and `type N=null` accepts null.
 The five existing prelude schema atoms remain unchanged; `any` is a type name,
 not an added prelude variable. Legacy array/record schema values remain valid.
 
-Static record compatibility allows extra fields, while `check(v,Point)` retains
+Static record compatibility allows extra fields, while `v.as[Point]` retains
 closed-record validation and rejects extras; `open(Point)` accepts extra JSON
 fields. The runtime validator returns the original value without coercion.
 Type declarations return null in a sequence and ordinary generic specialization
@@ -697,7 +709,7 @@ No schema API coerces, strips, inserts default fields, mutates values, or accept
 
 ### 6.2 Validation algorithm and diagnostics
 
-`check(v,S)` first fully normalizes S, then validates v, and returns v unchanged. A malformed schema wins over a mismatch in v. Root/field wrapper legality is checked even for empty input arrays or missing fields.
+`v.as(S)` first fully normalizes S, then validates v, and returns v unchanged. `v.as[T]` reifies T as a schema and uses the same validation. A malformed schema wins over a mismatch in v. Root/field wrapper legality is checked even for empty input arrays or missing fields.
 
 Visit record schema fields in description insertion order and array elements in index order, depth-first. For a closed record, check known fields first, then detect the first additional field in the value's insertion order. An open record validates extras as JSON in their insertion order. Report only the first failing path.
 
@@ -717,7 +729,7 @@ Malformed schema errors use code `schema` and data `{path,reason}`. Reasons are 
 
 ### 7.1 Closed API inventory
 
-Web1 has exactly **31 global functions, 19 collection methods and one size property**, plus five schema atoms. The 51 native operations below are exhaustive. Globals are ordinary lexical bindings and may be shadowed; methods are selected by receiver kind and are not prelude names. The following inventory is exhaustive. `=` in signatures documents a builtin default; default-argument syntax is not legal in user definitions. Optional callback notation in this table is descriptive only.
+Web1 has exactly **30 global functions, 19 collection methods and one size property**, plus five schema atoms. The 50 public native operations below are exhaustive. Globals are ordinary lexical bindings and may be shadowed; methods are selected by receiver kind and are not prelude names. The following inventory is exhaustive. `=` in signatures documents a builtin default; default-argument syntax is not legal in user definitions. Optional callback notation in this table is descriptive only.
 
 | # | Signature | Normal result / exact special rules |
 | --- | --- | --- |
@@ -747,31 +759,30 @@ Web1 has exactly **31 global functions, 19 collection methods and one size prope
 | 24 | `dump(v)` | Canonical compact JSON string, or type error |
 | 25 | `encode(s)` | UTF-8 Bytes, no BOM |
 | 26 | `decode(b)` | Strict UTF-8 string; preserve a valid U+FEFF scalar |
-| 27 | `check(v,S)` | Validate with Section 6; return unchanged v |
-| 28 | `maybe(S)` | Nullable schema wrapper |
-| 29 | `optional(S)` | Optional record-field wrapper |
-| 30 | `open(S)` | Open record schema |
-| 31 | `xs.parallel(n){f}` | Bounded concurrent f(item), ordered results |
-| 32 | `sleep(ms)` | Cancellable wait; null |
-| 33 | `retry(o){f}` | Explicit error-based retries; f takes zero ordinary arguments |
-| 34 | `pages(seed,o={}){step}` | Cursor pagination; flattened result array |
-| 35 | `fail(err)` | Raise a validated ordinary error |
-| 36 | `http(method,u,o={})` | `{status,headers,body:Bytes}` for a final HTTP response |
-| 37 | `get(u,o={})` | Require HTTP 2xx; decode/parse JSON |
-| 38 | `post(u,v,o={})` | Send JSON; require 2xx; decode/parse JSON |
-| 39 | `url(base,segments,query={})` | Strict URL construction with encoded segments/query |
-| 40 | `db(name)` | Borrow configured database pool handle |
-| 41 | `sql(d,Q,o={})` | `{rows:[record],count:int}` |
-| 42 | `tx(d,o={}){f}` | Transaction callback f(t); commit result or rollback/fail |
-| 43 | `serve(routes,o={})` | Serve until termination; no normal return |
-| 44 | `input(r,S=json)` | Parse and validate an incoming JSON request |
-| 45 | `reply(status,v,headers={})` | Nominal Reply |
-| 46 | `env(name)` | Configured environment string |
-| 47 | `read(path)` | File Bytes |
-| 48 | `write(path,b)` | Atomic byte replacement; null |
-| 49 | `now()` | UTC timestamp string with milliseconds |
-| 50 | `uuid()` | Lowercase random UUIDv4 string |
-| 51 | `log(v)` | One JSON line on stderr; null |
+| 27 | `maybe(S)` | Nullable schema wrapper |
+| 28 | `optional(S)` | Optional record-field wrapper |
+| 29 | `open(S)` | Open record schema |
+| 30 | `xs.parallel(n){f}` | Bounded concurrent f(item), ordered results |
+| 31 | `sleep(ms)` | Cancellable wait; null |
+| 32 | `retry(o){f}` | Explicit error-based retries; f takes zero ordinary arguments |
+| 33 | `pages(seed,o={}){step}` | Cursor pagination; flattened result array |
+| 34 | `fail(err)` | Raise a validated ordinary error |
+| 35 | `http(method,u,o={})` | `{status,headers,body:Bytes}` for a final HTTP response |
+| 36 | `get(u,o={})` | Require HTTP 2xx; decode/parse JSON |
+| 37 | `post(u,v,o={})` | Send JSON; require 2xx; decode/parse JSON |
+| 38 | `url(base,segments,query={})` | Strict URL construction with encoded segments/query |
+| 39 | `db(name)` | Borrow configured database pool handle |
+| 40 | `sql(d,Q,o={})` | `{rows:[record],count:int}` |
+| 41 | `tx(d,o={}){f}` | Transaction callback f(t); commit result or rollback/fail |
+| 42 | `serve(routes,o={})` | Serve until termination; no normal return |
+| 43 | `input(r,S=json)` | Parse and validate an incoming JSON request |
+| 44 | `reply(status,v,headers={})` | Nominal Reply |
+| 45 | `env(name)` | Configured environment string |
+| 46 | `read(path)` | File Bytes |
+| 47 | `write(path,b)` | Atomic byte replacement; null |
+| 48 | `now()` | UTC timestamp string with milliseconds |
+| 49 | `uuid()` | Lowercase random UUIDv4 string |
+| 50 | `log(v)` | One JSON line on stderr; null |
 
 The `decode` row's exact policy is: strict UTF-8 decoding **preserves** a leading U+FEFF as a normal string scalar. Source and JSON parsing subsequently reject a leading BOM. Bytes `EF BB BF` alone decode to `"\uFEFF"`; they are not invalid UTF-8. A decoder MUST NOT silently strip them.
 
@@ -1217,7 +1228,7 @@ original JSON representation when this matters.
 
 BOOLEAN/TINYINT(1) is an integer; never guess booleans from display width.
 MariaDB JSON is a LONGTEXT alias and returns a string: explicitly `parse` and
-`check` it. For a portable JSON read, `CAST(doc AS CHAR)` then `parse` works on
+validate it. For a portable JSON read, `CAST(doc AS CHAR)` then `parse` works on
 both engines. FLOAT/DOUBLE, date/time/timestamp, geometry and unlisted types
 raise `db/decode`, including zero-row/NULL-only results; cast to CHAR or a
 deliberate DECIMAL type as needed. Duplicate column names are rejected before
@@ -1287,7 +1298,7 @@ Each accepted request has a distinct task and deadline covering body read, handl
 
 `input(r,S=json)` first normalizes S, then validates the full exact six-field request shape (method/path strings, params string values, query/headers string-array values with lowercase header names, body Bytes), then checks content coding and Content-Type, then decodes/parses/validates the body. This explicitly overrides general argument-validation order: malformed S precedes request-shape, media and body errors. Caller-constructed request records with that shape are permitted; structural misuse is type/argument. An absent/identity Content-Encoding is accepted; another coding is media, including on constructed records. Server-originated records have already passed ingress coding checks. Accept exactly one Content-Type field value identifying application/json, optionally one charset=utf-8 parameter; ASCII case-insensitive tokens, optional surrounding whitespace and a quoted utf-8 parameter are accepted. Reject other/duplicate parameters or duplicate field occurrences with media. An absent Content-Type is media.
 
-Strictly decode body and parse JSON; translate UTF-8/JSON errors to input with reason utf8/json. Validate using S; translate a data mismatch to input with reason validation and its path/expected/actual. Invalid S remains schema. Return the validated unchanged value. Calling check on unrelated data does not mark it as HTTP input.
+Strictly decode body and parse JSON; translate UTF-8/JSON errors to input with reason utf8/json. Validate using S; translate a data mismatch to input with reason validation and its path/expected/actual. Invalid S remains schema. Return the validated unchanged value. Validating unrelated data does not mark it as HTTP input.
 
 `reply(status,v,headers={})` validates status integer 200..599, outbound headers, and v. v must be JSON or Bytes. It creates a nominal Reply with eagerly serialized immutable body Bytes and normalized explicit headers. A value of another kind raises type immediately. A plain record with fields status/body is never interpreted as Reply.
 
@@ -1753,16 +1764,16 @@ All following cases are independent. A reference runtime is not included. Extrac
     {"id":"encode-exact-utf8-octets","source":"encode(\"é😀\")","expect":{"phase":"value","bytes_base64":"w6nwn5iA"}},
     {"id":"decode-roundtrip-preserves-bom","source":"decode(encode(\"﻿é😀\"))","expect":{"phase":"value","json":"\"﻿é😀\""}},
     {"id":"decode-rejects-nonbytes","source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value kiroha_runtime_value(decode)([65])","expect":{"phase":"runtime","code":"type"}},
-    {"id":"schema-all-five-atoms","source":"[check(\"s\",str),check(1.25,num),check(1.0,int),check(false,bool),check([null,{x:1}],json)]","expect":{"phase":"value","json":"[\"s\",1.25,1,false,[null,{\"x\":1}]]"}},
-    {"id":"schema-optional-nullable-open-preserves-data-order","source":"S=open({id:int,label:optional(maybe(str))});[check({extra:2,id:1},S),check({id:2,label:null},S),check([], [str]),check({}, {})]","expect":{"phase":"value","json":"[{\"extra\":2,\"id\":1},{\"id\":2,\"label\":null},[],{}]"}},
-    {"id":"schema-nested-validation-path","source":"check({users:[{id:1},{id:\"x\"}]},{users:[{id:int}]})","expect":{"phase":"runtime","code":"validation","data":{"path":["users",1,"id"],"expected":"int","actual":"string"}}},
-    {"id":"schema-known-required-before-extra","source":"check({extra:1,b:\"bad\"},{a:int,b:int})","expect":{"phase":"runtime","code":"validation","data":{"path":["a"],"expected":"int","actual":"missing"}}},
-    {"id":"schema-closed-extra-field","source":"check({a:1,b:2},{a:int})","expect":{"phase":"runtime","code":"validation","data":{"path":["b"],"expected":"absent","actual":"number"}}},
-    {"id":"schema-optional-is-not-nullable","source":"check({x:null},{x:optional(str)})","expect":{"phase":"runtime","code":"validation","data":{"path":["x"],"expected":"str","actual":"null"}}},
-    {"id":"schema-invalid-description-before-data-mismatch","source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value kiroha_runtime_value(check)(null,{a:[]})","expect":{"phase":"runtime","code":"schema","data":{"path":["a"],"reason":"array_arity"}}},
-    {"id":"schema-malformed-descriptions-and-wrapper-placement","source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value [(try kiroha_runtime_value(check)(null,[]) catch {e=>e.code}),(try check(null,[str,num]) catch {e=>e.code}),(try kiroha_runtime_value(check)(null,true) catch {e=>e.code}),(try check(null,kiroha_runtime_value(optional)(str)) catch {e=>e.code}),(try kiroha_runtime_value(check)([], [optional(str)]) catch {e=>e.code}),(try maybe(kiroha_runtime_value(optional)(str)) catch {e=>e.code}),(try optional(kiroha_runtime_value(optional)(str)) catch {e=>e.code}),(try kiroha_runtime_value(open)(int) catch {e=>e.code})]","expect":{"phase":"value","json":"[\"schema\",\"schema\",\"schema\",\"schema\",\"schema\",\"schema\",\"schema\",\"schema\"]"}},
-    {"id":"schema-wrapper-idempotence-and-nullable-result","source":"[check(null,maybe(maybe(str))),check({x:1,y:2},open(open({x:int}))),(try check(1.5,int) catch {e=>[e.code,e.data.expected,e.data.actual]})]","expect":{"phase":"value","json":"[null,{\"x\":1,\"y\":2},[\"validation\",\"int\",\"number\"]]"}},
-    {"id":"schema-open-extra-must-still-be-json","source":"check({a:1,extra:encode(\"x\")},open({a:int}))","expect":{"phase":"runtime","code":"validation"}},
+    {"id":"schema-all-five-atoms","source":"[(\"s\").as(str),(1.25).as(num),(1.0).as(int),(false).as(bool),([null,{x:1}]).as(json)]","expect":{"phase":"value","json":"[\"s\",1.25,1,false,[null,{\"x\":1}]]"}},
+    {"id":"schema-optional-nullable-open-preserves-data-order","source":"S=open({id:int,label:optional(maybe(str))});[({extra:2,id:1}).as(S),({id:2,label:null}).as(S),([]).as([str]),({}).as({})]","expect":{"phase":"value","json":"[{\"extra\":2,\"id\":1},{\"id\":2,\"label\":null},[],{}]"}},
+    {"id":"schema-nested-validation-path","source":"({users:[{id:1},{id:\"x\"}]}).as({users:[{id:int}]})","expect":{"phase":"runtime","code":"validation","data":{"path":["users",1,"id"],"expected":"int","actual":"string"}}},
+    {"id":"schema-known-required-before-extra","source":"({extra:1,b:\"bad\"}).as({a:int,b:int})","expect":{"phase":"runtime","code":"validation","data":{"path":["a"],"expected":"int","actual":"missing"}}},
+    {"id":"schema-closed-extra-field","source":"({a:1,b:2}).as({a:int})","expect":{"phase":"runtime","code":"validation","data":{"path":["b"],"expected":"absent","actual":"number"}}},
+    {"id":"schema-optional-is-not-nullable","source":"({x:null}).as({x:optional(str)})","expect":{"phase":"runtime","code":"validation","data":{"path":["x"],"expected":"str","actual":"null"}}},
+    {"id":"schema-invalid-description-before-data-mismatch","source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value (null).as(kiroha_runtime_value({a:[]}))","expect":{"phase":"runtime","code":"schema","data":{"path":["a"],"reason":"array_arity"}}},
+    {"id":"schema-malformed-descriptions-and-wrapper-placement","source":"fun kiroha_runtime_value(value:any):any value end fun kiroha_runtime_value [(try (null).as(kiroha_runtime_value([])) catch {e=>e.code}),(try (null).as([str,num]) catch {e=>e.code}),(try (null).as(kiroha_runtime_value(true)) catch {e=>e.code}),(try (null).as(kiroha_runtime_value(optional)(str)) catch {e=>e.code}),(try ([]).as(kiroha_runtime_value([optional(str)])) catch {e=>e.code}),(try maybe(kiroha_runtime_value(optional)(str)) catch {e=>e.code}),(try optional(kiroha_runtime_value(optional)(str)) catch {e=>e.code}),(try kiroha_runtime_value(open)(int) catch {e=>e.code})]","expect":{"phase":"value","json":"[\"schema\",\"schema\",\"schema\",\"schema\",\"schema\",\"schema\",\"schema\",\"schema\"]"}},
+    {"id":"schema-wrapper-idempotence-and-nullable-result","source":"[(null).as(maybe(maybe(str))),({x:1,y:2}).as(open(open({x:int}))),(try (1.5).as(int) catch {e=>[e.code,e.data.expected,e.data.actual]})]","expect":{"phase":"value","json":"[null,{\"x\":1,\"y\":2},[\"validation\",\"int\",\"number\"]]"}},
+    {"id":"schema-open-extra-must-still-be-json","source":"({a:1,extra:encode(\"x\")}).as(open({a:int}))","expect":{"phase":"runtime","code":"validation"}},
     {"id":"value-schema-wrapper-kind","source":"optional(str)","expect":{"phase":"value","kind":"schema"}},
     {"id":"host-parallel-input-order","source":"[1,2,3].parallel(2){i=>get(url(\"https://fixture.invalid\",[text(i)]))}","host":{"capabilities":{"http":["https://fixture.invalid"]}},"fixtures":[{"id":"p1","op":"http","match":{"method":"GET","url":"https://fixture.invalid/1"},"ok":{"status":200,"headers":[],"body_base64":"MQ=="},"after_ms":30},{"id":"p2","op":"http","match":{"method":"GET","url":"https://fixture.invalid/2"},"ok":{"status":200,"headers":[],"body_base64":"Mg=="},"after_ms":10},{"id":"p3","op":"http","match":{"method":"GET","url":"https://fixture.invalid/3"},"ok":{"status":200,"headers":[],"body_base64":"Mw=="},"after_ms":5}],"expect":{"phase":"value","json":"[1,2,3]","trace":["p1:start","p2:start","p2:ok","p3:start","p3:ok","p1:ok"],"starts":{"p1":0,"p2":0,"p3":10},"max_parallel_active":2}},
     {"id":"host-parallel-failure-cancels-joins-no-third-start","source":"[1,2,3].parallel(2){i=>try get(url(\"https://fixture.invalid\",[text(i)])) catch {e=>if i==1 then fail({code:\"caught_abort\",message:\"\",data:{}}) else fail(e)}}","host":{"capabilities":{"http":["https://fixture.invalid"]}},"fixtures":[{"id":"p1","op":"http","match":{"method":"GET","url":"https://fixture.invalid/1"},"hold":true,"cancel_ack_ms":2},{"id":"p2","op":"http","match":{"method":"GET","url":"https://fixture.invalid/2"},"error":{"code":"network","message":"fixture diagnostic","data":{"operation":"http","reason":"second_failed","outcome":"unknown"}},"after_ms":10}],"expect":{"phase":"runtime","code":"network","trace":["p1:start","p2:start","p2:error","p1:cancel","p1:joined"],"starts":{"p1":0,"p2":0},"max_parallel_active":2,"data":{"reason":"second_failed","outcome":"unknown"}}},
@@ -1883,16 +1894,21 @@ All following cases are independent. A reference runtime is not included. Extrac
     {"id":"type-annotated-lambda","source":"f={x:int=>x+1};f(2)","expect":{"phase":"value","json":"3"}},
     {"id":"type-local-inference","source":"x=1;y={x:x+2};[x,y.x]","expect":{"phase":"value","json":"[1,3]"}},
     {"id":"type-recursive-result","source":"fun fac(n:int):int if n<=1 then 1 else n*fac(n-1) end fun fac fac(5)","expect":{"phase":"value","json":"120"}},
-    {"id":"type-concrete-schema","source":"type Point={x:num};check({x:1},Point).x","expect":{"phase":"value","json":"1"}},
-    {"id":"type-generic-schema","source":"type Box<T>={value:T};check({value:2},Box<int>).value","expect":{"phase":"value","json":"2"}},
-    {"id":"type-schema-parameter","source":"type P={x:num};fun validate<T>(v:json,s:schema<T>):T check(v,s) end fun validate validate({x:2},P).x","expect":{"phase":"value","json":"2"}},
-    {"id":"type-closed-validation","source":"type P={x:num};try check({x:1,y:2},P) catch {e=>e.code}","expect":{"phase":"value","json":"\"validation\""}},
-    {"id":"type-open-validation","source":"type P={x:num};check({x:1,y:2},open(P)).x","expect":{"phase":"value","json":"1"}},
+    {"id":"as-type-validation","source":"type Point={x:num,y:num};parse(\"{\\\"x\\\":1,\\\"y\\\":2}\").as[Point].x","expect":{"phase":"value","json":"1"}},
+    {"id":"as-schema-parameter","source":"type P={x:num};fun validate<T>(v:json,s:schema<T>):T v.as(s) end fun validate validate({x:2},P).x","expect":{"phase":"value","json":"2"}},
+    {"id":"as-closed-mismatch","source":"type P={x:num};try {x:1,y:2}.as[P] catch {e=>e.code}","expect":{"phase":"value","json":"\"validation\""}},
+    {"id":"as-erased-type","source":"fun f<T>(v:json):T v.as[T] end fun f f<num>(1)","expect":{"phase":"check","code":"type_reification"}},
+    {"id":"no-global-check","source":"check","expect":{"phase":"check","code":"name"}},
+    {"id":"type-concrete-schema","source":"type Point={x:num};({x:1}).as(Point).x","expect":{"phase":"value","json":"1"}},
+    {"id":"type-generic-schema","source":"type Box<T>={value:T};({value:2}).as(Box<int>).value","expect":{"phase":"value","json":"2"}},
+    {"id":"type-schema-parameter","source":"type P={x:num};fun validate<T>(v:json,s:schema<T>):T (v).as(s) end fun validate validate({x:2},P).x","expect":{"phase":"value","json":"2"}},
+    {"id":"type-closed-validation","source":"type P={x:num};try ({x:1,y:2}).as(P) catch {e=>e.code}","expect":{"phase":"value","json":"\"validation\""}},
+    {"id":"type-open-validation","source":"type P={x:num};({x:1,y:2}).as(open(P)).x","expect":{"phase":"value","json":"1"}},
     {"id":"type-optional-null","source":"type P={name:str,nick:optional(maybe(str))};p:P={name:\"Ada\"};p?.nick??p.name","expect":{"phase":"value","json":"\"Ada\""}},
     {"id":"type-nullable-refinement","source":"x:maybe(int)=2;if x==null then 0 else x+1","expect":{"phase":"value","json":"3"}},
     {"id":"type-explicit-any","source":"x:any=1;try x+\"s\" catch {e=>e.code}","expect":{"phase":"value","json":"\"type\""}},
-    {"id":"type-scope","source":"type P={x:num};do {type P=str;check(\"x\",P)}","expect":{"phase":"value","json":"\"x\""}},
-    {"id":"type-never-schema","source":"type Empty=never;try check(1,Empty) catch {e=>e.code}","expect":{"phase":"value","json":"\"validation\""}},
+    {"id":"type-scope","source":"type P={x:num};do {type P=str;(\"x\").as(P)}","expect":{"phase":"value","json":"\"x\""}},
+    {"id":"type-never-schema","source":"type Empty=never;try (1).as(Empty) catch {e=>e.code}","expect":{"phase":"value","json":"\"validation\""}},
     {"id":"type-known-mismatch","source":"type P={x:num};p:P={x:\"bad\"};p","expect":{"phase":"check","code":"type"}},
     {"id":"type-unknown-field","source":"type P={x:num};fun f(p:P):num p.y end fun f","expect":{"phase":"check","code":"type"}},
     {"id":"type-value-not-type","source":"P={x:num};p:P={x:1};p","expect":{"phase":"check","code":"type_name"}},
@@ -1908,8 +1924,8 @@ All following cases are independent. A reference runtime is not included. Extrac
     {"id":"type-recursive-alias","source":"type P={next:P};0","expect":{"phase":"check","code":"type_name"}},
     {"id":"type-json-projection","source":"parse(\"{}\").x","expect":{"phase":"check","code":"type"}},
     {"id":"type-any-not-global-disable","source":"x:any=1+\"x\";x","expect":{"phase":"check","code":"type"}},
-    {"id":"type-erased-parameter","source":"fun bad<T>(v:json):T check(v,T) end fun bad","expect":{"phase":"check","code":"name"}},
-    {"id":"type-function-reification","source":"type F=(num)=>num;check(1,F)","expect":{"phase":"check","code":"type_reification"}},
+    {"id":"type-erased-parameter","source":"fun bad<T>(v:json):T (v).as(T) end fun bad","expect":{"phase":"check","code":"name"}},
+    {"id":"type-function-reification","source":"type F=(num)=>num;(1).as(F)","expect":{"phase":"check","code":"type_reification"}},
     {"id":"type-known-arity","source":"fun f(x:int):int x end fun f f()","expect":{"phase":"check","code":"arity"}},
     {"id":"type-callback-arity","source":"[1].map{()=>1}","expect":{"phase":"check","code":"arity"}}
   ]
@@ -1982,19 +1998,19 @@ The next block is source data, not executed conformance evidence.
     {
       "id": "example-1",
       "task": "HTTP JSON validation, filtering and projection",
-      "kiroha": "type User=open({id:int,name:str,active:bool});\n((get(\"https://api.example/users\") | check([User])).filter{u=>u.active}).map{u=>{id:u.id,name:u.name}}",
+      "kiroha": "type User=open({id:int,name:str,active:bool});\n((get(\"https://api.example/users\").as[[User]]).filter{u=>u.active}).map{u=>{id:u.id,name:u.name}}",
       "typescript_same_sdk": "const User=open({id:int,name:str,active:bool});\ncheck(await get(\"https://api.example/users\"),[User]).filter(u=>u.active).map(u=>({id:u.id,name:u.name}))"
     },
     {
       "id": "example-2",
       "task": "Cursor pagination with page validation",
-      "kiroha": "type Page=open({items:[json],next:maybe(str)});\nseed:maybe(str)=null;\npages(seed){c=>\n  p=get(\"https://api.example/items\",{query:{cursor:c}}) | check(Page);\n  {items:p.items,next:p.next}\n}",
+      "kiroha": "type Page=open({items:[json],next:maybe(str)});\nseed:maybe(str)=null;\npages(seed){c=>\n  p=get(\"https://api.example/items\",{query:{cursor:c}}).as[Page];\n  {items:p.items,next:p.next}\n}",
       "typescript_same_sdk": "const Page=open({items:[json],next:maybe(str)});\nawait pages(null,async c=>{\n  const p=check(await get(\"https://api.example/items\",{query:{cursor:c}}),Page);\n  return {items:p.items,next:p.next}\n})"
     },
     {
       "id": "example-3",
       "task": "JSON API with two-write transaction",
-      "kiroha": "d=db(\"main\");\nserve({\"POST /users\":{r=>\n  u=input(r,{name:str,email:str});\n  tx(d){t=>\n    row=check(sql(t,q`insert into users(name,email) values (${u.name},${u.email}) returning id`).rows.one(),{id:int});\n    sql(t,q`insert into audit(user_id) values (${row.id})`);\n    reply(201,row)\n  }\n}})",
+      "kiroha": "d=db(\"main\");\nserve({\"POST /users\":{r=>\n  u=input(r,{name:str,email:str});\n  tx(d){t=>\n    row=(sql(t,q`insert into users(name,email) values (${u.name},${u.email}) returning id`).rows.one()).as({id:int});\n    sql(t,q`insert into audit(user_id) values (${row.id})`);\n    reply(201,row)\n  }\n}})",
       "typescript_same_sdk": "const d=db(\"main\");\nserve({\"POST /users\":async r=>{\n  const u=input(r,{name:str,email:str});\n  return tx(d,async t=>{\n    const row=one((await sql(t,q`insert into users(name,email) values (${u.name},${u.email}) returning id`)).rows);\n    await sql(t,q`insert into audit(user_id) values (${row.id})`);\n    return reply(201,row)\n  })\n}})"
     }
   ],
@@ -2104,13 +2120,13 @@ def main():
     if len(ids) != len(set(ids)):
         fail("Duplicate conformance case id")
     api = re.findall(r"^\| ([0-9]+) \| `([^`]+)` \|", document, re.MULTILINE)
-    if [int(n) for n, _ in api] != list(range(1, 52)):
-        fail("API inventory must have consecutive rows 1..51")
+    if [int(n) for n, _ in api] != list(range(1, 51)):
+        fail("API inventory must have consecutive rows 1..50")
     members = [signature.split("(", 1)[0].split("{", 1)[0] for _, signature in api]
     functions = [name.split(".")[-1] for name in members]
     globals_ = [name for name in members if "." not in name]
     methods = [name.split(".")[-1] for name in members if "." in name and not name.endswith(".size")]
-    if len(set(functions)) != 51:
+    if len(set(functions)) != 50:
         fail("Duplicate callable name in inventory")
 
     encoders = {name: tiktoken.get_encoding(name) for name in ENCODINGS}

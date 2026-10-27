@@ -21,7 +21,7 @@ Types: primitives str/num/int/bool/null/json, opaque bytes/query/database/transa
 
 SCHEMAS
 Atoms str,num,int,bool,json. Prefer named type declarations; schema<T> describes a validator. [S]=homogeneous array of any length; {k:S}=closed required-field record. maybe(S) adds null. optional(S) permits field absence, not null; only immediate field schema. open(recordSchema) allows/preserves extra JSON fields. No literal scalar schemas/unions.
-Static width compatibility allows extras; runtime check of a closed record rejects them. check(v,S) fully validates S then v, returns unchanged v; no defaults/coercion/stripping. Malformed schema=>schema; mismatch=>validation data={path,expected,actual}, no payload. optional(maybe(str)) accepts absent/null/string; maybe(optional(str)) invalid.
+Static width compatibility allows extras; runtime check of a closed record rejects them. v.as(S) fully validates S then v, returns unchanged v; v.as[T] validates against type T; no defaults/coercion/stripping. Malformed schema=>schema; mismatch=>validation data={path,expected,actual}, no payload. optional(maybe(str)) accepts absent/null/string; maybe(optional(str)) invalid.
 
 DATA (callbacks sequential unless parallel)
 x.size: array/record/string-scalars/Bytes length.
@@ -44,7 +44,7 @@ number(s): complete signed JSON-number string, no whitespace.
 parse(s): strict one JSON value, exact decimals; duplicate keys/surrogates/BOM invalid.
 dump(v): compact JSON, ordered keys, exact numbers; non-JSON errors.
 encode(s): UTF8 Bytes; decode(b): strict UTF8, preserves valid BOM scalar.
-check,maybe,optional,open as above.
+Validation uses `.as[T]` or `.as(schema)`; maybe, optional, open as above.
 
 RUNTIME
 xs.parallel(n){f}: positive n, at most n active f(item), input-order results. First observed failure stops starts, cancels/joins siblings, rethrows. Effects remain. Catch inside f for per-item failures.
@@ -84,4 +84,4 @@ LOCAL
 env(name): explicitly exposed string; absent=>env.
 read(path): Bytes; write(path,Bytes): atomic replacement/null,preserve0777,new0600; no parent creation/symlinks/.. components. Host path/byte permissions.
 now(): UTC YYYY-MM-DDTHH:mm:ss.sssZ; uuid(): randomUUIDv4; log(v): dump(v)+LF stderr/null. Explicit secrets are not redacted.
-These are the 31 global functions, 19 methods and size property. Use task-provided bindings/schemas; do not infer absent APIs.
+These are the 30 global functions, 19 methods and size property. Use task-provided bindings/schemas; do not infer absent APIs.

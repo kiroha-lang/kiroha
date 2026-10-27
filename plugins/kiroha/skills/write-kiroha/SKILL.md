@@ -5,7 +5,8 @@ description: Write, review, migrate and debug Kiroha (.kiroha) programs when the
 
 # Write Kiroha
 
-Target **Kiroha 0.7.0 / Web1**. Help with the requested program, explanation or
+Target **Kiroha 0.7.0 / Web1** development source. The `.as` syntax here is
+unreleased; the published 0.7.0 binary uses the older `check` function. Help with the requested program, explanation or
 source change; match the user's scope. Resolve paths below from this skill's
 directory, including when it is installed outside the user's project.
 
@@ -29,8 +30,9 @@ The current surface has a few easy-to-miss rules:
 - Collections use receivers: `xs.map{x=>x*2}`, `xs.fold(0){(a,x)=>a+x}`,
   `xs.parallel(4){x=>work(x)}`. Length is **`x.size`**, without parentheses.
   Global `len`, `map`, `filter`, `fold`, `sort`, `keys`, etc. no longer exist.
-  Constructors, conversions, schemas and I/O such as `range`, `text`, `check`
-  and `get` stay global. Pipes insert a first argument; methods use chains.
+  Constructors, conversions and I/O such as `range`, `text` and `get` stay
+  global. Validation uses `.as[...]` or `.as(schema)`. Pipes insert a first
+  argument; methods use chains.
 - Callbacks are trailing **lambda literals**, not positional lambdas or
   `{existing_function}`. Wrap reuse as `xs.map{x=>existing_function(x)}`.
   A user function declares its required slot as `fun apply(x:num){step:(num)=>num}:num ...`.
@@ -60,7 +62,7 @@ for a generic alias. Annotate named-function parameters and callback slots; recu
 functions also need a result type. Infer only local bindings, contextual lambdas and
 call type arguments. No implicit `any`, whole-program inference or automatic
 polymorphic generalization. Use explicit `any` only for intentionally dynamic code.
-Validate `json` from HTTP/parse/input and SQL columns with `check` before assuming a
+Validate `json` from HTTP/parse/input and SQL columns with `.as[...]` before assuming a
 shape. Read [types and generics](references/types.md) for annotation syntax,
 `schema<T>`, erased parameters, structural compatibility and boundary validation.
 

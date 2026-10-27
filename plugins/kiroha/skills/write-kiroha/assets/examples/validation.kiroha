@@ -1,8 +1,8 @@
 type User=open({id:int,name:str,nickname:optional(maybe(str))});
-users=check(parse("[{\"id\":1,\"name\":\"Ada\"},{\"id\":2,\"name\":\"Lin\",\"nickname\":null}]"),[User]);
+users=(parse("[{\"id\":1,\"name\":\"Ada\"},{\"id\":2,\"name\":\"Lin\",\"nickname\":null}]")).as[[User]];
 {
   names:users.map{u=>u?.nickname??u.name},
-  error:try check({id:"wrong",name:"Sam"},User) catch {e=>{code:e.code,path:e.data.path}},
+  error:try ({id:"wrong",name:"Sam"}).as[User] catch {e=>{code:e.code,path:e.data.path}},
   dataField:{size:99}["size"]
 }
 // => {"names":["Ada","Lin"],"error":{"code":"validation","path":["id"]},"dataField":99}

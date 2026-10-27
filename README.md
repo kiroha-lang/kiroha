@@ -2,11 +2,14 @@
 
 **Documentation (GitHub Pages):** [kiroha-lang.github.io/kiroha](https://kiroha-lang.github.io/kiroha/)
 
+This branch describes unreleased development changes: `.as[...]` and
+`.as(schema)` replace the `check` function in the published 0.7.0 release.
+
 **Kiroha (きろは)** combines the original working name Kiri with *iroha*, the basics of a language. The executable and source extension are `kiroha` and `.kiroha`. See [the naming and migration note](docs/naming.md).
 
 Kiroha is a small, strict, immutable expression language for programs that
 manipulate JSON, call web services, serve HTTP APIs and use PostgreSQL, MySQL or MariaDB. It was
-designed to be written by LLMs: the standard surface is 31 global functions, 19 collection methods
+designed to be written by LLMs: the standard surface is 30 global functions, 19 collection methods
 and one `.size` property, numbers are exact decimals, every effect is explicit and
 capability-checked, and there is exactly one way to pass a callback — a
 mandatory trailing lambda.
@@ -14,7 +17,7 @@ mandatory trailing lambda.
 ```kiroha
 type User = open({id:int, name:str, active:bool});
 
-check(get("https://api.example/users"), [User])
+get("https://api.example/users").as[[User]]
   .filter{u => u.active}
   .map{u => {id:u.id, name:u.name}}
 ```
@@ -33,7 +36,7 @@ local filesystem.
 | Integration scenarios I01–I08 (spec §15.3) | All pass (PostgreSQL 16.4; additional backend tests use MySQL 8.4.4 / MariaDB 11.4.5) |
 | Extra prose-rule regressions | Pass (`tests/prose_regressions.rs`) |
 | Formal verification | TLA+ models of `parallel` and `tx` model-checked with TLC; property-based tests of decimals and JSON against oracles ([details](docs/formal-verification.md)) |
-| 31 globals + 19 methods + size + 5 schema atoms | Implemented; inventory matches the generation card |
+| 30 globals + 19 methods + size + 5 schema atoms | Implemented; inventory matches the generation card |
 | CLI protocol `kiroha-cli/1` | Implemented |
 | Acceptance | 104 tests pass with PostgreSQL/MySQL/MariaDB; compact syntax and members have dedicated regressions; the dated 0.3 baseline passed audit 23 ([record](docs/completion.md)) |
 

@@ -300,7 +300,7 @@ fn pure(b: Builtin, a: &[Value], tick: Tick) -> BResult {
                 Err(e) => Err(utf8_fail(e.valid_up_to())),
             }
         }
-        Check => {
+        Validate => {
             let s = schema::normalize(&a[1])?;
             match schema::validate(&a[0], &s) {
                 Ok(()) => Ok(a[0].clone()),

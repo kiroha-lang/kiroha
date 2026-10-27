@@ -26,21 +26,21 @@
   "documents": {
     "full_markdown": {
       "file": "spec.md",
-      "sha256": "2f02f4ba4b7dc7785553c997eeecfbc85985bef11affa0ae23269ea2b6d71087",
-      "unicode_code_points": 251267,
-      "utf8_bytes": 251381,
+      "sha256": "9bafc59a847750911babb9883451dcb8ceaba34ed7724722f7851992f274de95",
+      "unicode_code_points": 252876,
+      "utf8_bytes": 252990,
       "tokens": {
-        "o200k_base": 61949,
-        "cl100k_base": 61393
+        "o200k_base": 62440,
+        "cl100k_base": 61877
       }
     },
     "generation_card": {
-      "sha256": "fca113f445c073f689c653241862ed2add7403978377c83b990eb67b0eed0304",
-      "unicode_code_points": 13660,
-      "utf8_bytes": 13660,
+      "sha256": "082c78010e82fb842958f400ce623a9ce958f68dd8d572534d7ed6992cdbff2b",
+      "unicode_code_points": 13730,
+      "utf8_bytes": 13730,
       "tokens": {
-        "o200k_base": 3209,
-        "cl100k_base": 3185
+        "o200k_base": 3229,
+        "cl100k_base": 3205
       },
       "target_tokens_each_encoding": 4096,
       "within_target": true
@@ -48,34 +48,34 @@
   },
   "embedded_blocks": {
     "generation_card": {
-      "sha256": "fca113f445c073f689c653241862ed2add7403978377c83b990eb67b0eed0304",
-      "unicode_code_points": 13660,
-      "utf8_bytes": 13660,
+      "sha256": "082c78010e82fb842958f400ce623a9ce958f68dd8d572534d7ed6992cdbff2b",
+      "unicode_code_points": 13730,
+      "utf8_bytes": 13730,
       "tokens": {
-        "o200k_base": 3209,
-        "cl100k_base": 3185
+        "o200k_base": 3229,
+        "cl100k_base": 3205
       }
     },
     "conformance": {
-      "sha256": "e24655f4362dc60449309ccd80334cdf7b34eee87e341d732b8fd5e2eb4a2462",
-      "unicode_code_points": 74085,
-      "utf8_bytes": 74146,
+      "sha256": "019c4367f07a064c0772977ded3ea219f795fbe3b1cd5c5debd9d055a3800775",
+      "unicode_code_points": 74763,
+      "utf8_bytes": 74824,
       "tokens": {
-        "o200k_base": 22815,
-        "cl100k_base": 22490
+        "o200k_base": 23072,
+        "cl100k_base": 22741
       }
     },
     "measurement_corpus": {
-      "sha256": "c51fb3748e9349f980a1b50819697fbd3b01e5b8eec06f54127ac46ff1665c59",
-      "unicode_code_points": 2417,
-      "utf8_bytes": 2417,
+      "sha256": "31d6d43844b53300ae9e4935e3e73d92cbf4d3fe3741a15ea8c1fe1c7d077671",
+      "unicode_code_points": 2406,
+      "utf8_bytes": 2406,
       "tokens": {
-        "o200k_base": 727,
-        "cl100k_base": 725
+        "o200k_base": 729,
+        "cl100k_base": 727
       }
     },
     "measurement_script": {
-      "sha256": "a0c117ba35ebfbd6e662679f6b1478863fe17ec8b4db5dac4b96fa0f8e9e3313",
+      "sha256": "32c428561fd0e13590231b81f84ed2ead2c9fa7414944998d008d03fe9cd42f4",
       "unicode_code_points": 9379,
       "utf8_bytes": 9379,
       "tokens": {
@@ -85,7 +85,7 @@
     }
   },
   "specified_surface": {
-    "native_operation_count": 51,
+    "native_operation_count": 50,
     "native_operation_names": [
       "size",
       "range",
@@ -113,7 +113,6 @@
       "dump",
       "encode",
       "decode",
-      "check",
       "maybe",
       "optional",
       "open",
@@ -139,7 +138,7 @@
       "uuid",
       "log"
     ],
-    "global_function_count": 31,
+    "global_function_count": 30,
     "global_function_names": [
       "range",
       "text",
@@ -148,7 +147,6 @@
       "dump",
       "encode",
       "decode",
-      "check",
       "maybe",
       "optional",
       "open",
@@ -205,14 +203,14 @@
       "bool",
       "json"
     ],
-    "conformance_case_count": 258,
+    "conformance_case_count": 263,
     "expected_case_phases": {
       "abort": 6,
-      "check": 50,
+      "check": 52,
       "lex": 8,
       "parse": 32,
       "runtime": 36,
-      "value": 126
+      "value": 129
     },
     "conformance_execution": "not run by this script"
   },
@@ -224,14 +222,14 @@
         "id": "example-1",
         "task": "HTTP JSON validation, filtering and projection",
         "sources": {
-          "kiroha": "type User=open({id:int,name:str,active:bool});\n((get(\"https://api.example/users\") | check([User])).filter{u=>u.active}).map{u=>{id:u.id,name:u.name}}",
+          "kiroha": "type User=open({id:int,name:str,active:bool});\n((get(\"https://api.example/users\").as[[User]]).filter{u=>u.active}).map{u=>{id:u.id,name:u.name}}",
           "typescript_same_sdk": "const User=open({id:int,name:str,active:bool});\ncheck(await get(\"https://api.example/users\"),[User]).filter(u=>u.active).map(u=>({id:u.id,name:u.name}))"
         },
         "measurements": {
           "kiroha": {
-            "sha256": "0cb6e6ad1e140d23077c1ff7c67bdb7f07f987a8b2bcc22f08a87241cf6b7376",
-            "unicode_code_points": 149,
-            "utf8_bytes": 149,
+            "sha256": "cb9d5d198aad3808b21c3d992e13c18726c59e14c8952b13477c07891229395c",
+            "unicode_code_points": 144,
+            "utf8_bytes": 144,
             "tokens": {
               "o200k_base": 46,
               "cl100k_base": 48
@@ -262,14 +260,14 @@
         "id": "example-2",
         "task": "Cursor pagination with page validation",
         "sources": {
-          "kiroha": "type Page=open({items:[json],next:maybe(str)});\nseed:maybe(str)=null;\npages(seed){c=>\n  p=get(\"https://api.example/items\",{query:{cursor:c}}) | check(Page);\n  {items:p.items,next:p.next}\n}",
+          "kiroha": "type Page=open({items:[json],next:maybe(str)});\nseed:maybe(str)=null;\npages(seed){c=>\n  p=get(\"https://api.example/items\",{query:{cursor:c}}).as[Page];\n  {items:p.items,next:p.next}\n}",
           "typescript_same_sdk": "const Page=open({items:[json],next:maybe(str)});\nawait pages(null,async c=>{\n  const p=check(await get(\"https://api.example/items\",{query:{cursor:c}}),Page);\n  return {items:p.items,next:p.next}\n})"
         },
         "measurements": {
           "kiroha": {
-            "sha256": "e00b4486e197887d8ba05188b8f4dff7f61b61109193172171786d3a5a6a867b",
-            "unicode_code_points": 188,
-            "utf8_bytes": 188,
+            "sha256": "b9c01f678d1d5ba01808f89a60d9b06db14b231bfbe5cdb838cd8a6b78fe1373",
+            "unicode_code_points": 183,
+            "utf8_bytes": 183,
             "tokens": {
               "o200k_base": 56,
               "cl100k_base": 56
@@ -300,14 +298,14 @@
         "id": "example-3",
         "task": "JSON API with two-write transaction",
         "sources": {
-          "kiroha": "d=db(\"main\");\nserve({\"POST /users\":{r=>\n  u=input(r,{name:str,email:str});\n  tx(d){t=>\n    row=check(sql(t,q`insert into users(name,email) values (${u.name},${u.email}) returning id`).rows.one(),{id:int});\n    sql(t,q`insert into audit(user_id) values (${row.id})`);\n    reply(201,row)\n  }\n}})",
+          "kiroha": "d=db(\"main\");\nserve({\"POST /users\":{r=>\n  u=input(r,{name:str,email:str});\n  tx(d){t=>\n    row=(sql(t,q`insert into users(name,email) values (${u.name},${u.email}) returning id`).rows.one()).as({id:int});\n    sql(t,q`insert into audit(user_id) values (${row.id})`);\n    reply(201,row)\n  }\n}})",
           "typescript_same_sdk": "const d=db(\"main\");\nserve({\"POST /users\":async r=>{\n  const u=input(r,{name:str,email:str});\n  return tx(d,async t=>{\n    const row=one((await sql(t,q`insert into users(name,email) values (${u.name},${u.email}) returning id`)).rows);\n    await sql(t,q`insert into audit(user_id) values (${row.id})`);\n    return reply(201,row)\n  })\n}})"
         },
         "measurements": {
           "kiroha": {
-            "sha256": "dfdb37a14418848333614b60c433ed59b698129005899c5b24ae5a6c1031e4bd",
-            "unicode_code_points": 293,
-            "utf8_bytes": 293,
+            "sha256": "5994dc52da68f444bde24203f226b12b449889cfed455b05ec2427e3dcc770dc",
+            "unicode_code_points": 292,
+            "utf8_bytes": 292,
             "tokens": {
               "o200k_base": 92,
               "cl100k_base": 91

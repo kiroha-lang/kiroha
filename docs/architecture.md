@@ -33,7 +33,7 @@ source bytes ─▶ lexer ─▶ parser ─▶ resolver ─▶ type checker ─�
 | `src/sqlcheck.rs` | Query translation, hole-context lexing and statement validation: libpg_query (PostgreSQL 16 grammar) in `sqlcheck/postgres.rs`, sqlparser's MySQL dialect in `sqlcheck/mysql.rs` |
 | `src/runtime/` | Task engine (`mod.rs`), evaluator (`machine.rs`), frames |
 | `src/methods.rs` | Receiver-kind registry, member signatures and properties |
-| `src/builtins/` | The 51 native operations: `pure`, `callbacks`, `effects`, `db`, `server`, helpers |
+| `src/builtins/` | The 50 public native operations plus internal validation: `pure`, `callbacks`, `effects`, `db`, `server`, helpers |
 | `src/host/` | `Host` trait, config, path rules, virtual and real hosts |
 | `src/conformance.rs`, `src/cli.rs`, `src/wire.rs` | Embedded test protocol, CLI, wire values |
 
@@ -52,7 +52,7 @@ Dot selection creates a bound function holding an immutable receiver and an
 ordinary callable target. Invocation uses the same call/arity/callback path as
 other functions, inserting the receiver only internally. Member parsing never
 consults builtin names, leaving room for future extension targets. The registry
-currently exposes 19 methods and `.size`; 31 globals populate the prelude.
+currently exposes 19 methods and `.size`; 30 globals populate the prelude.
 
 Named functions use the same sequence execution path as lambdas. Other rules
 include lambda-vs-record by checking for a lambda head followed by

@@ -99,6 +99,8 @@ pub enum Node {
     Array(Vec<NodeId>),
     Record(Vec<(Rc<str>, NodeId)>),
     Name { name: Rc<str>, var: Var },
+    /// Internal callable used by validation syntax, never a prelude binding.
+    Intrinsic(crate::builtins::Builtin),
     Lambda(FnInfo),
     Call { callee: NodeId, args: Vec<NodeId>, cb: Option<NodeId> },
     Pipe { left: NodeId, head: NodeId, fields: Vec<Rc<str>>, args: Vec<NodeId>, cb: Option<NodeId> },
@@ -110,8 +112,8 @@ pub enum Node {
     Do { items: Vec<NodeId> },
     Try { e: NodeId, name: Rc<str>, slot: u32, items: Vec<NodeId> },
     Query { segments: Rc<Vec<String>>, holes: Vec<NodeId> },
-    /// A type expression reified as a schema for a typed SQL block.
-    SqlSchema { annotation: crate::types::TypeExpr, schema: Option<Value> },
+    /// A type expression reified as a runtime validation schema.
+    TypeSchema { annotation: crate::types::TypeExpr, schema: Option<Value> },
     Group(NodeId),
     Bind { name: Rc<str>, slot: u32, e: NodeId, annotation: Option<crate::types::TypeExpr> },
     TypeDecl { name: Rc<str>, params: Vec<crate::types::TypeParam>, body: crate::types::TypeExpr, alias: u32 },

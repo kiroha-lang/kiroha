@@ -90,7 +90,7 @@ number("2") + 1
 // 3
 ```
 
-Use `check(value, schema)` near the point where data enters your program.
+Use `(value).as(schema)` near the point where data enters your program.
 A validation error includes a path, expected shape and actual kind, so you
 can follow it to the field that needs attention.
 
