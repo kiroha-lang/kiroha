@@ -98,6 +98,8 @@ and a live HTTP service. The database example is statically checked and document
 its expected table and write; it is not run against an arbitrary database.
 
 The package command writes and inspects `target/plugins/kiroha-0.4.0.zip`.
+The [0.8.0 release](https://github.com/kiroha-lang/kiroha/releases/tag/v0.8.0)
+also provides this ZIP and its SHA-256 checksum.
 The ZIP contains only the self-contained plugin, including its license. It
 excludes the marketplace, repository, runtime binary and dependencies. Normal
 CI checks synchronization, executes the examples and builds the package.

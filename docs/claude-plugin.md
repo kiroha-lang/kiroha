@@ -20,6 +20,10 @@ kiroha-lang/kiroha`, followed by `/plugin install kiroha@kiroha-lang`.
 Restart the session if needed. To inspect the installed plugin, run
 `claude plugin list` and `claude plugin details kiroha@kiroha-lang`.
 
+The [0.8.0 release](https://github.com/kiroha-lang/kiroha/releases/tag/v0.8.0)
+also includes `kiroha-plugin-0.4.0.zip` and its SHA-256 checksum. After verifying
+and unpacking it, `claude --plugin-dir ./kiroha` loads it for that session.
+
 ## Use it
 
 Invoke the namespaced skill in Claude Code:

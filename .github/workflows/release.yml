@@ -128,11 +128,17 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
       - name: Prepare checksums and installer
         run: |
+          python -m pip install PyYAML==6.0.3
+          kiroha_plugin_version=$(python -c 'import json; print(json.load(open("plugins/kiroha/plugin.json"))["version"])')
+          python scripts/plugin.py package --output "dist/kiroha-plugin-${kiroha_plugin_version}.zip"
           cp install.sh dist/install.sh
           cd dist
-          sha256sum kiroha-*.tar.gz install.sh > SHA256SUMS
+          sha256sum kiroha-*.tar.gz kiroha-plugin-*.zip install.sh > SHA256SUMS
       - name: Publish verified release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -153,6 +159,7 @@ jobs:
           differences are documented at https://kiroha-lang.github.io/kiroha/guides/databases/.
           Kiroha plugin 0.4 supports both Codex and Claude Code.
           Claude Code installation: https://kiroha-lang.github.io/kiroha/claude-plugin/.
+          The release assets include the self-contained plugin ZIP and its checksum.
 
           Install the latest verified binary (Linux/WSL or macOS, x86_64/ARM64):
 
