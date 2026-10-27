@@ -4,7 +4,7 @@ The **Kiroha** plugin gives an agent the language guidance it needs to write,
 review, migrate and debug `.kiroha` programs. Its `write-kiroha` skill targets
 Kiroha 0.8.0: explicit structural types, simple generics, compact named functions and collection methods.
 
-Version 0.4 of the plugin targets Kiroha 0.8 and covers `.as` validation and SQL blocks.
+Version 0.4 of the plugin targets Kiroha 0.8 and covers `.as` validation and SQL blocks. The same skill is also available for [Claude Code](claude-plugin.md).
 
 It includes the canonical generation card, API and host references, a migration
 guide and eight complete example programs. References travel with the plugin,

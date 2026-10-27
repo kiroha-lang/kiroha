@@ -2,6 +2,8 @@
 
 **Documentation (GitHub Pages):** [kiroha-lang.github.io/kiroha](https://kiroha-lang.github.io/kiroha/)
 
+**Claude Code plugin:** `claude plugin marketplace add kiroha-lang/kiroha`, then `claude plugin install kiroha@kiroha-lang`. [Guide](docs/claude-plugin.md).
+
 Kiroha 0.8.0 replaces the earlier `check` function with `.as[...]` and
 `.as(schema)`. See the [0.8 migration guide](docs/migration-0.8.md).
 

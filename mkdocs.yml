@@ -84,6 +84,7 @@ nav:
       - Move from 0.3 to 0.4: migration-0.4.md
   - Go deeper:
       - Write Kiroha with Codex: codex-plugin.md
+      - Write Kiroha with Claude Code: claude-plugin.md
       - Icon and favicon: branding.md
       - Example programs: examples.md
       - Language specification: spec.md

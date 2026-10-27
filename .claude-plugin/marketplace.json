@@ -1,0 +1,12 @@
+{
+  "name": "kiroha-lang",
+  "owner": {"name": "Kiroha contributors", "url": "https://github.com/kiroha-lang"},
+  "metadata": {"description": "Kiroha language tools"},
+  "plugins": [
+    {
+      "name": "kiroha",
+      "source": "./plugins/kiroha",
+      "description": "Write, review and migrate Kiroha programs."
+    }
+  ]
+}

@@ -65,6 +65,18 @@ def generated():
     assert spec.count(start) == spec.count(end) == 1
     card = spec.split(start)[1].split(end)[0]
     result = {SKILL / 'references/generation-card.md': card}
+    codex = read_json(PLUGIN / 'plugin.json')
+    language = tomllib.loads((ROOT / 'Cargo.toml').read_text())['package']['version']
+    language_series = '.'.join(language.split('.')[:2])
+    claude = {
+        'name': codex['name'], 'version': codex['version'],
+        'description': f'Write, review and migrate Kiroha {language_series} programs with runnable examples.',
+        'author': codex['author'], 'homepage': SITE + 'claude-plugin/',
+        'repository': codex['repository'], 'license': codex['license'],
+        'keywords': ['kiroha', 'programming-language', 'code-generation'],
+        'icon': './.claude-plugin/icon.png',
+    }
+    result[PLUGIN / '.claude-plugin' / 'plugin.json'] = json.dumps(claude, ensure_ascii=False, indent=2) + '\n'
     for source in ('reference/builtins.md', 'host-config.md', 'guides/databases.md', 'types.md', 'migration-0.6.md', 'migration-0.8.md'):
         text = (ROOT / 'docs' / source).read_text()
         def absolute(m):
@@ -93,7 +105,15 @@ def sync(check=False):
         if check:
             assert path.is_file() and path.read_text() == expected, f'{path.relative_to(ROOT)} is stale: run python3 scripts/plugin.py sync'
         else:
+            path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(expected)
+    icon = PLUGIN / '.claude-plugin' / 'icon.png'
+    source_icon = ROOT / 'assets/branding/kiroha-icon.png'
+    if check:
+        assert icon.is_file() and icon.read_bytes() == source_icon.read_bytes(), 'Claude plugin icon is stale'
+    else:
+        icon.parent.mkdir(parents=True, exist_ok=True)
+        icon.write_bytes(source_icon.read_bytes())
 
 
 def read_json(path):
@@ -117,12 +137,17 @@ def metadata():
     assert (ROOT / entry['source']['path']).resolve() == PLUGIN
     assert entry['policy']['installation'] == 'AVAILABLE'
     assert entry['category'] == interface['category']
+    claude_marketplace = read_json(ROOT / '.claude-plugin/marketplace.json')
+    claude_entry, = claude_marketplace['plugins']
+    assert claude_marketplace['name'] == marketplace['name']
+    assert claude_entry['name'] == manifest['name']
+    assert (ROOT / claude_entry['source']).resolve() == PLUGIN
     version = tomllib.loads((ROOT / 'Cargo.toml').read_text())['package']['version']
     assert (SKILL / 'references/generation-card.md').read_text().startswith(f'Kiroha {version} / Web1\n')
     for text_file in (SKILL / 'SKILL.md', SKILL / 'references/runtime.md'):
         declared = re.search(r'Kiroha (\d+\.\d+\.\d+)', text_file.read_text())
         assert declared and declared[1] == version, f'{text_file}: update the target language version'
-    assert {p.name for p in PLUGIN.iterdir()} == {'plugin.json', 'LICENSE', 'skills'}
+    assert {p.name for p in PLUGIN.iterdir()} == {'plugin.json', 'LICENSE', 'skills', '.claude-plugin'}
     skills = list((PLUGIN / 'skills').glob('*/SKILL.md'))
     assert len(skills) == 1
     for path in skills:

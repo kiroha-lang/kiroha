@@ -1,5 +1,6 @@
 """Code examples containing bracketed syntax must survive plugin link syncing."""
 import importlib.util
+import json
 from pathlib import Path
 import unittest
 
@@ -27,6 +28,15 @@ class MarkdownLinks(unittest.TestCase):
         reference = plugin.generated()[plugin.SKILL / 'references' / 'databases.md']
         self.assertIn('sql[Greeting](d){select', reference)
         self.assertNotIn('sql[Greeting](https://', reference)
+
+    def test_claude_manifest_uses_the_same_plugin_and_icon(self):
+        codex = json.loads((plugin.PLUGIN / 'plugin.json').read_text())
+        claude = json.loads(plugin.generated()[plugin.PLUGIN / '.claude-plugin/plugin.json'])
+        market = json.loads((plugin.ROOT / '.claude-plugin/marketplace.json').read_text())
+        self.assertEqual((claude['name'], claude['version']), (codex['name'], codex['version']))
+        self.assertEqual(market['plugins'][0]['source'], './plugins/kiroha')
+        self.assertEqual((plugin.PLUGIN / '.claude-plugin/icon.png').read_bytes(),
+                         (plugin.ROOT / 'assets/branding/kiroha-icon.png').read_bytes())
 
 
 if __name__ == '__main__':
