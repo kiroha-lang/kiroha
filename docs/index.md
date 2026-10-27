@@ -2,6 +2,9 @@
 
 # Welcome to Kiroha
 
+The development documentation includes unreleased `.as[...]` and `.as(schema)`
+validation. The published 0.7.0 release uses the earlier `check` function.
+
 <div class="welcome-intro" markdown>
 Start with something small. Read a little data, write a clear function,
 and build from there. We'll take it one step at a time.

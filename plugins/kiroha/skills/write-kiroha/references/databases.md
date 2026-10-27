@@ -50,7 +50,7 @@ Save this as `query.kiroha`. It works on all three backends:
 ```kiroha
 type Greeting = {message:str};
 d = db("main");
-row = check(sql(d, q`select ${"Hello, Kiroha!"} as message`).rows.one(), Greeting);
+row = sql(d, q`select ${"Hello, Kiroha!"} as message`).rows.one().as[Greeting];
 row.message
 ```
 
@@ -58,7 +58,7 @@ Holes bind values. They never paste SQL text, so names containing quotes stay
 data. Leave holes outside SQL quotes and comments. Table names, column names
 and SQL keywords must be literal SQL; they cannot come from a hole.
 
-The result is `{rows, count}`. Each row is a record. Use `check` to establish
+The result is `{rows, count}`. Each row is a record. Use `.as[Greeting]` to establish
 the shape of columns before doing shape-specific work. Duplicate column names
 are errors: give joined or calculated columns distinct aliases.
 
@@ -147,7 +147,7 @@ MySQL/MariaDB, fractional or very large parameters bind as exact decimal
 required. Server precision, rounding and JSON normalization still apply.
 To preserve an original exact JSON representation, store `dump(value)` in a
 text column. To read JSON the same way on MySQL and MariaDB, select
-`CAST(doc AS CHAR)`, then `parse(check(row.doc, str))` and validate its shape.
+`CAST(doc AS CHAR)`, then `parse(row.doc.as[str])` and validate its shape.
 
 Unsupported result types, including NULL-only or zero-row columns, raise
 `db` with phase `decode`. Cast dates to text or choose an explicit decimal

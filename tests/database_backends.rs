@@ -104,10 +104,10 @@ fn backend_configuration_is_explicit_and_defaults_to_postgresql() {
 fn mysql_and_mariadb_parameter_and_result_types() {
     for (backend, dsn) in backends() {
         expect(backend,&dsn,r#"type Row={z:null,b:int,s:str,n:num,raw:bytes,huge:int};
-            r=check(sql(db("main"),q`select ${null} as z,cast(${true} as signed) as b,
+            r=(sql(db("main"),q`select ${null} as z,cast(${true} as signed) as b,
                 cast(${"a\u0000é'"} as char) as s,
                 cast(${123456789012345678901234567890.12345678901234567890} as decimal(65,20)) as n,
-                cast(${encode("é")} as binary) as raw,cast(${18446744073709551615} as unsigned) as huge`).rows.one(),Row);
+                cast(${encode("é")} as binary) as raw,cast(${18446744073709551615} as unsigned) as huge`).rows.one()).as(Row);
             [r.z,r.b,r.s,r.n,decode(r.raw),r.huge]"#,
             "[null,1,\"a\\u0000é'\",1.234567890123456789012345678901234567890123456789e29,\"é\",18446744073709551615]");
         expect(
@@ -196,7 +196,7 @@ fn mysql_and_mariadb_json_and_session_reset() {
         let table = table();
         admin(&dsn,&[&format!("create table {table}(id integer primary key, doc JSON, flag BOOLEAN) engine=InnoDB")]);
         let read = if backend == Backend::MariaDb {
-            "parse(check(r.doc,str))"
+            "parse((r.doc).as(str))"
         } else {
             "r.doc"
         };
@@ -204,7 +204,7 @@ fn mysql_and_mariadb_json_and_session_reset() {
             r#"type Doc={{name:str,values:[num]}};
             d=db("main");sql(d,q`insert into {table} values (1,${{{{name:"é",values:[1,2,3]}}}},${{true}})`);
             r=sql(d,q`select doc,flag from {table}`).rows.one();
-            doc=check({read},Doc);
+            doc=({read}).as(Doc);
             sql(d,q`select @kiroha_private := 73 as n`);
             [doc.name,doc.values.sum(),r.flag,sql(d,q`select @kiroha_private as n`).rows.one().n]"#
         );

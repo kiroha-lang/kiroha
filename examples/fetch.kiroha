@@ -5,6 +5,6 @@ repos = ["rust-lang/rust", "tokio-rs/tokio"];
 type Repo = open({full_name:str, stargazers_count:int});
 repos.parallel(2){r =>
   retry({attempts:3, when:{e => e.code == "network" || e.code == "timeout"}, delay:200}){() =>
-    get(url(base, ["repos"] + r.split("/")), {headers:{"User-Agent":"kiroha-example"}}) | check(Repo)
+    get(url(base, ["repos"] + r.split("/")), {headers:{"User-Agent":"kiroha-example"}}).as[Repo]
   }.pick(["full_name", "stargazers_count"])
 }

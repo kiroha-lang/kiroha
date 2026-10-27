@@ -283,10 +283,11 @@ impl<H: Host> Runtime<H> {
         }
         match node {
             Node::Lit(v) => Ctl::Ret(v.clone()),
+            Node::Intrinsic(builtin) => Ctl::Ret(Value::Func(Rc::new(Function::Builtin(*builtin)))),
             Node::Instantiate { callee, schema, .. } => match schema {
                 Some(value) => Ctl::Ret(value.clone()), None => Ctl::Eval(*callee, env),
             },
-            Node::SqlSchema { schema, .. } => Ctl::Ret(schema.as_ref().expect("type-checked SQL schema").clone()),
+            Node::TypeSchema { schema, .. } => Ctl::Ret(schema.as_ref().expect("type-checked validation schema").clone()),
             Node::NumOverflow => self.fail_ctl(t, Fail::Abort(AbortReason::Resource("number"))),
             Node::Name { var, .. } => Ctl::Ret(self.read_var(*var, &env)),
             Node::Array(elems) => {

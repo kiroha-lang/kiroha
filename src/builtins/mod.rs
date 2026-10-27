@@ -1,4 +1,4 @@
-//! The 51 native operations (31 globals and 20 receiver members) (spec §7.1) plus the five schema atoms.
+//! The 50 public native operations (30 globals and 20 receiver members), plus internal validation (spec §7.1) plus the five schema atoms.
 
 pub mod args;
 pub mod callbacks;
@@ -60,7 +60,7 @@ builtins! {
     Dump = "dump", 1, 1, Absent;
     Encode = "encode", 1, 1, Absent;
     Decode = "decode", 1, 1, Absent;
-    Check = "check", 2, 2, Absent;
+    Validate = "as", 2, 2, Absent;
     Maybe = "maybe", 1, 1, Absent;
     Optional = "optional", 1, 1, Absent;
     Open = "open", 1, 1, Absent;
@@ -93,7 +93,7 @@ pub const ATOMS: &[&str] = &["str", "num", "int", "bool", "json"];
 /// The global surface excludes receiver-based collection operations.
 pub const GLOBALS: &[Builtin] = &[
     Builtin::Range, Builtin::Text, Builtin::Number, Builtin::Parse, Builtin::Dump,
-    Builtin::Encode, Builtin::Decode, Builtin::Check, Builtin::Maybe, Builtin::Optional,
+    Builtin::Encode, Builtin::Decode, Builtin::Maybe, Builtin::Optional,
     Builtin::Open, Builtin::Sleep, Builtin::Retry, Builtin::Pages, Builtin::Fail,
     Builtin::Http, Builtin::Get, Builtin::Post, Builtin::Url, Builtin::Db,
     Builtin::Sql, Builtin::Tx, Builtin::Serve, Builtin::Input, Builtin::Reply,

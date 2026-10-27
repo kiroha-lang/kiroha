@@ -1,5 +1,5 @@
 type Item={id:int,price:num};
-check(get("http://127.0.0.1:8765/items"),[Item])
+get("http://127.0.0.1:8765/items").as[[Item]]
   .filter{item=>item.price>2}
   .map{item=>item.id}
 // => [2,3]

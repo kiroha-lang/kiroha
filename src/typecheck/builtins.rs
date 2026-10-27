@@ -239,7 +239,7 @@ impl Checker<'_> {
             Dump => (vec![j.clone()], s.clone(), None),
             Encode => (vec![s.clone()], ty(Type::Bytes), None),
             Decode => (vec![ty(Type::Bytes)], s.clone(), None),
-            Check => {
+            Validate => {
                 let value = generic("Value");
                 (vec![value, ty(Type::Schema(r.clone()))], r.clone(), None)
             }

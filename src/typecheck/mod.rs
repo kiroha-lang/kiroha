@@ -592,6 +592,7 @@ impl Checker<'_> {
                 _ => unreachable!("source literals are scalar"),
             },
             Node::NumOverflow => ty(Type::Num),
+            Node::Intrinsic(builtin) => self.builtin_type(builtin, None, span)?,
             Node::Name {
                 var: Var::TypeAlias(index),
                 ..
@@ -638,10 +639,10 @@ impl Checker<'_> {
                     self.instantiate_function(callee, Some(args), span)?
                 }
             }
-            Node::SqlSchema { annotation, .. } => {
+            Node::TypeSchema { annotation, .. } => {
                 let target = self.annotation(&annotation)?;
                 let value = self.schema_value(&target, span)?;
-                if let Node::SqlSchema { schema, .. } = &mut self.program.nodes[id as usize] {
+                if let Node::TypeSchema { schema, .. } = &mut self.program.nodes[id as usize] {
                     *schema = Some(value);
                 }
                 ty(Type::Schema(target))
@@ -1197,7 +1198,7 @@ impl Checker<'_> {
             let processed = if matches!(
                 f.builtin,
                 Some(Builtin::Maybe | Builtin::Optional | Builtin::Open)
-            ) || matches!(f.builtin, Some(Builtin::Check | Builtin::Input))
+            ) || matches!(f.builtin, Some(Builtin::Validate | Builtin::Input))
                 && position == 1
             {
                 ty(Type::Schema(
@@ -1257,7 +1258,7 @@ impl Checker<'_> {
             let processed = if matches!(
                 f.builtin,
                 Some(Builtin::Maybe | Builtin::Optional | Builtin::Open)
-            ) || matches!(f.builtin, Some(Builtin::Check | Builtin::Input))
+            ) || matches!(f.builtin, Some(Builtin::Validate | Builtin::Input))
                 && index == 1
             {
                 ty(Type::Schema(
@@ -1286,7 +1287,7 @@ impl Checker<'_> {
         use Builtin::*;
         let receiver = f.receiver.as_ref().map(|r| self.solver.resolve(r));
         match f.builtin {
-            Some(Check) => return Ok(self.schema_description(&args[1], false, span)?.0),
+            Some(Validate) => return Ok(self.schema_description(&args[1], false, span)?.0),
             Some(Input) => {
                 return Ok(if args.len() == 1 {
                     ty(Type::Json)

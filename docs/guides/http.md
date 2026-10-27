@@ -79,12 +79,11 @@ Save this as `fetch.kiroha`:
 
 ```kiroha
 type Item = {name:str, price:num};
-(get("http://127.0.0.1:8765/items.json")
-  | check([Item])).map{item => item.name}
+get("http://127.0.0.1:8765/items.json").as[[Item]].map{item => item.name}
 // ["Tea","Cake"]
 ```
 
-`get` reads the response as JSON. `check` makes sure it is a list of items
+`get` reads the response as JSON. `.as[[Item]]` makes sure it is a list of items
 with the expected fields. `map` selects each name. In a second terminal, open the same folder and run:
 
 ```sh

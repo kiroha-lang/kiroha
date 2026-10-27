@@ -582,6 +582,29 @@ impl<'a> Parser<'a> {
                     let optional = self.at(P::QDot);
                     self.advance();
                     let (w, wsp) = self.word()?;
+                    if !optional && &*w == "as" && self.at(P::LParen) {
+                        let args = self.arguments()?;
+                        if args.len() != 1 {
+                            return Err(syntax("as requires one schema descriptor", self.prev_span()));
+                        }
+                        let span = self.prog.span(e).join(self.prev_span());
+                        e = self.validate_with_schema(e, args[0], span);
+                        continue;
+                    }
+                    if !optional && &*w == "as" && self.at(P::LBracket) {
+                        let saved = self.pos;
+                        self.advance();
+                        if let Ok(annotation) = self.type_expr() {
+                            if self.at(P::RBracket) {
+                                let end = self.advance().span;
+                                let span = self.prog.span(e).join(end);
+                                let schema = self.add(Node::TypeSchema { annotation, schema: None }, span);
+                                e = self.validate_with_schema(e, schema, span);
+                                continue;
+                            }
+                        }
+                        self.pos = saved;
+                    }
                     let span = self.prog.span(e).join(wsp);
                     e = self.add(Node::Member { recv: e, name: w, optional }, span);
                     if self.at(P::LBrace) {
@@ -633,12 +656,14 @@ impl<'a> Parser<'a> {
         let call = self.add(Node::Call { callee, args, cb: None }, span);
         let Some(annotation) = annotation else { return Ok(call) };
         let rows = self.add(Node::Member { recv: call, name: Rc::from("rows"), optional: false }, span);
-        let schema = self.add(Node::SqlSchema { annotation, schema: None }, span);
+        let schema = self.add(Node::TypeSchema { annotation, schema: None }, span);
         let schema_array = self.add(Node::Array(vec![schema]), span);
-        // This validation is intrinsic to the syntax, independent of a local
-        // variable named `check`.
-        let check = self.add(Node::Name { name: Rc::from("check"), var: Var::Prelude(crate::builtins::prelude_index("check").unwrap()) }, span);
-        Ok(self.add(Node::Call { callee: check, args: vec![rows, schema_array], cb: None }, span))
+        Ok(self.validate_with_schema(rows, schema_array, span))
+    }
+
+    fn validate_with_schema(&mut self, value: NodeId, schema: NodeId, span: Span) -> NodeId {
+        let validate = self.add(Node::Intrinsic(crate::builtins::Builtin::Validate), span);
+        self.add(Node::Call { callee: validate, args: vec![value, schema], cb: None }, span)
     }
 
     fn query_node(&mut self, q: Rc<crate::lexer::QueryTok>, sp: Span) -> PResult<NodeId> {

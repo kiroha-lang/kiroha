@@ -51,9 +51,9 @@ fn declarations_and_structural_compatibility() {
         ("type Point={x:num,y:num};p:Point={x:1,y:2};p.x+p.y", "3"),
         ("type A={x:num};type B={x:num};fun f(p:A):num p.x end fun f p:B={x:2};f(p)", "2"),
         ("type Point={x:num,y:num};fun f(p:Point):num p.x+p.y end fun f f({x:1,y:2,label:\"ok\"})", "3"),
-        ("type Point={x:num,y:num};check({x:1,y:2},Point)", "{\"x\":1,\"y\":2}"),
-        ("type Point={x:num};try check({x:1,y:2},Point) catch {e=>e.code}", "\"validation\""),
-        ("type Point={x:num};check({x:1,y:2},open(Point))", "{\"x\":1,\"y\":2}"),
+        ("type Point={x:num,y:num};({x:1,y:2}).as(Point)", "{\"x\":1,\"y\":2}"),
+        ("type Point={x:num};try ({x:1,y:2}).as(Point) catch {e=>e.code}", "\"validation\""),
+        ("type Point={x:num};({x:1,y:2}).as(open(Point))", "{\"x\":1,\"y\":2}"),
         ("type P={name:str,nick:optional(maybe(str))};p:P={name:\"Ada\"};p?.nick??p.name", "\"Ada\""),
         ("type P={x:num};fun make(p:P):(num)=>num {n=>p.x+n} end fun make make({x:2})(3)", "5"),
         ("type=1", "parse"),
@@ -75,13 +75,13 @@ fn declarations_and_structural_compatibility() {
 fn generic_aliases_and_function_calls() {
     for (source, expected) in [
         ("type Box<T>={value:T};x:Box<num>={value:3};x.value", "3"),
-        ("type Box<T>={value:T};check({value:3},Box<num>)", "{\"value\":3}"),
+        ("type Box<T>={value:T};({value:3}).as(Box<num>)", "{\"value\":3}"),
         ("fun identity<T>(value:T):T value end fun identity [identity(3),identity<str>(\"x\")]", "[3,\"x\"]"),
         ("type Box<T>={value:T};fun identity<T>(v:T):T v end fun identity identity<Box<num>>({value:3}).value", "3"),
         ("fun first<T>(xs:[T]):T xs.one() end fun first first([4])", "4"),
         ("fun transform<T,U>(x:T){step:(T)=>U}:U step(x) end fun transform transform(2){x=>text(x)}", "\"2\""),
         ("fun identity<T>(v:T):T v end fun identity f=identity<num>;f(2)", "2"),
-        ("type Point={x:num};fun validate<T>(v:json,s:schema<T>):T check(v,s) end fun validate validate({x:1},Point).x", "1"),
+        ("type Point={x:num};fun validate<T>(v:json,s:schema<T>):T (v).as(s) end fun validate validate({x:1},Point).x", "1"),
         ("type Pair<A,B>={left:A,right:B};p:Pair<str,[int]>={left:\"x\",right:[2]};p.right.one()", "2"),
         ("type Option<T>=maybe(T);x:Option<int>=null;if x==null then 0 else x+1", "0"),
         ("[0.1,0.2].fold<num>(0){(acc,n)=>acc+n}", "0.3"),
@@ -92,7 +92,7 @@ fn generic_aliases_and_function_calls() {
     rejected("fun id<T>(v:T):T v end fun id id<str>(1)", "type");
     rejected("fun id<T>(v:T):T v end fun id id<num,str>(1)", "type_arity");
     rejected("fun bad<T>(v:T):num v+1 end fun bad", "type");
-    rejected("fun bad<T>(v:T):T check(v,T) end fun bad", "name");
+    rejected("fun bad<T>(v:T):T (v).as(T) end fun bad", "name");
 }
 #[test]
 fn lightweight_inference_requires_annotations_instead_of_any() {
@@ -159,10 +159,10 @@ fn explicit_any_keeps_dynamic_checks_available() {
 #[test]
 fn schema_bridge_scope_and_callback_variance() {
     for (source, expected) in [
-        ("type Nothing=never;try check(1,Nothing) catch {e=>e.code}", "\"validation\""),
-        ("type Dynamic=any;check({x:1},Dynamic).x", "1"),
-        ("type Empty=null;check(null,Empty)", "null"),
-        ("type P={x:num};fun f(p:P):num fun read():num p.x end fun read read() end fun f do {type P=str;[f({x:2}),check(\"s\",P)]}", "[2,\"s\"]"),
+        ("type Nothing=never;try (1).as(Nothing) catch {e=>e.code}", "\"validation\""),
+        ("type Dynamic=any;({x:1}).as(Dynamic).x", "1"),
+        ("type Empty=null;(null).as(Empty)", "null"),
+        ("type P={x:num};fun f(p:P):num fun read():num p.x end fun read read() end fun f do {type P=str;[f({x:2}),(\"s\").as(P)]}", "[2,\"s\"]"),
         ("type Mapper=(num)=>num;fun f(x:num){step:Mapper}:num step(x) end fun f f(2){x=>x+1}", "3"),
         ("f:(int)=>num={x:num=>x+1};f(2)", "3"),
         ("type Request={method:str,path:str,params:{},query:{},headers:{},body:bytes};f:(Request)=>json=input;f({method:\"POST\",path:\"/\",params:{},query:{},headers:{\"content-type\":[\"application/json\"]},body:encode(\"1\")})", "1"),
@@ -179,7 +179,7 @@ fn schema_bridge_scope_and_callback_variance() {
     );
     rejected("[1].map{()=>1}", "arity");
     rejected(
-        "type Function=(num)=>num;check(1,Function)",
+        "type Function=(num)=>num;(1).as(Function)",
         "type_reification",
     );
     rejected("do {type Hidden=num;0};x:Hidden=1", "type_name");
@@ -252,4 +252,33 @@ fn public_native_signatures_match_runtime_arities() {
             "{source}"
         );
     }
+}
+
+#[test]
+fn as_suffix_validates_values_and_provides_the_declared_type() {
+    for (source, expected) in [
+        (r#"type Point={x:num,y:num}; parse("{\"x\":1,\"y\":2}").as[Point].x"#, "1"),
+        (r#"type Point={x:num}; parse("[{\"x\":1},{\"x\":2}]").as[[Point]].map{p=>p.x}"#, "[1,2]"),
+        (r#"type P={x:num}; try parse("{\"x\":\"bad\"}").as[P] catch {e=>[e.code,e.data.path]}"#, r#"["validation",["x"]]"#),
+        (r#"type P={x:num}; try {x:1,y:2}.as[P] catch {e=>e.code}"#, r#""validation""#),
+        (r#"type P={x:num}; {x:1,y:2}.as[open(P)].y"#, "2"),
+        (r#"check=123; parse("1").as[int]+1"#, "2"),
+        (r#"r={as:[4,5]}; [r.as[0],r["as"][1]]"#, "[4,5]"),
+        (r#"r={as:{x:num=>x+1}}; r["as"](2)"#, "3"),
+        (r#"type P={x:num}; type Box<T>={value:T}; {value:{x:3}}.as[Box<P>].value.x"#, "3"),
+    ] {
+        let r = run(source, None);
+        assert_eq!(r.code, 0, "{source}: {} {}", r.stdout, r.stderr);
+        assert_eq!(result(&r), expected, "{source}");
+    }
+    rejected("type P={x:num};parse(\"{}\").as[P].missing", "type");
+    rejected("check", "name");
+    rejected("check(1,int)", "name");
+    rejected("parse(\"1\").as[Unknown]", "type_name");
+    rejected("fun f<T>(v:json):T v.as[T] end fun f f<num>(1)", "type_reification");
+    rejected("type F=(num)=>num; parse(\"1\").as[F]", "type_reification");
+    assert_eq!(result(&run("type P={x:num};fun validate<T>(v:json,s:schema<T>):T v.as(s) end fun validate validate({x:7},P).x", None)), "7");
+    let logged = run(r#"log("once").as[null]"#, Some(r#"{"format":"kiroha-host/1","capabilities":{"log":true}}"#));
+    assert_eq!(logged.code, 0, "{} {}", logged.stdout, logged.stderr);
+    assert_eq!(logged.stderr, "\"once\"\n");
 }

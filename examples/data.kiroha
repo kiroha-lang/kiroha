@@ -5,7 +5,7 @@ orders = [
   {id:3, customer:"ada", total:7.40, items:[]}
 ];
 type Order = {id:int, customer:str, total:num, items:[str]};
-checked = check(orders, [Order]);
+checked = orders.as[[Order]];
 by_customer = ((checked.group{o => o.customer}).map{g => {customer:g.key, orders:g.items.size, spent: (g.items.map{o => o.total}).sum()}}).sort{r => 0 - r.spent};
 {
   customers: by_customer,

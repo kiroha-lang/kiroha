@@ -187,11 +187,11 @@ member call with no ordinary arguments, the callback may follow the name:
 argument: it means `f(lhs, a, b)`. The callback stays separate:
 
 ```kiroha
-[1, 2, 3] | check([int]) | dump()     // "[1,2,3]"
+[1, 2, 3].as[[int]] | dump()     // "[1,2,3]"
 ```
 
 A pipe stage is always a name or dotted path followed by `(...)`:
-`[1] | check` and `[1] | (check)()` are parse errors. Dotted paths use ordinary
+`[1] | dump` and `[1] | (dump)()` are parse errors. Dotted paths use ordinary
 member selection, including record fields: `ns={show:dump}; [1] | ns.show()`.
 For collection work, use method chains: `[3,1,2].sort().map{x=>x*2}.sum()`.
 
@@ -281,7 +281,7 @@ Schemas validate data without coercion. The atoms are `str num int bool json`;
 
 ```kiroha
 type User = {id:int, name:str, email:maybe(str), nick:optional(str)};
-check({id:1, name:"ada", email:null}, User)
+({id:1, name:"ada", email:null}).as[User]
 // {"id":1,"name":"ada","email":null}
 ```
 
@@ -289,11 +289,11 @@ check({id:1, name:"ada", email:null}, User)
 - `optional(S)` allows the field to be *absent* (but not `null`); combine as
   `optional(maybe(str))`.
 - `open(R)` allows and preserves extra JSON fields.
-- `check` returns its input unchanged or raises `validation` with
+- `.as[...]` returns its input unchanged or raises `validation` with
   `{path, expected, actual}` for the first failure:
 
 ```kiroha
-try check({users:[{id:1},{id:"x"}]}, {users:[{id:int}]}) catch {e => e.data}
+try ({users:[{id:1},{id:"x"}]}).as({users:[{id:int}]}) catch {e => e.data}
 // {"path":["users",1,"id"],"expected":"int","actual":"string"}
 ```
 
@@ -356,7 +356,7 @@ retry({attempts:3, when:{e => e.code == "timeout" || e.code == "network"}, delay
 type Page=open({items:[json],next:maybe(str)});
 seed:maybe(str)=null;
 pages(seed){cursor =>
-  p = check(get("https://api.example/items", {query:{cursor}}),Page);
+  p = (get("https://api.example/items", {query:{cursor}})).as[Page];
   {items:p.items, next:p.next}
 }
 ```

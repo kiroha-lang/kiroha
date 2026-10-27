@@ -1,5 +1,5 @@
 // Supply absolute read/write roots in the host configuration.
-rows=check(parse(decode(read("input.json"))),[{price:num,quantity:int}]);
+rows=(parse(decode(read("input.json")))).as[[{price:num,quantity:int}]];
 summary={count:rows.size,total:rows.map{row=>row.price*row.quantity}.sum()};
 write("summary.json",encode(dump(summary)));
 summary
